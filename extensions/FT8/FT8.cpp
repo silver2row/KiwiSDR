@@ -430,7 +430,8 @@ static void ft8_autorun(int instance, bool initial)
     asprintf(&geoloc, "0%%20decoded%s%s", pre, rgrid);
 
 	bool ok = internal_conn_setup(ICONN_WS_SND | ICONN_WS_EXT, &iconn[instance], instance, PORT_BASE_INTERNAL_FT8,
-	    WS_FL_IS_AUTORUN | (initial? WS_FL_INITIAL : 0),
+	    //WS_FL_IS_AUTORUN | (initial? WS_FL_INITIAL : 0),
+	    WS_FL_IS_AUTORUN | (preempt? WS_FL_IS_PREMPTABLE : 0),
         "usb", FT8_PASSBAND_LO, FT8_PASSBAND_HI, if_freq_kHz, ident_user, geoloc, "FT8");
     free(ident_user); free(geoloc);
     if (!ok) {

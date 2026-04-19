@@ -1080,7 +1080,8 @@ void wspr_autorun(int instance, bool initial)
     asprintf(&geoloc, "0%%20decoded%s%s", pre, rgrid);
 
 	bool ok = internal_conn_setup(ICONN_WS_SND | ICONN_WS_EXT, &iconn[instance], instance, PORT_BASE_INTERNAL_WSPR,
-        WS_FL_IS_AUTORUN | (initial? WS_FL_INITIAL : 0),
+        //WS_FL_IS_AUTORUN | (initial? WS_FL_INITIAL : 0),
+	    WS_FL_IS_AUTORUN | (preempt? WS_FL_IS_PREMPTABLE : 0),
         "usb", AUTORUN_BFO - AUTORUN_FILTER_BW/2, AUTORUN_BFO + AUTORUN_FILTER_BW/2, if_freq_kHz,
         ident_user, geoloc, "wspr");
     free(ident_user); free(geoloc);
