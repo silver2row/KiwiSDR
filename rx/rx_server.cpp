@@ -781,7 +781,6 @@ retry:
 		}
 
 		if (st->type == STREAM_MONITOR) {
-		    rx_channels[c->rx_channel].conn = c;
 		    c->isMaster = true;
         }
         
