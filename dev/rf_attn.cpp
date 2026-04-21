@@ -22,6 +22,7 @@ Boston, MA  02110-1301, USA.
 #include "kiwi.h"
 #include "config.h"
 #include "cfg.h"
+#include "net.h"
 #include "fpga.h"
 #include "printf.h"
 
@@ -40,7 +41,7 @@ float rf_attn_validate(float attn_dB)
 
 void rf_attn_set(float attn_dB)
 {
-    if (!kiwi.hw || kiwi.model == KiwiSDR_1) return;
+    if (!kiwi.hw || !(kiwi.model == KiwiSDR_2 && net.serno > 20000 && net.serno < 23000)) return;
     attn_dB = rf_attn_validate(attn_dB);
     lprintf("rf_attn internal %.1f\n", attn_dB);
     bool debug = false;
