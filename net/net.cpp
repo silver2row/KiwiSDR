@@ -889,6 +889,7 @@ bool internal_conn_setup(u4_t ws, internal_conn_t *iconn, int instance, int port
         kiwi_strncpy(mcs->remote_ip, "127.0.0.1", NET_ADDRSTRLEN);
         mcs->remote_port = local_port;
         mcs->local_port = net.port;
+        //printf("internal_conn_setup: %s SND instance=%d uri=%s port=%d\n", ident_user, instance, mc_fail->uri, mc_fail->remote_port);
         csnd = rx_server_websocket(WS_INTERNAL_CONN, mcs, ws_flags);
         if (csnd == NULL) goto error;
         iconn->csnd = csnd;
@@ -911,6 +912,7 @@ bool internal_conn_setup(u4_t ws, internal_conn_t *iconn, int instance, int port
         kiwi_strncpy(mcw->remote_ip, "127.0.0.1", NET_ADDRSTRLEN);
         mcw->remote_port = local_port + 1;
         mcw->local_port = net.port;
+        //printf("internal_conn_setup: %s WF instance=%d uri=%s port=%d\n", ident_user, instance, mc_fail->uri, mc_fail->remote_port);
         cwf = rx_server_websocket(WS_INTERNAL_CONN, mcw, ws_flags);
         if (cwf == NULL) goto error;
         iconn->cwf = cwf;
@@ -936,6 +938,7 @@ bool internal_conn_setup(u4_t ws, internal_conn_t *iconn, int instance, int port
         kiwi_strncpy(mce->remote_ip, "127.0.0.1", NET_ADDRSTRLEN);
         mce->remote_port = local_port + 2;
         mce->local_port = net.port;
+        //printf("internal_conn_setup: %s EXT instance=%d uri=%s port=%d\n", ident_user, instance, mc_fail->uri, mc_fail->remote_port);
         cext = rx_server_websocket(WS_INTERNAL_CONN, mce, ws_flags);
         if (cext == NULL) goto error;
         iconn->cext = cext;

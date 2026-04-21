@@ -1,7 +1,7 @@
 
 # See HOWTO.update.database.txt
 
-ABYY := a25
+ABYY := a26
 
 include ../../Makefile.comp.inc
 
@@ -43,6 +43,9 @@ run: $(PROG)
 	@echo "VERIFY: There should be matches for Rádio Clube do Pará below"
 	@grep 'Rádio Clube do Pará' ../../dx/EiBi.h
 	wc ../../dx/EiBi.h EiBi.h.prev
+
+diff:
+	diff EiBi.h.prev ../../dx/EiBi.h
 
 clean:
 	rm -f $(PROG) *.o *.d eibi.csv sked-current.* EiBi.h.prev README.txt

@@ -94,9 +94,9 @@ void c2s_mon(void *param)
                     }
                 }
             
-                if (rx == -1 || stop) send_msg(conn_mon, false, "MSG audio_camp=1,0");      // audio disconnect
+                if (rx < 0 || rx >= rx_chans || stop) send_msg(conn_mon, false, "MSG audio_camp=1,0");      // audio disconnect
                 conn_mon->camped_rx = -1;
-                if (rx == -1) continue;
+                if (rx < 0 || rx >= rx_chans) continue;
 
                 int okay = 0;
                 rx_chan_t *rxc = &rx_channels[rx];

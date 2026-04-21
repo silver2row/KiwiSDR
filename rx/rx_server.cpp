@@ -500,7 +500,8 @@ retry:
 	    st->type, st->uri,
 	    isWB_conn? ",WIDEBAND" : "", internal? ",INTERNAL" : "", isKiwi_UI? "" : ",NON-KIWI",
 	    (ws_flags & WS_FL_PREEMPT_AUTORUN)? ",PREEMPT" : "", (ws_flags & WS_FL_IS_AUTORUN)? ",AUTORUN" : "",
-	    isRetry? ",RETRY" : "",
+	    (ws_flags & WS_FL_IS_PREMPTABLE)? ",PREEMPTABLE" : "", (ws_flags & WS_FL_INITIAL)? ",INITIAL" : "",
+	    (ws_flags & WS_FL_NO_LOG)? ",NO_LOG" : "", isRetry? ",RETRY" : "",
 	    ip_forwarded, mc->remote_port, tstamp, mc);
 	bool multiple = false;
 	int cn, cnfree;
@@ -629,8 +630,9 @@ retry:
         
         {
             if (!cother) {
-                // if autorun on configurations with limited wf chans (e.g. rx8_wf2) never use the wf chans at all
-                rx_free_count_e wf_flags = ((ws_flags & WS_FL_IS_AUTORUN) && !(ws_flags & WS_FL_INITIAL))? RX_COUNT_NO_WF_AT_ALL : RX_COUNT_NO_WF_FIRST;
+                // if autorun on configurations with limited wf chans (e.g. rx8_wf2) only use the wf chans if preemptable
+                //rx_free_count_e wf_flags = ((ws_flags & WS_FL_IS_AUTORUN) && !(ws_flags & WS_FL_INITIAL))? RX_COUNT_NO_WF_AT_ALL : RX_COUNT_NO_WF_FIRST;
+                rx_free_count_e wf_flags = ((ws_flags & WS_FL_IS_AUTORUN) && !(ws_flags & WS_FL_IS_PREMPTABLE))? RX_COUNT_NO_WF_AT_ALL : RX_COUNT_NO_WF_FIRST;
                 rx_free_count_e flags = ((isKiwi_UI || isWF_conn) && !isNo_WF)? RX_COUNT_ALL : wf_flags;
                 int preempt = 0;
                 int free = rx_chan_free_count(flags, &rx_n, &heavy, &preempt);
@@ -779,7 +781,6 @@ retry:
 		}
 
 		if (st->type == STREAM_MONITOR) {
-		    rx_channels[c->rx_channel].conn = c;
 		    c->isMaster = true;
         }
         

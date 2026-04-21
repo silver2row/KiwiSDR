@@ -95,8 +95,8 @@ typedef struct {
 #endif
 
 #define SPI_SETUP_MODE      0
-#define SPI_KIWISDR_1_MODE  0
-#define SPI_KIWISDR_2_MODE  1
+#define SPI_MODE_NO_BEADS   0
+#define SPI_MODE_BEADS      1
 
 void spi_dev_init(int spi_clkg, int spi_speed);
 void spi_dev_init2();

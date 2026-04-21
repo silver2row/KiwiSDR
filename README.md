@@ -1,4 +1,4 @@
-[updated 10 November 2024]
+[updated 22 April 2026]
 
 [![KiwiSDR](http://www.kiwisdr.com/ks/kiwi2.780px.jpg)](http://www.kiwisdr.com/ks/kiwi2.1024px.jpg)
 
@@ -54,7 +54,6 @@ This SDR is a bit different. It has a web interface that can be used by up to fo
 * Easy hardware and software setup. Browser-based configuration interface.
 * KiwiSDR 2 features:
     * Reverse proxy service enabled by default to ease network installation.
-    * 0 - 31.5 dB electronic attenuator.
     * External ADC clock input.
     * Built-in self test for checking the RF path.
     * 5V input reverse polarity protection.

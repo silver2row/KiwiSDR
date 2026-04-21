@@ -3,6 +3,10 @@ CHANGE_LOG
 For the Github commit log see here: github.com/jks-prv/KiwiSDR/commits/master
     Older commits: github.com/jks-prv/Beagle_SDR_GPS/commits/master
 
+v1.836  April 22, 2026
+    rx8wf2 mode: autoruns can use rx channels 0 & 1 if they are preemptable. (thanks OZ1AXG)
+    Updated to EiBi-A26 database. (thanks fourbayarray)
+
 v1.835  April 17, 2026
     Make kiwirecorder connections originating from kiwisdr.com exempt from the latest kiwirecorder
     filtering. This allows the TDoA and (upcoming) FreeDV extensions to continue to work.

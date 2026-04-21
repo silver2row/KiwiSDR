@@ -72,8 +72,9 @@ const char * const ws_mode_s[] = { "alloc", "lookup", "close", "internal" };
 #define WS_FL_NONE              0x00
 #define WS_FL_PREEMPT_AUTORUN   0x01    // should preempt an autorun
 #define WS_FL_IS_AUTORUN        0x02    // is an autorun
-#define WS_FL_INITIAL           0x04    // initial start (not victim restart)
-#define WS_FL_NO_LOG            0x08    // don't log arrived/leaving msgs
+#define WS_FL_IS_PREMPTABLE     0x04    // preemptable autorun
+#define WS_FL_INITIAL           0x08    // initial start (not victim restart)
+#define WS_FL_NO_LOG            0x10    // don't log arrived/leaving msgs
 conn_t *rx_server_websocket(websocket_mode_e mode, struct mg_connection *mc, u4_t ws_flags = 0);
 
 typedef enum { RX_CHAN_ENABLE, RX_CHAN_DISABLE, RX_DATA_ENABLE, RX_CHAN_FREE } rx_chan_action_e;

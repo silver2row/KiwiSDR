@@ -4,6 +4,7 @@ CAUTION:
 After much confusion figured out how downloading from eibispace.de will break the file UTF-8 encoding.
 Underlying cause is not understood. In browser DO NOT use right-click "download linked file" function.
 Instead, use the wget/iconv combination shown. Multiple browsers have this same issue.
+=> This is now done automatically by the Makefile.
 
 Download .csv and README.TXT files as follows.
 Change Makefile:ABYY to whatever is current on eibispace.de webpage (e.g. "b24")
@@ -17,82 +18,4 @@ Check that "Rádio Clube do Pará" appears correctly in EiBi.h
 
 openwebrx.js:dx.db_s: "EiBi-[AB]yy" string is automatically updated.
 
-
-History:
-
-A24 updated 5/2/2024
-    ====> 1 16.30 VTX1 Indian Navy
-    ====> 5 20.50 RJH99 Nizhni Novgorod
-    ====> 6 621.00 VoA Deewa Radio
-    ====> 72 2182.00 Stockholm Radio
-    ...
-    ident_dict_n=874 ident_size=15989
-    types_total=5722
-     2423 bcast
-      350 util
-       63 time
-     1167 ale
-      131 hfdl
-      108 milcom
-      116 cw
-       17 fsk
-       84 fax
-      587 aero
-      321 marine
-      355 spy
-    entries=12324 max_ident=26 max_same_freq_diff_ident=72(2182.00)
-
-B24 updated 11/5/2024
-    ====> 1 16.30 VTX1 Indian Navy
-    ====> 5 20.50 RJH99 Nizhni Novgorod
-    ====> 6 1566.00 Voice of America
-    ====> 73 2182.00 Stockholm Radio
-    ident_dict_n=859 ident_size=15841
-    types_total=5437
-     2133 bcast
-      376 util
-       64 time
-     1167 ale
-      131 hfdl
-       82 milcom
-      122 cw
-       21 fsk
-       80 fax
-      579 aero
-      330 marine
-      352 spy
-    entries=11455 max_ident=26 max_same_freq_diff_ident=73(2182.00)
-    wc ../../dx/EiBi.h EiBi.h.prev
-       12341  186746 1245460 ../../dx/EiBi.h
-       13227  200798 1338724 EiBi.h.prev
-       25568  387544 2584184 total
-
-A25 updated 4/3/2025
-    ====> 1 16.30 VTX1 Indian Navy
-    ====> 5 20.50 RJH99 Nizhni Novgorod
-    ====> 73 2182.00 Stockholm Radio
-    
-    
-    ident_dict_n=823 ident_size=15173
-    types_total=5119
-     1842 bcast
-      369 util
-       64 time
-     1167 ale
-      124 hfdl
-       82 milcom
-      119 cw
-       21 fsk
-       80 fax
-      580 aero
-      335 marine
-      336 spy
-    entries=10843 max_ident=26 max_same_freq_diff_ident=73(2182.00)
-    VERIFY: There should be matches for Rádio Clube do Pará below
-      {   690.00,    0, 2400,   _|0xfe00|BCST| AM,   36, "BRA", "P",   "B"   },  //  -bcast Rádio Clube do Pará
-      {  4885.00,    0, 2400,   _|0xfe00|BCST| AM,   36, "BRA", "P",   "B"   },  //  -bcast Rádio Clube do Pará
-      /*   36 */ "Rádio Clube do Pará",
-    wc ../../dx/EiBi.h EiBi.h.prev
-       11693  176748 1179328 ../../dx/EiBi.h
-       11693  176748 1179328 EiBi.h.prev
-       23386  353496 2358656 total
+"m diff" compares against EiBi.h.prev file.

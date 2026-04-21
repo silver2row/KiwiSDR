@@ -238,7 +238,7 @@ function ft8_controls_setup()
 					//w3_div('', 'From <b><a href="https://github.com/kgoba/ft8_lib" target="_blank">ft8_lib</a></b> Karlis Goba &copy; 2018')
 				),
             
-				w3_divs('id-ft8-container w3-margin-T-6/w3-tspace-8',
+				w3_divs('w3-margin-T-6/w3-tspace-8',
 
                w3_inline('/w3-margin-between-32',
                   w3_div('', 'From <b><a href="https://github.com/kgoba/ft8_lib" target="_blank">ft8_lib</a></b>'),
@@ -247,21 +247,22 @@ function ft8_controls_setup()
    
                w3_div('id-ft8-err w3-margin-T-10 w3-padding-small w3-css-yellow w3-width-fit w3-hide'),
 
-
-               w3_inline('/w3-margin-between-16',
-                  w3_select_hier('id-ft8-freq w3-text-red w3-width-auto', '', 'freq', 'ft8.freq_idx', -1, ft8.freq_s, 'ft8_freq_cb'),
-                  w3_select('w3-text-red', '', 'mode', 'ft8.mode', ft8.FT8, ft8.mode_s, 'ft8_mode_cb')
-               ),
-
-               w3_inline('/w3-margin-between-16',
-                  w3_button('w3-padding-smaller w3-css-yellow', 'Clear', 'ft8_clear_button_cb'),
-                  w3_checkbox('/w3-label-inline w3-label-not-bold/', 'freq sort', 'ft8.freq_sort', false, 'ft8_freq_sort_cb'),
-                  (dbgUs? w3_button('id-ft8-test w3-padding-smaller w3-aqua', 'Test', 'ft8_test_cb') : '')
-               ),
-
-               w3_inline('/w3-margin-between-8',
-                  w3_div('cl-ft8-text', 'reporter call '+ callsign),
-                  w3_div('id-ft8-rgrid cl-ft8-text', 'reporter grid '+ grid + (cfg.ft8.GPS_update_grid? ' (GPS)':''))
+               w3_divs('id-ft8-container/w3-tspace-8',
+                  w3_inline('/w3-margin-between-16',
+                     w3_select_hier('id-ft8-freq w3-text-red w3-width-auto', '', 'freq', 'ft8.freq_idx', -1, ft8.freq_s, 'ft8_freq_cb'),
+                     w3_select('w3-text-red', '', 'mode', 'ft8.mode', ft8.FT8, ft8.mode_s, 'ft8_mode_cb')
+                  ),
+   
+                  w3_inline('/w3-margin-between-16',
+                     w3_button('w3-padding-smaller w3-css-yellow', 'Clear', 'ft8_clear_button_cb'),
+                     w3_checkbox('/w3-label-inline w3-label-not-bold/', 'freq sort', 'ft8.freq_sort', false, 'ft8_freq_sort_cb'),
+                     (dbgUs? w3_button('id-ft8-test w3-padding-smaller w3-aqua', 'Test', 'ft8_test_cb') : '')
+                  ),
+   
+                  w3_inline('/w3-margin-between-8',
+                     w3_div('cl-ft8-text', 'reporter call '+ callsign),
+                     w3_div('id-ft8-rgrid cl-ft8-text', 'reporter grid '+ grid + (cfg.ft8.GPS_update_grid? ' (GPS)':''))
+                  )
                )
             )
 			)
@@ -275,6 +276,7 @@ function ft8_controls_setup()
    ft8_clear_button_cb();
 
 	if (ext_nom_sample_rate() != 12000) {
+	   console.log('FT8: not in 12 kHz mode');
 	   w3_hide2('id-ft8-container', true);
 	   w3_hide2('id-ft8-err', false);
 	   w3_innerHTML('id-ft8-err',
