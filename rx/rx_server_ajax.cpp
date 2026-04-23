@@ -112,25 +112,25 @@ char *rx_server_ajax(struct mg_connection *mc, char *ip_forwarded, void *ev_data
 	// Using AJAX to upload a file to the server is required because browser javascript doesn't have access to the
 	// filesystem of the client. But a FormData() object passed to kiwi_ajax_send() can specify a file.
 	case AJAX_PHOTO: {
-		char *vname, *fname;
+		char *vname = NULL, *fname = NULL;
 		const char *data = NULL;
 		int key_cmp, data_len = 0, rc = 0;
 		
 		printf("PHOTO UPLOAD REQUESTED from %s\n", ip_unforwarded);
 		//printf("PHOTO UPLOAD REQUESTED key=%s ckey=%s\n", mc->query, current_authkey);
 		
-		if (!isLocalIP) rc = 5;
-
-		if (rc == 0) {
+		if (isLocalIP) {
             int key_cmp = -1;
             if (kiwi_nonEmptyStr(mc->query) && current_authkey) {
                 key_cmp = strcmp(mc->query, current_authkey);
-                kiwi_asfree(current_authkey);
-                current_authkey = NULL;
             }
             if (key_cmp != 0)
                 rc = 1;
+        } else {
+            rc = 5;
         }
+        kiwi_asfree(current_authkey);
+        current_authkey = NULL;
 		
 		if (rc == 0) {
             #ifdef MONGOOSE_NEW_API
@@ -172,10 +172,12 @@ char *rx_server_ajax(struct mg_connection *mc, char *ip_forwarded, void *ev_data
 		}
 		
 		// only clobber the old file if the checks pass
-		if (rc == 0)
+		if (rc == 0) {
 			system("mv " DIR_CFG "/photo.upload.tmp " DIR_CFG "/photo.upload");
-		
-		printf("AJAX_PHOTO: data=%p data_len=%d \"%s\" rc=%d\n", data, data_len, fname, rc);
+		    printf("AJAX_PHOTO: data=%p data_len=%d \"%s\"\n", data, data_len, fname);
+		} else {
+		    printf("AJAX_PHOTO: ERROR rc=%d\n", rc);
+		}
         #ifdef MONGOOSE_NEW_API
 		    kiwi_asfree(vname); kiwi_asfree(fname);
 		#endif
@@ -194,7 +196,7 @@ char *rx_server_ajax(struct mg_connection *mc, char *ip_forwarded, void *ev_data
 	// Using AJAX to upload a file to the server is required because browser javascript doesn't have access to the
 	// filesystem of the client. But a FormData() object passed to kiwi_ajax_send() can specify a file.
 	case AJAX_DX: {
-		char *vname, *fname, *key_cmp2 = NULL;
+		char *vname = NULL, *fname = NULL, *key_cmp2 = NULL;
 		const char *data = NULL;
 		int type, idx, rc = 0, line = 0, status, data_len;
 		bool keep_masked = false, merge_files = false;
@@ -203,32 +205,35 @@ char *rx_server_ajax(struct mg_connection *mc, char *ip_forwarded, void *ev_data
 		char *r_buf = NULL;
 		n = 0;
 		
-        #define NQS1 4
-        char *q_buf;
-        str_split_t qs[NQS1+1];
-        n = kiwi_split((char *) mc->query, &r_buf, "&", qs, NQS1);
-        for (i=0; i < n; i++) {
-            printf("DX UPLOAD: query(%d) <%s>\n", i, qs[i].str);
-            if (i == 0) {
-			    key_cmp2 = (char *) strstr(mc->query, current_authkey);
-            } else
-            if (strcmp(qs[i].str, "keep_masked") == 0) {
-                keep_masked = true;
-                printf("DX UPLOAD: keep_masked\n");
-            } else
-            if (strcmp(qs[i].str, "merge_files") == 0) {
-                merge_files = true;
-                printf("DX UPLOAD: merge_files\n");
+		if (current_authkey) {
+            #define NQS1 4
+            char *q_buf;
+            str_split_t qs[NQS1+1];
+            n = kiwi_split((char *) mc->query, &r_buf, "&", qs, NQS1);
+            for (i=0; i < n; i++) {
+                printf("DX UPLOAD: query(%d) <%s>\n", i, qs[i].str);
+                if (i == 0) {
+                    key_cmp2 = (char *) strstr(mc->query, current_authkey);
+                } else
+                if (strcmp(qs[i].str, "keep_masked") == 0) {
+                    keep_masked = true;
+                    printf("DX UPLOAD: keep_masked\n");
+                } else
+                if (strcmp(qs[i].str, "merge_files") == 0) {
+                    merge_files = true;
+                    printf("DX UPLOAD: merge_files\n");
+                }
             }
-        }
-        //printf("DX UPLOAD: AUTH key=%s ckey=%s %s\n", mc->query, current_authkey, key_cmp2? "OK" : "FAIL");
-        printf("DX UPLOAD: keep_masked=%d merge_files=%d\n", keep_masked, merge_files);
-        kiwi_ifree(r_buf, "AJAX DX r_buf");
+            //printf("DX UPLOAD: AUTH key=%s ckey=%s %s\n", mc->query, current_authkey, key_cmp2? "OK" : "FAIL");
+            printf("DX UPLOAD: keep_masked=%d merge_files=%d\n", keep_masked, merge_files);
+            kiwi_ifree(r_buf, "AJAX DX r_buf");
+		}
+
+		if (!current_authkey || !key_cmp2) rc = 1;
         kiwi_asfree(current_authkey);
         current_authkey = NULL;
-
-		if (!key_cmp2) {
-		    asprintf(&sb, "{\"rc\":1}");
+		if (rc) {
+		    asprintf(&sb, "{\"rc\":%d}", rc);
 		    break;
 		}
 		
