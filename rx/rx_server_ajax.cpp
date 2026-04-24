@@ -765,6 +765,8 @@ fail:
 		int chan_no_pwd = rx_chan_no_pwd();
 		int users_max = has_pwd? chan_no_pwd : rx_chans;
 		int users = MIN(kiwi.current_nusers, users_max);
+        int ext_api_ch = cfg_int("ext_api_nchans", NULL, CFG_REQUIRED);
+        if (ext_api_ch == -1) ext_api_ch = rx_chans;    // has never been set
 		bool no_open_access = (has_pwd && chan_no_pwd == 0);
         bool kiwisdr_com_reg = (admcfg_bool("kiwisdr_com_register", NULL, CFG_OPTIONAL) == 1)? 1:0;
         int model = kiwi.model? kiwi.model : KiwiSDR_1;
@@ -820,7 +822,8 @@ fail:
 			"sdr_hw=KiwiSDR %d v%d.%d%s%s%s%s%s%s%s%s%s ⁣\n"
 			"op_email=%s\n"
 			"bands=%.0f-%.0f\nfreq_offset=%.3f\n"
-			"users=%d\nusers_max=%d\npreempt=%d\n"
+			"mode=%s\n"
+			"users=%d\nusers_max=%d\next_api=%d\npreempt=%d\n"
 			"avatar_ctime=%u\n"
 			"gps=%s\ngrid=%s\ngps_good=%d\nfixes=%d\nfixes_min=%d\nfixes_hour=%d\n"
 			"tdoa_id=%s\ntdoa_ch=%d\n"
@@ -866,7 +869,8 @@ fail:
 
 			(s3 = cfg_string("admin_email", NULL, CFG_OPTIONAL)),
 			(float) kiwi_reg_lo_kHz * kHz, (float) kiwi_reg_hi_kHz * kHz, freq.offset_kHz,
-			users, users_max, preempt,
+			fw_sel_s[fw_sel],
+			users, users_max, ext_api_ch, preempt,
 			avatar_ctime,
 			loc, grid,
 			#ifdef USE_GPS
