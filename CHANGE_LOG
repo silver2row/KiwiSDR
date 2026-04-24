@@ -3,9 +3,15 @@ CHANGE_LOG
 For the Github commit log see here: github.com/jks-prv/KiwiSDR/commits/master
     Older commits: github.com/jks-prv/Beagle_SDR_GPS/commits/master
 
+v1.837  April 24, 2026
+    Fixed waterfall and audio glitching when in 3-channel mode. (thanks F5AFY and Owdjim)
+    /status: Added "mode=" (firmware mode) and "ext_api=" (number of external API chans available)
+    Admin photo upload: Fixed bug causing server crash under unusual circumstances. (thanks N0BQV)
+
 v1.836  April 22, 2026
     rx8wf2 mode: autoruns can use rx channels 0 & 1 if they are preemptable. (thanks OZ1AXG)
     Updated to EiBi-A26 database. (thanks fourbayarray)
+    FT8 extension: Display error when trying to using it in non-12 kHz mode. (thanks ArturPL)
 
 v1.835  April 17, 2026
     Make kiwirecorder connections originating from kiwisdr.com exempt from the latest kiwirecorder

@@ -34,6 +34,10 @@ const char * const platform_s[] = { "beaglebone-black", "bbai", "bbai64", "byai"
 
 typedef enum { DAILY_RESTART_NO = 0, DAILY_RESTART = 1, DAILY_REBOOT = 2} daily_restart_e;
 
+typedef enum { RX4_WF4=0, RX8_WF2=1, RX3_WF3=2, RX14_WF0=3 } firmware_e;
+
+const char * const fw_sel_s[] = { "rx4_wf4", "rx8_wf2", "rx3_wf3", "rx14_wf0" };
+
 typedef struct {
     model_e model;
     platform_e platform;
@@ -121,8 +125,6 @@ extern int p_i[8];
 
 typedef enum { DOM_SEL_NAM=0, DOM_SEL_DUC=1, DOM_SEL_PUB=2, DOM_SEL_SIP=3, DOM_SEL_REV=4 } dom_sel_e;
 const char * const dom_type_s[] = { "NAM", "DUC", "PUB", "SIP", "REV" };
-
-typedef enum { RX4_WF4=0, RX8_WF2=1, RX3_WF3=2, RX14_WF0=3 } firmware_e;
 
 #define	KEEPALIVE_SEC		    60
 #define KEEPALIVE_SEC_NO_AUTH   20      // don't hang the rx channel as long if waiting for password entry
