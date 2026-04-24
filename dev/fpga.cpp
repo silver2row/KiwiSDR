@@ -312,7 +312,7 @@ int fpga_init(int check, int fpga_sim_fail) {
     #ifdef PLATFORM_beaglebone
         // more favorable timing for kiwi.v:BBB_MISO
         if (spi_mode == -1)
-            spi_mode = (kiwi.model == KiwiSDR_2 && net.serno > 20000 && net.serno < 23000)? SPI_MODE_BEADS : SPI_MODE_NO_BEADS;
+            spi_mode = (kiwi.model == KiwiSDR_2 && serial_number > 20000 && serial_number < 23000)? SPI_MODE_BEADS : SPI_MODE_NO_BEADS;
         for (i = 0; i < 10; i++) {
             spin_ms(100);
             spi_dev_mode(spi_mode);
