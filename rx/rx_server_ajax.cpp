@@ -808,7 +808,7 @@ fail:
 		if (!admcfg_bool("GPS_tstamp", NULL, CFG_REQUIRED)) tdoa_ch = -1;
 		
 		bool has_20kHz = (snd_rate == SND_RATE_3CH);
-		bool has_WB = (fw_sel == FW_SEL_SDR_WB);
+		bool has_WB = (kiwi.firmware_sel == FW_SEL_SDR_WB);
 		bool has_GPS = (clk.adc_gps_clk_corrections > 8);
 		bool has_tlimit = (inactivity_timeout_mins || ip_limit_mins);
 		bool has_masked = (dx.masked_len > 0);
@@ -869,7 +869,7 @@ fail:
 
 			(s3 = cfg_string("admin_email", NULL, CFG_OPTIONAL)),
 			(float) kiwi_reg_lo_kHz * kHz, (float) kiwi_reg_hi_kHz * kHz, freq.offset_kHz,
-			fw_sel_s[fw_sel],
+			fw_sel_s[kiwi.firmware_sel],
 			users, users_max, ext_api_ch, preempt,
 			avatar_ctime,
 			loc, grid,

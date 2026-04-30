@@ -302,7 +302,7 @@ void c2s_sound(void *param)
 	int ref_nrx_samps = NRX_SAMPS_CHANS(8);     // 8-ch mode has the smallest FPGA buffer size
     int norm_nrx_samps;
     double gps_delay2 = 0;
-	switch (fw_sel) {
+	switch (kiwi.firmware_sel) {
 	    // nrx_samps = 680/nch (config.h)
 	    // norm_nrx_samps typ: rx8:85 rx4:(170-85)=85 rx14:48 rx3:323.207
 	    case FW_SEL_SDR_RX4_WF4:
@@ -393,6 +393,7 @@ void c2s_sound(void *param)
             conn_t *cwf = conn_other(conn, STREAM_WATERFALL);
 			if (cwf) {
 				cwf->stop_data = TRUE;
+			    c2s_waterfall_stop_data(rx_chan);
 				
 				// do this only in sound task: disable data pump channel
 				rx_enable(rx_chan, RX_CHAN_DISABLE);	// W/F will free rx_chan[]

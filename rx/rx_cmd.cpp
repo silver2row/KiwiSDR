@@ -214,8 +214,8 @@ bool rx_common_cmd(int stream_type, conn_t *conn, char *cmd, bool *keep_alive)
 	if (conn->auth == false || conn->already_admin) {
 	    bool early_cmd = (
 	        strcmp(cmd, "SET keepalive") == 0 ||
-	        kiwi_str_begins_with(cmd, "SET options") == true ||     // options needed before CMD_AUTH
-	        kiwi_str_begins_with(cmd, "SET auth") == true
+	        kiwi_str_begins_with(cmd, "SET options") ||     // options needed before CMD_AUTH
+	        kiwi_str_begins_with(cmd, "SET auth")
 	    );
 	    
         if (conn->auth == false && !early_cmd) {
@@ -235,7 +235,7 @@ bool rx_common_cmd(int stream_type, conn_t *conn, char *cmd, bool *keep_alive)
 	
 	#ifdef OPTION_HONEY_POT
 	    if ((stream_type == STREAM_SOUND || stream_type == STREAM_WATERFALL) &&
-	        (strcmp(cmd, "SET keepalive") && strcmp(cmd, "SET GET_USERS") && strncmp(cmd, "SET STATS_UPD", 13))) {
+	        (strcmp(cmd, "SET keepalive") && strcmp(cmd, "SET GET_USERS") && !kiwi_str_begins_with(cmd, "SET STATS_UPD"))) {
 	        cprintf(conn, "HONEY_POT %s %s%d <%s>\n", stream_name,
 	            (stream_type == STREAM_WATERFALL && conn->isMaster)? "-------- " : "", slen, cmd);
 	    }
@@ -256,6 +256,7 @@ bool rx_common_cmd(int stream_type, conn_t *conn, char *cmd, bool *keep_alive)
 	
 	case CMD_KEEPALIVE:
         if (strcmp(cmd, "SET keepalive") == 0) {
+            //printf("CMD_KEEPALIVE: \"%s\"\n", cmd);
             conn->keepalive_time = timer_sec();
             if (keep_alive) *keep_alive = true;
 
@@ -769,7 +770,7 @@ bool rx_common_cmd(int stream_type, conn_t *conn, char *cmd, bool *keep_alive)
             }
 
             bool badp_ok = (badp == BADP_OK || badp == BADP_RESET_OK);
-            send_msg(conn, false, "MSG rx_chans=%d", rx_chans);
+            send_msg(conn, false, "MSG rx_chans=%d firmware_sel=%d", rx_chans, kiwi.firmware_sel);
             send_msg(conn, false, "MSG chan_no_pwd=%d", rx_chan_no_pwd());  // potentially corrected from cfg.chan_no_pwd
             send_msg(conn, false, "MSG chan_no_pwd_true=%d", rx_chan_no_pwd(PWD_CHECK_YES));
             if (badp_ok && (stream_snd || conn->type == STREAM_ADMIN)) {

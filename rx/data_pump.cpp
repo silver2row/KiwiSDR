@@ -515,8 +515,8 @@ static void data_pump_init()
     check(nrx_samps < FASTFIR_OUTBUF_SIZE);     // see rx_dpump_t.in_samps[][]
     check(nrx_samps_wb < MAX_WB_SAMPS);         // see rx_dpump_t.wb_samps[][]
 	
-	rescale = MPOW(2, -RXOUT_SCALE + CUTESDR_SCALE) * (VAL_USE_RX_CICF? MPOW(10, rx_cicf_gain_dB[fw_sel]/20.0) : 1);
-	//printf("data pump: fw_sel=%d RXOUT_SCALE=%d CUTESDR_SCALE=%d rx_cicf_gain_dB=%.1f rescale=%.6g VAL_USE_RX_CICF=%d DC_offset_I=%f DC_offset_Q=%f\n", fw_sel, RXOUT_SCALE, CUTESDR_SCALE, rx_cicf_gain_dB[fw_sel], rescale, VAL_USE_RX_CICF, DC_offset_I, DC_offset_Q);
+	rescale = MPOW(2, -RXOUT_SCALE + CUTESDR_SCALE) * (VAL_USE_RX_CICF? MPOW(10, rx_cicf_gain_dB[kiwi.firmware_sel]/20.0) : 1);
+	//printf("data pump: firmware_sel=%d RXOUT_SCALE=%d CUTESDR_SCALE=%d rx_cicf_gain_dB=%.1f rescale=%.6g VAL_USE_RX_CICF=%d DC_offset_I=%f DC_offset_Q=%f\n", kiwi.firmware_sel, RXOUT_SCALE, CUTESDR_SCALE, rx_cicf_gain_dB[kiwi.firmware_sel], rescale, VAL_USE_RX_CICF, DC_offset_I, DC_offset_Q);
 
 	CreateTaskF(snd_pump, 0, DATAPUMP_PRIORITY, CTF_POLL_SND_INTR);
 }

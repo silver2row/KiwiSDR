@@ -3293,6 +3293,10 @@ function kiwi_msg(param, ws)     // #msg-proc #MSG
 			//console.log('rx_chan='+ rx_chan);
 			break;
 
+		case "firmware_sel":
+			kiwi.firmware_sel = parseInt(param[1]);
+			break;
+
 		case "max_camp":
 			max_camp = parseInt(param[1]);
 			break;
