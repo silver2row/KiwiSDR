@@ -3220,10 +3220,10 @@ function w3_alert(width, psa, msg) {
    var html =
       w3_text('w3-wrap '+ psa, msg) +
       w3_button('w3-margin-T-16 w3-aqua', 'OK', 'w3int_alert_ok', path);
-   var css = sprintf(`
-      position: fixed; top: 100px; left: 50%%; transform: translateX(-50%%); width: %s;
-      background: #444; color: white; padding: 15px 25px; border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 9999; font-family: sans-serif;`,
+   var css = sprintf(
+      'position: fixed; top: 100px; left: 50%%; transform: translateX(-50%%); width: %s; ' +
+      'background: #444; color: white; padding: 15px 25px; border-radius: 8px; ' +
+      'box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 9999; font-family: sans-serif;',
       px(width));
    var alert = w3_create_appendElement('id-kiwi-body', 'div', html, css, path);
    w3int.alert_active = true;
