@@ -212,6 +212,8 @@ var w3 = {
 
 var w3int = {
    btn_grp_uniq: 0,
+   alert_uniq: 0,
+   alert_active: false,
    
    menu_cur_id: null,
    menu_active: false,
@@ -815,9 +817,11 @@ function w3_iterate_classList(el_id, func)
 	return el;
 }
 
-function w3_create_appendElement(el_parent, el_type, html)
+function w3_create_appendElement(el_parent, el_type, html, css, id)
 {
    var el_child = document.createElement(el_type);
+   if (isString(id)) el_child.id = id;
+   if (isString(css)) el_child.style.cssText = css;
    w3_innerHTML(el_child, html);
 	w3_el(el_parent).appendChild(el_child);
 	return el_child;
@@ -3204,6 +3208,37 @@ function w3_textarea_get_param(psa, label, path, rows, cols, cb, init_val)
 	//if (psa.includes('w3-dump')) console.log('w3_textarea_get_param: path='+ path +' cur_val="'+ cur_val +'"');
 	return w3_textarea(psa, label, path, cur_val, rows, cols, cb);
 }
+
+
+////////////////////////////////
+// alert
+////////////////////////////////
+
+function w3_alert(width, psa, msg) {
+   var path = 'id-alert-'+ w3int.alert_uniq.toString();
+   w3int.alert_uniq++;
+   var html =
+      w3_text('w3-wrap '+ psa, msg) +
+      w3_button('w3-margin-T-16 w3-aqua', 'OK', 'w3int_alert_ok', path);
+   var css = sprintf(`
+      position: fixed; top: 100px; left: 50%%; transform: translateX(-50%%); width: %s;
+      background: #444; color: white; padding: 15px 25px; border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 9999; font-family: sans-serif;`,
+      px(width));
+   var alert = w3_create_appendElement('id-kiwi-body', 'div', html, css, path);
+   w3int.alert_active = true;
+}
+
+function w3int_alert_ok(path, cb_param) {
+   //console.log('w3int_alert_ok: path='+ path +' cb_param='+ cb_param);
+   var alert = w3_el(cb_param);
+   alert.style.transition = 'opacity 0.5s';
+   alert.style.opacity = '0';
+   setTimeout(function() { alert.remove(); }, 500);
+   w3int.alert_active = false;
+}
+
+function w3_alert_active() { return w3int.alert_active; }
 
 
 ////////////////////////////////
