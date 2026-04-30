@@ -15,7 +15,7 @@ Boston, MA  02110-1301, USA.
 --------------------------------------------------------------------------------
 */
 
-// Copyright (c) 2015-2025 John Seamons, ZL4VO/KF6VO
+// Copyright (c) 2015-2026 John Seamons, ZL4VO/KF6VO
 
 #include "types.h"
 #include "config.h"
@@ -332,7 +332,7 @@ void c2s_admin(void *param)
 	conn_t *conn = (conn_t *) param;
 	rx_common_init(conn);
 	char *sb, *sb2;
-	char *cmd_p, *buf_m, *reply;
+	char *cmd_p, *buf_m, *reply, *reply2;
 	
 	nbuf_t *nb = NULL;
 	while (TRUE) {
@@ -434,6 +434,7 @@ void c2s_admin(void *param)
             int zoom_all;
             i = sscanf(cmd, "SET zoom_all=%d", &zoom_all);
             if (i == 1) {
+                CLAMP(zoom_all, 0, ZOOM_CAP);
                 shmem->zoom_all = zoom_all + 1;
                 shmem->zoom_all_seq++;
                 //printf("zoom_all %d %d <%s>\n", zoom_all, shmem->zoom_all_seq, cmd);
@@ -611,22 +612,34 @@ void c2s_admin(void *param)
                 if (reg == FRPC_PROXY_UPD) {
                     // update info on proxy server
                     
-                    // FIXME: validate unencoded user & host for allowed characters
-                    asprintf(&cmd_p, "curl -Ls --ipv4 --connect-timeout 15 \"%s/?u=%s&h=%s&a=%d\"", proxy_server, user_m, host_m, rev_auto);
-                    reply = non_blocking_cmd(cmd_p, &status);
-                    printf("PROXY register: %s\n", cmd_p);
+                    // check that frp port 7000 is reachable
+                    asprintf(&cmd_p, "nc -zv -w 3 proxy.kiwisdr.com 7000 2>&1");
+                    reply2 = non_blocking_cmd(cmd_p, &status);
                     kiwi_asfree(cmd_p);
-                    if (reply == NULL || status < 0 || !WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-                        printf("PROXY register: ERROR %p 0x%x\n", reply, status);
+                    if (kiwi_nonEmptyStr(reply2))
+                        printf("PROXY port check: <%s>\n", kstr_sp_less_trailing_nl(reply2));
+                    if (status < 0 || !WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+                        printf("PROXY port check: ERROR 0x%x\n", status);
                         status = 900;
                     } else {
-                        char *rp = kstr_sp(reply);
-                        printf("PROXY register: reply: %s\n", rp);
-                        status = 901;
-                        n = sscanf(rp, "status=%d", &status);
-                        if (n != 1) printf("PROXY register: n=%d status=%d\n", n, status);
+                        // FIXME: validate unencoded user & host for allowed characters
+                        asprintf(&cmd_p, "curl -Ls --ipv4 --connect-timeout 15 \"%s/?u=%s&h=%s&a=%d\"", proxy_server, user_m, host_m, rev_auto);
+                        reply = non_blocking_cmd(cmd_p, &status);
+                        printf("PROXY register: %s\n", cmd_p);
+                        kiwi_asfree(cmd_p);
+                        if (reply == NULL || status < 0 || !WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+                            printf("PROXY register: ERROR %p 0x%x\n", reply, status);
+                            status = 901;
+                        } else {
+                            char *rp = kstr_sp(reply);
+                            printf("PROXY register: reply: %s\n", rp);
+                            status = 902;
+                            n = sscanf(rp, "status=%d", &status);
+                            if (n != 1) printf("PROXY register: n=%d status=%d\n", n, status);
+                        }
+                        kstr_free(reply);
                     }
-                    kstr_free(reply);
+                    kstr_free(reply2);
                     lprintf("PROXY register: reg=%d(FRPC_PROXY_UPD) status=%d\n", FRPC_PROXY_UPD, status);
 
                     send_msg(conn, SM_NO_DEBUG, "ADM rev_status=%d", status);
@@ -1563,7 +1576,7 @@ void c2s_admin(void *param)
 		conn->keep_alive = timer_sec() - conn->keepalive_time;
 		bool keepalive_expired = (conn->keep_alive > KEEPALIVE_SEC);
 		
-		// ignore expired keepalive if disabled
+		//printf("ADMIN KA %d/%d\n", conn->keep_alive, KEEPALIVE_SEC);
 		if ((admin_keepalive && keepalive_expired) || conn->kick) {
 			cprintf(conn, "ADMIN connection closed\n");
 			rx_server_remove(conn);

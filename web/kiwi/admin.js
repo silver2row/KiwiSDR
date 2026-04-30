@@ -1613,8 +1613,9 @@ function connect_rev_status_cb(status)
 		case 200: s = 'Reverse proxy enabled and running'; break;
 		case 201: s = 'Reverse proxy enabled and pending'; break;
 
-		case 900: s = 'Problem contacting proxy server; please check Internet connection'; break;
-		case 901: s = 'Proxy server returned invalid status data?'; break;
+		case 900: s = 'Can\'t contact proxy server (port 7000). Please check Internet connection'; break;
+		case 901: s = 'Can\'t contact proxy server (port 80). Please check Internet connection'; break;
+		case 902: s = 'Proxy server returned invalid status data?'; break;
 		default:  s = 'Reverse proxy internal error: '+ status; break;
 	}
 	
@@ -3177,28 +3178,32 @@ function gps_html()
             )
          ),
 
-         w3_div('w3-valign w3-text-teal',
-            w3_checkbox('w3-label-inline w3-small/w3-small', 'Acquire<br>if Kiwi<br>busy?', 'adm.always_acq_gps', adm.always_acq_gps, 'w3_bool_set_cfg_cb')
+         w3_div('',
+            w3_div('w3-valign w3-text-teal',
+               w3_checkbox('w3-label-inline w3-small/w3-small', 'Acquire if Kiwi busy?', 'adm.always_acq_gps', adm.always_acq_gps, 'w3_bool_set_cfg_cb')
+            ),
+   
+            w3_div('w3-valign w3-text-teal',
+               w3_checkbox('w3-label-inline w3-small/w3-small', 'Set date from GPS?', 'adm.gps_set_date', adm.gps_set_date, 'w3_bool_set_cfg_cb')
+            )
          ),
 
-         w3_div('w3-valign w3-text-teal',
-            w3_checkbox('w3-label-inline w3-small/w3-small', 'Set date<br>from GPS?', 'adm.gps_set_date', adm.gps_set_date, 'w3_bool_set_cfg_cb')
+         w3_div('',
+            w3_div('w3-valign w3-text-teal',
+               w3_checkbox('w3-label-inline w3-small/w3-small', 'Include alerted sats in solutions? [n]', 'adm.include_alert_gps', adm.include_alert_gps, 'w3_bool_set_cfg_cb')
+            ),
+   
+            w3_div('w3-valign w3-text-teal',
+               w3_checkbox('w3-label-inline w3-small/w3-small', 'Include Galileo in solutions? [y]', 'adm.include_E1B', adm.include_E1B, 'w3_bool_set_cfg_cb')
+            ),
+   
+            w3_div('w3-valign w3-text-teal',
+               w3_checkbox('w3-label-inline w3-small/w3-small', 'Use Kalman filter? [y]', 'adm.use_kalman_position_solver', adm.use_kalman_position_solver, 'w3_bool_set_cfg_cb')
+            )
          ),
 
-         w3_div('w3-valign w3-text-teal',
-            w3_checkbox('w3-label-inline w3-small/w3-small', 'Include<br>alerted sats in<br>solutions? [n]', 'adm.include_alert_gps', adm.include_alert_gps, 'w3_bool_set_cfg_cb')
-         ),
-
-         w3_div('w3-valign w3-text-teal',
-            w3_checkbox('w3-label-inline w3-small/w3-small', 'Include<br>Galileo in<br>solutions? [y]', 'adm.include_E1B', adm.include_E1B, 'w3_bool_set_cfg_cb')
-         ),
-
-         w3_div('w3-valign w3-text-teal',
-            w3_checkbox('w3-label-inline w3-small/w3-small', 'Use<br>Kalman<br>filter? [y]', 'adm.use_kalman_position_solver', adm.use_kalman_position_solver, 'w3_bool_set_cfg_cb')
-         ),
-
-         w3_div('w3-valign w3-hcenter w3-text-teal',
-            w3_div('w3-margin-right', '<b>Select<br>Graph</b>') +
+         w3_div('w3-text-teal',
+            w3_div('w3-margin-B-8', '<b>Select Graph</b>'),
             w3_radio_button('w3-margin-R-4', 'RSSI', 'adm.rssi_azel_iq', adm.rssi_azel_iq == _gps.RSSI, 'gps_graph_cb'),
             w3_radio_button('w3-margin-R-4', 'Az/El', 'adm.rssi_azel_iq', adm.rssi_azel_iq == _gps.AZEL, 'gps_graph_cb'),
             w3_radio_button('w3-margin-R-4', 'Pos', 'adm.rssi_azel_iq', adm.rssi_azel_iq == _gps.POS, 'gps_graph_cb'),
@@ -5330,7 +5335,7 @@ function admin_msg(param)
          }
 		   kiwi_clearTimeout(admin.keepalive_timeoout);
 		   if (adm.admin_keepalive) {
-		      //console.log('admin keepalive');
+		      //console.log('admin keepalive from server');
             admin.keepalive_rx_time = Date.now();
             admin.keepalive_timeoout = setTimeout(function() {
          
