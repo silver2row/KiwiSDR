@@ -129,7 +129,7 @@ function waterfall_init()
       w3_show('id-aper-data');
    } else {
       // force aperture manual for audio FFT mode
-      wf_aper_cb('wf.aper', false, false);
+      wf_aper_cb('wf.aper', kiwi.APER_MAN, false);
    }
    
    // allow URL param to override

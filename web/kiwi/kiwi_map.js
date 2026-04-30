@@ -370,7 +370,7 @@ function kiwi_map_preview_click(kmap, host, ev, opt)
       // must also save/restore man maxdb/mindb_un, source depends on aperture mode
       kmap.maxdb_save = auto? wf.save_maxdb : maxdb;
       kmap.mindb_un_save = auto? wf.save_mindb_un : mindb_un;
-      //console.log('$kiwi_map_preview_click aper SAVE '+ (auto? 'AUTO' : 'MAN') +' maxdb='+ kmap.maxdb_save +' mindb='+ kmap.mindb_un_save);
+      //console.log('kmap_wf aper SAVE '+ (auto? 'AUTO' : 'MAN') +' maxdb='+ kmap.maxdb_save +' mindb_un='+ kmap.mindb_un_save);
       kiwi_map_wf_preview(kmap, host);
    }
 }
@@ -452,8 +452,17 @@ function kiwi_map_waterfall_add_queue(what, ws, firstChars)
    if (kiwi.wf_preview_mode) {
       waterfall_add_queue2(what, ws, firstChars);
       kmap.preview_lines++;
+      //console.log('kiwi_map_waterfall_add_queue');
+      var line = kmap.preview_lines % 10;
+      //console.log('kmap_wf '+ kmap.preview_lines +' '+ line +' '+ kmap.wf_id2);
       if (kmap.preview_lines == 2) {
+         //console.log('kmap_wf SET APER');
          wf_aper_cb('wf.aper', kiwi.APER_MAN);
+      }
+      
+      // continuous manual autoscale seems to be needed to get reliable colormap settings
+      if (line == 2) {
+         //console.log('kmap_wf '+ kmap.preview_lines +'|'+ line +' '+ kmap.wf_id2 +' AUTOSCALE');
          setTimeout(wf_autoscale_cb, 1);
       }
    } else {
@@ -481,7 +490,7 @@ function kiwi_map_waterfall_close(kmap_or_ws)
       kmap.wf_ws = kmap.wf_host = null;
       kiwi.wf_preview_mode = false;
       var auto = (wf.aper == kiwi.APER_AUTO);
-      //console.log('kiwi_map aper RESTORE '+ (auto? 'AUTO' : 'MAN') +' maxdb='+ kmap.maxdb_save +' mindb='+ kmap.mindb_un_save);
+      //console.log('kmap_wf aper RESTORE '+ (auto? 'AUTO' : 'MAN') +' maxdb='+ kmap.maxdb_save +' mindb_un='+ kmap.mindb_un_save);
       
       // restore for both cases: returning to auto or man aperture mode
       if (isArg(kmap.maxdb_save)) wf.save_maxdb = maxdb = kmap.maxdb_save;
@@ -535,11 +544,14 @@ function kiwi_map_wf_preview(kmap, h)
          
          // Need to send the start bin, not cf, otherwise the wf preview autoscale
          // doesn't work due to interaction with wf pan/zoom fixup
-         //kmap.wf_ws.send("SET zoom=10 cf="+ freq_displayed_kHz_str_with_freq_offset);
+         //console.log('kmap_wf SET zoom='+ zoom_level +' start='+ x_bin);
          kmap.wf_ws.send('SET zoom='+ zoom_level +' start='+ x_bin);
-
-         kmap.wf_ws.send("SET maxdb=0 mindb=-100");
 	      kmap.wf_ws.send("SET wf_speed=3");
+         //console.log('kmap_wf SET maxdb='+ maxdb +' mindb='+ mindb);
+         kmap.wf_ws.send('SET maxdb='+ maxdb +' mindb='+ mindb);
+	      
+	      // NB: kiwi_map_waterfall_add_queue() sets kiwi.APER_MAN and
+	      // calls wf_autoscale_cb() after a few wf lines.
 
          kmap.preview_timeo = setTimeout(function() { if (kmap.wf_ws) kmap.wf_ws.close(); }, 10000);
          //}, 5000);
