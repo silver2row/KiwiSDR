@@ -18,7 +18,7 @@
 // http://www.aholme.co.uk/GPS/Main.htm
 //////////////////////////////////////////////////////////////////////////
 
-// Copyright (c) 2015-2025 John Seamons, ZL4VO/KF6VO
+// Copyright (c) 2015-2026 John Seamons, ZL4VO/KF6VO
 
 #pragma once
 
@@ -266,6 +266,12 @@ typedef struct {
 } spi_mosi_data2_t;
 
 typedef struct {
+	uint16_t cmd;
+	uint8_t cparam[SPIBUF_B - 3];
+	uint8_t _pad_;      // 3 LSBs stay in ha_disr[2:0]
+} spi_mosi_data3_t;
+
+typedef struct {
 	PAD_FRONT;
 	union {
 		SPI_T msg[1];
@@ -273,6 +279,7 @@ typedef struct {
         u2_t words[SPIBUF_W];
 		spi_mosi_data_t data;
 		spi_mosi_data2_t data2;
+		spi_mosi_data3_t data3;
 	};
 	PAD_BACK;
 } DMA_ALIGNMENT SPI_MOSI;
@@ -295,6 +302,7 @@ typedef struct {
 			union {
 				char byte[SPIBUF_B];
 				uint16_t word[SPIBUF_W];
+				u4_t lword[SPIBUF_W/2];
 			};
 		} __attribute__((packed));
 	};
@@ -325,4 +333,7 @@ void spi_set_buf_noduplex(SPI_CMD cmd, SPI_MOSI *tx, int bytes);
 void _spi_get(SPI_CMD cmd, SPI_MISO *rx, int bytes, uint16_t wparam=0, uint32_t lparam=0);
 void spi_get_pipelined(SPI_CMD cmd, SPI_MISO *rx, int bytes, uint16_t wparam=0, uint32_t lparam=0);
 void spi_get_noduplex(SPI_CMD cmd, SPI_MISO *rx, int bytes, uint16_t wparam=0, uint32_t lparam=0);
-void spi_get3_noduplex(SPI_CMD cmd, SPI_MISO *rx, int bytes, uint16_t wparam=0, uint16_t w2param=0, uint16_t w3param=0);
+//void spi_get3_noduplex(SPI_CMD cmd, SPI_MISO *rx, int bytes, uint16_t wparam=0, uint16_t w2param=0, uint16_t w3param=0);
+
+SPI_MOSI *spi_getN_SPI_MOSI();
+void spi_getN_noduplex(SPI_CMD cmd, SPI_MISO *rx, int bytes);
