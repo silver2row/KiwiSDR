@@ -78,7 +78,7 @@ extern cfg_t cfg_cfg, cfg_adm, cfg_dx, cfg_dxcfg, cfg_dxcomm, cfg_dxcomm_cfg;
 #define cfg_set_int_save(name, val)			_cfg_set_int(&cfg_cfg, name, val, CFG_SET | CFG_SAVE, 0)
 #define cfg_rem_int(name)					_cfg_set_int(&cfg_cfg, name, 0, CFG_REMOVE, 0)
 #define cfg_default_int(name, val, err)	    _cfg_default_int(&cfg_cfg, name, val, err)
-#define cfg_update_int(name, val, changed)  _cfg_update_int(&cfg_cfg, name, val, changed)
+#define cfg_update_int(name, val, changed) _cfg_update_int(&cfg_cfg, name, val, changed, NULL)
 
 #define cfg_float(name, err, flags)			_cfg_float(&cfg_cfg, name, err, flags)
 #define cfg_set_float(name, val)			_cfg_set_float(&cfg_cfg, name, val, CFG_SET, 0)
@@ -121,6 +121,7 @@ extern cfg_t cfg_cfg, cfg_adm, cfg_dx, cfg_dxcfg, cfg_dxcomm, cfg_dxcomm_cfg;
 #define admcfg_set_int_save(name, val)		_cfg_set_int(&cfg_adm, name, val, CFG_SET | CFG_SAVE, 0)
 #define admcfg_rem_int(name)				_cfg_set_int(&cfg_adm, name, 0, CFG_REMOVE, 0)
 #define admcfg_default_int(name, val, err)	_cfg_default_int(&cfg_adm, name, val, err)
+#define admcfg_update_int(name, val, changed)  _cfg_update_int(&cfg_adm, name, val, changed, NULL)
 
 #define admcfg_float(name, err, flags)		_cfg_float(&cfg_adm, name, err, flags)
 #define admcfg_set_float(name, val)			_cfg_set_float(&cfg_adm, name, val, CFG_SET, 0)
@@ -208,7 +209,7 @@ void _cfg_update_json(cfg_t *cfg);
 int _cfg_int(cfg_t *cfg, const char *name, bool *error, u4_t flags);
 int _cfg_set_int(cfg_t *cfg, const char *name, int val, u4_t flags, int pos);
 int _cfg_default_int(cfg_t *cfg, const char *name, int val, bool *error);
-int _cfg_update_int(cfg_t *cfg, const char *name, int val, bool *changed);
+int _cfg_update_int(cfg_t *cfg, const char *name, int val, bool *changed, int *existing);
 
 double _cfg_float(cfg_t *cfg, const char *name, bool *error, u4_t flags);
 int _cfg_set_float(cfg_t *cfg, const char *name, double val, u4_t flags, int pos);

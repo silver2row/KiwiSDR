@@ -695,17 +695,22 @@ int _cfg_default_int(cfg_t *cfg, const char *name, int val, bool *error_p)
 	return existing;
 }
 
-int _cfg_update_int(cfg_t *cfg, const char *name, int val, bool *changed)
+int _cfg_update_int(cfg_t *cfg, const char *name, int val, bool *changed, int *existing)
 {
     bool modified = false;
-    int existing = _cfg_default_int(cfg, name, val, &modified);
-    if (existing != val) {
+    int _existing = _cfg_default_int(cfg, name, val, &modified);
+    if (existing != NULL) *existing = _existing;
+
+    int _updated;
+    if (_existing != val) {
         _cfg_set_int(cfg, name, val, CFG_SET, 0);
-        existing = val;
+        _updated = val;
         modified = true;
+    } else {
+        _updated = _existing;
     }
     if (modified && changed != NULL) *changed = true;
-    return existing;
+    return _updated;
 }
 
 
