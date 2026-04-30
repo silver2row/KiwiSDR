@@ -1196,6 +1196,7 @@ void _NextTask(const char *where, u4_t param, u_int64_t pc)
 							//if (ev_dump) evNT(EC_DUMP, EV_NEXTTASK, ev_dump, "NextTask", evprintf("DUMP IN %.3f SEC", ev_dump/1000.0));
 							t->long_run = false;
 							
+						    // long runner is eligible, break to select this task
 							#ifdef LOCK_CHECK_HANG
                                 if (lock_panic)
                                     t->lock_marker = 'L';
@@ -1205,7 +1206,7 @@ void _NextTask(const char *where, u4_t param, u_int64_t pc)
                                 break;
                             #endif
 						} else {
-                            // not eligible to run at this time
+                            // not eligible to run at this time, keep looking
                             _TaskStat(t, TSTAT_MIN|TSTAT_ZERO, last_time_run, "min", TSTAT_MAX|TSTAT_ZERO, last_time_run, "max");
 							#ifdef LOCK_CHECK_HANG
                                 if (lock_panic) t->lock_marker = 'N';
@@ -1218,6 +1219,7 @@ void _NextTask(const char *where, u4_t param, u_int64_t pc)
                         }
 					} else {
 						if (!t->stopped) {
+						    // not stopped, break to select this task
 						    #ifdef LOCK_CHECK_HANG
                                 if (lock_panic)
                                     t->lock_marker = '*';
@@ -1244,6 +1246,7 @@ void _NextTask(const char *where, u4_t param, u_int64_t pc)
 					assert(t->valid);
 					assert(!t->sleeping);
 
+                    // task is valid and not sleeping -- break out of the priority task queue for loop
                     #ifdef LOCK_CHECK_HANG
 					if (!lock_panic)
 					    break;
