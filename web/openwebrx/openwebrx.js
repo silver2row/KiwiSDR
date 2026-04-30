@@ -3936,7 +3936,7 @@ var zoom_center = 0.5;
 
 var ZOOM_NOMINAL = 9, ZOOM_BAND = 6;
 var zoom_nom = 0, zoom_old_nom = 0;
-var zoom_levels_max = 0;
+var zoom_levels_max = 0, zoom_cap = 0;
 var zoom_level = 0;
 var zoom_level_f = 0;
 var zoom_freq = 0;
@@ -3986,7 +3986,7 @@ function zoom_step(dir, arg2)
 	} else {			// in/out, nom/max in, abs, band
 	
 		// clamp
-		if (not_band_and_not_abs && ((out && zoom_level == 0) || (dir_in && zoom_level >= zoom_levels_max))) {
+		if (not_band_and_not_abs && ((out && zoom_level == 0) || (dir_in && zoom_level >= zoom_cap))) {
 		   zoom_finally();
 		   return;
 		}
@@ -4041,8 +4041,8 @@ function zoom_step(dir, arg2)
 		if (dir == ext_zoom.ABS) {
 			if (!isNumber(arg2)) { zoom_finally(); return; }      // no abs zoom value specified
 			znew = arg2;
-			//console.log('zoom_step ABS znew='+ znew +' zmax='+ zoom_levels_max +' zcur='+ zoom_level +' zoom_center='+ zoom_center);
-			if ((znew < 0 || znew > zoom_levels_max || znew == zoom_level) && zoom_center == 0.5) {
+			//console.log('zoom_step ABS znew='+ znew +' zmax='+ zoom_cap +' zcur='+ zoom_level +' zoom_center='+ zoom_center);
+			if ((znew < 0 || znew > zoom_cap || znew == zoom_level) && zoom_center == 0.5) {
 			   zoom_finally();
 			   return;
 			}
@@ -4058,12 +4058,12 @@ function zoom_step(dir, arg2)
 			
 			// zoom max-in button toggle hack
 			if (dir == ext_zoom.NOM_IN && isNumber(arg2) && arg2 == 1 && zoom_level >= zoom_nom) {
-				if (zoom_level == zoom_levels_max)
+				if (zoom_level == zoom_cap)
 					zoom_level = zoom_nom;		// if at max toggle back to nom
 				else
-					zoom_level = zoom_levels_max;		// if at anything other than max go to max
+					zoom_level = zoom_cap;		// if at anything other than max go to max
 			} else {
-				zoom_level = (dir == ext_zoom.NOM_IN)? zoom_nom : zoom_levels_max;
+				zoom_level = (dir == ext_zoom.NOM_IN)? zoom_nom : zoom_cap;
 			}
 			
 			out = (zoom_level < ozoom);
@@ -4103,7 +4103,7 @@ function zoom_step(dir, arg2)
 	if (update_zoom_f) zoom_level_f = zoom_level;
 	//console.log("ZStep z"+zoom_level.toString()+" fLEFT="+canvas_get_dspfreq(0));
 	
-	var nom = (zoom_level == zoom_levels_max)? 2 : ((zoom_level >= zoom_nom)? 1:0);
+	var nom = (zoom_level == zoom_cap)? 2 : ((zoom_level >= zoom_nom)? 1:0);
 	if (nom != zoom_old_nom) {
 		w3_hide(zoom_maxin_s[zoom_old_nom]);
 		w3_show(zoom_maxin_s[nom], 'w3-show-table-cell');
@@ -5384,14 +5384,14 @@ function waterfall_add(data_raw, audioFFT)
       } else {
          signal = -110;
          noise = -120;
-         //console_log_dbgUs('# autoscale len=0 sig=-110 noise=-120');
+         //console_log_dbgUs('# autoscale DEFAULT len=0 sig=-110 noise=-120');
       }
       
       // empirical adjustments
 	   signal += 30;
 	   if (signal < -80) signal = -80;
       noise -= 10;
-      //console_log_dbgUs('# autoscale FINAL noise(min)='+ noise +' signal(max)='+ signal);
+      //console_log_dbgUs('# autoscale FINAL noise(min)='+ noise +' signal(max)='+ signal +' range='+ (signal - noise));
       
       if (wf.audioFFT_active) {
          //noise = (dbgUs && devl.p4)? Math.round(devl.p4) : -110;
@@ -5737,7 +5737,7 @@ function waterfall_dequeue()
 	// demodulator must have been initialized before calling zoom_step()
 	if (!init_zoom_set && demodulators[0]) {
 		init_zoom = parseInt(init_zoom);
-		if (init_zoom < 0 || init_zoom > zoom_levels_max) init_zoom = 0;
+		if (init_zoom < 0 || init_zoom > zoom_cap) init_zoom = 0;
 		//console.log("### init_zoom="+init_zoom);
 		zoom_step(ext_zoom.ABS, init_zoom);
 		init_zoom_set = true;
@@ -10569,7 +10569,7 @@ function keyboard_shortcut(key, key_mod, ctlAlt, evt)
       if (id == 'id-dx-container') inDX = true;
    }
    
-   if (shortcut.ext_key[key]) {
+   if (shortcut.ext_key[key] && key_mod != shortcut.NO_MODIFIER) {
       w3_call(shortcut.ext_key[key]);
       ignore_next_keyup_event = true;     // don't trigger e.g. freqset_keyup()/freqset_complete()
       return false;
@@ -11754,8 +11754,10 @@ var wf = {
    url_tstamp: 0,
    ts_tz: 0,
    
+   // server flags
    COMPRESSED: 1,
-   NO_SYNC: 2,
+   NO_SYNC:    2,
+   DEBUG:      4,
    
    scroll_multiple: 3,
    no_sync: false,
@@ -13623,6 +13625,11 @@ function owrx_msg_cb(param, ws)     // #msg-proc #MSG
 		case "zoom_max":
 			zoom_levels_max = parseInt(param[1]);
 			zoom_nom = Math.min(ZOOM_NOMINAL, zoom_levels_max);
+			break;
+
+		case "zoom_cap":
+			zoom_cap = parseInt(param[1]);
+			zoom_nom = Math.min(ZOOM_NOMINAL, zoom_cap);
 			break;
 
 		case "zoom_all":

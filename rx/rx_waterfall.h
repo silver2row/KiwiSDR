@@ -48,7 +48,6 @@ Boston, MA  02110-1301, USA.
 
 
 //#define WF_INFO
-
 #ifdef WF_INFO
 	#define wf_printf(fmt, ...) \
 		if (!bg) cprintf(wf->conn, fmt, ## __VA_ARGS__)
@@ -63,15 +62,15 @@ Boston, MA  02110-1301, USA.
 #define	WF_USING_HALF_CIC	2	// only use half of the remaining FFT after a CIC
 #define	WF_BETTER_LOOKING	2	// increase in FFT size for better looking display
 
-#define WF_OUTPUT	1024	// conceptually same as WF_WIDTH although not required
-#define WF_NFFT	    (WF_OUTPUT * WF_USING_HALF_FFT * WF_USING_HALF_CIC * WF_BETTER_LOOKING)	// worst case FFT size needed
-#define WF_NBUF     8192    // max hardware sample buffer length
+#define WF_OUTPUT	    1024	// conceptually same as WF_WIDTH although not required
+#define WF_NFFT	        (WF_OUTPUT * WF_USING_HALF_FFT * WF_USING_HALF_CIC * WF_BETTER_LOOKING)	// worst case FFT size needed
+#define MAX_FFT_USED	(WF_NFFT / WF_USING_HALF_FFT)
+#define WF_NBUF         8192    // max hardware sample buffer length
 
 #define	WF_WIDTH        1024	// width of waterfall display
 
-#define MAX_FFT_USED	MAX(WF_NFFT / WF_USING_HALF_FFT, WF_WIDTH)
-
 #define MAX_ZOOM        14
+#define ZOOM_CAP        14
 #define	MAX_START(z)	((WF_WIDTH << MAX_ZOOM) - (WF_WIDTH << (MAX_ZOOM - z)))
 
 struct fft_t {

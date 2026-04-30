@@ -44,7 +44,7 @@ int SNR_calc(SNR_meas_t *meas, int band, double f_lo, double f_hi, int zoom, boo
     int i, j, rv = 0, masked = 0;
     double lo_kHz = f_lo - freq.offset_kHz, hi_kHz = f_hi - freq.offset_kHz;
 
-    zoom = CLAMP(zoom, 0, MAX_ZOOM);
+    zoom = CLAMP(zoom, 0, ZOOM_CAP);
     double span_kHz = (ui_srate_kHz / (1 << zoom));
     double cf_kHz = zoom? (lo_kHz + (hi_kHz - lo_kHz) / 2) : (ui_srate_kHz/2);
     double left_kHz = cf_kHz - span_kHz/2;
@@ -251,7 +251,7 @@ void SNR_meas(void *param)
             int custom_hi = cfg_int_("snr_meas_custom_hi");
             custom_hi = CLAMP(custom_hi, f_lo, f_hi);
             int custom_zoom = cfg_int_("snr_meas_custom_zoom");
-            custom_zoom = CLAMP(custom_zoom, 0, MAX_ZOOM);
+            custom_zoom = CLAMP(custom_zoom, 0, ZOOM_CAP);
             SNR_setup(SNR_BAND_CUSTOM, custom_lo, custom_hi, custom_zoom);
         
             SNR_setup(SNR_BAND_HAM_LF,  135.7,  137.8,  13);
@@ -276,7 +276,7 @@ void SNR_meas(void *param)
             if (internal_conn_setup(ICONN_WS_WF, &iconn, 0, PORT_BASE_INTERNAL_SNR, WS_FL_PREEMPT_AUTORUN | WS_FL_NO_LOG,
                 NULL, 0, 0, 0,
                 "SNR-measure", "internal%20task", "SNR",
-                WF_ZOOM_MIN, 15000, -110, -10, SNR_MEAS_SELECT, WF_COMP_OFF) == false) {
+                0, 15000, -110, -10, SNR_MEAS_SELECT, WF_COMP_OFF) == false) {
                 printf("SNR_meas: all channels busy\n");
                 break;
             };

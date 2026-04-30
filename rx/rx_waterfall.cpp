@@ -204,11 +204,24 @@ void c2s_waterfall_setup(void *param)
     // send wf_chans=0 to force audio FFT to be used.
     // But need to send actual value via wf_chans_real for use elsewhere.
     bool no_wf = (!conn->isWF_conn || cfg_no_wf);
-	send_msg(conn, SM_WF_DEBUG, "MSG wf_fft_size=1024 wf_fps=%d wf_fps_max=%d zoom_max=%d rx_chans=%d wf_chans=%d wf_chans_real=%d wf_cal=%d wf_setup",
-		WF_SPEED_FAST, WF_SPEED_MAX, MAX_ZOOM, rx_chans, no_wf? 0:wf_chans, wf_chans, waterfall_cal);
+	send_msg(conn, SM_WF_DEBUG, "MSG wf_fft_size=1024 wf_fps=%d wf_fps_max=%d zoom_max=%d zoom_cap=%d rx_chans=%d wf_chans=%d wf_chans_real=%d wf_cal=%d wf_setup",
+		WF_SPEED_FAST, WF_SPEED_MAX, MAX_ZOOM, ZOOM_CAP, rx_chans, no_wf? 0:wf_chans, wf_chans, waterfall_cal);
 	if (do_gps && !do_sdr) send_msg(conn, SM_WF_DEBUG, "MSG gps");
 
     dx_last_community_download();
+}
+
+void c2s_waterfall_stop_data(int rx_chan)
+{
+}
+
+static void c2s_wf_stop(const char *s, conn_t *conn, int rx_chan, bool chan_free)
+{
+    clprintf(conn, "WF c2s_wf_stop %s\n", s);
+    if (chan_free)
+        rx_enable(rx_chan, RX_CHAN_FREE);
+    rx_server_remove(conn);
+    panic("shouldn't return");
 }
 
 void c2s_waterfall(void *param)
@@ -321,10 +334,8 @@ void c2s_waterfall(void *param)
 		}
 
 		if (conn->stop_data) {
-			//clprintf(conn, "WF stop_data rx_server_remove()\n");
-			rx_enable(rx_chan, RX_CHAN_FREE);
-			rx_server_remove(conn);
-			panic("shouldn't return");
+		    c2s_wf_stop("stop_data", conn, rx_chan, true);
+		    // shouldn't return
 		}
 
 		// no keep-alive seen for a while or the bug where the initial cmds are not received and the connection hangs open
@@ -347,9 +358,8 @@ void c2s_waterfall(void *param)
 				rx_enable(rx_chan, RX_CHAN_FREE);		// there is no SND, so free rx_chan[] now
 			}
 			
-			//clprintf(conn, "WF rx_server_remove()\n");
-			rx_server_remove(conn);
-			panic("shouldn't return");
+		    c2s_wf_stop("KA/hang/kick", conn, rx_chan, false);
+		    // shouldn't return
 		}
 
         // Handle LOG_ARRIVED and missing ident for WF-only connections.
