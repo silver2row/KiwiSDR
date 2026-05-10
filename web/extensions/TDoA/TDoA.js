@@ -175,9 +175,7 @@ function tdoa_recv(data)
 		switch (param[0]) {
 
 			case "ready":
-			   tdoa.a = (decodeURIComponent(param[1])).split(',');
-			   tdoa.a[0] = enc(tdoa.a[0]);
-			   tdoa.a[1] = enc(tdoa.a[1]);
+			   tdoa.a = enc(decodeURIComponent(param[1]));
             tdoa.params = ext_param();
             console.log('### TDoA: tdoa.params='+ tdoa.params);
             kiwi_load_js(tdoa.pkgs_maps_js, 'tdoa_controls_setup');
@@ -1828,7 +1826,7 @@ function tdoa_submit_button_cb2()
    tdoa.response.seq = 0;
    tdoa.response.key = (Date.now() % 100000).leadingZeros(5);
 
-   kiwi_ajax_progress(tdoa.url_base +'php/tdoa.php'+ tdoa.a[0] +'&key='+ tdoa.response.key + s,
+   kiwi_ajax_progress(tdoa.url_base +'php/tdoa.php'+ tdoa.a +'&key='+ tdoa.response.key + s,
       function(json) {     // done callback
          //console.log('$TDoA tdoa.php DONE json='+ json);
       }, 0,
@@ -2586,7 +2584,7 @@ function TDoA_help(show)
          w3_text('w3-medium w3-bold w3-text-aqua', 'TDoA Help') +
          w3_div('w3-margin-T-8 w3-scroll-y|height:90%',
             w3_div('w3-margin-R-8',
-               'See the <a href="http://forum.kiwisdr.com/categories/kiwisdr-tdoa-topics" target="_blank">Kiwi forum</a> for more information. <br><br>' +
+               'See the <a href="https://forum.kiwisdr.com/categories/kiwisdr-tdoa-topics" target="_blank">Kiwi forum</a> for more information. <br><br>' +
                
                '<b>Very important:</b> If the TDoA computation cannot converge on a solution within 3 minutes it will timeout. ' +
                'Start with 2 or 3 sampling stations and if you get reasonable solutions add additional stations one-at-a-time. ' +
@@ -2651,6 +2649,11 @@ function TDoA_help(show)
                'Of course you need three or more stations to generate a localized solution. ' +
                '<br><br>' +
 
+               'Mouse over the '+ w3_icon('w3-text-css-lime', 'fa-external-link-square', 16) +' pin to get a link to ' +
+               'the current session with all current parameters (e.g. host list, map lat/lon/zoom, etc). ' +
+               'Right click this link and copy/bookmark it, making an easier return to these specific settings in the future.' +
+               '<br><br>' +
+
                'URL parameters: <br>' +
                w3_text('|color:orange', '(samp/ref station list) lat:<i>num</i> lon:<i>num</i> z|zoom:<i>num</i> sample:<i>secs</i> <br>' +
                   'all: result_hosts: hosts: snr:<i>num</i> refs:0 refs:[1-8] submit:') +
@@ -2673,7 +2676,7 @@ function TDoA_help(show)
                ''
             )
          );
-      confirmation_show_content(s, 625, 350);
+      confirmation_show_content(s, 625, 650);
       w3_el('id-confirmation-container').style.height = '100%';   // to get the w3-scroll-y above to work
    }
    return true;
