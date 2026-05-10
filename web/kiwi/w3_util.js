@@ -3226,6 +3226,7 @@ function w3_alert(width, psa, msg) {
       'box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 9999; font-family: sans-serif;',
       px(width));
    var alert = w3_create_appendElement('id-kiwi-body', 'div', html, css, path);
+   w3int.alert_cur = path;
    w3int.alert_active = true;
 }
 
@@ -3235,10 +3236,16 @@ function w3int_alert_ok(path, cb_param) {
    alert.style.transition = 'opacity 0.5s';
    alert.style.opacity = '0';
    setTimeout(function() { alert.remove(); }, 500);
+   w3int.alert_cur = null;
    w3int.alert_active = false;
 }
 
 function w3_alert_active() { return w3int.alert_active; }
+
+function w3_alert_cancel() {
+   if (w3_alert_active()) 
+      w3int_alert_ok(null, w3int.alert_cur);
+}
 
 
 ////////////////////////////////
