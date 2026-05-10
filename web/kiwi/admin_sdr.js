@@ -112,7 +112,7 @@ function config_init()
 {
    if (!kiwi.has_attn && !cfg.rf_attn_alt) {
       var title;
-      if (kiwi.model == kiwi.KiwiSDR_2) title = 'no RF attenuator on KiwiSDR 2\nwith serial number >= 23000';
+      if (kiwi.model == kiwi.KiwiSDR_2) title = 'no RF attenuator on KiwiSDR 2\nwith serial number above 23000';
       else
          title = 'no RF attenuator on this KiwiSDR model';
       w3_disable_multi('id-rf-attn', true);
