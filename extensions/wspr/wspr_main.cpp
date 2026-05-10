@@ -569,29 +569,32 @@ void WSPR_Deco(void *param)
                 w->arun_decoded++;
             } else {
                 #ifdef CURL_UPLOADS
-                    wspr_printf("WSPR UPLOAD %02d%02d %3.0f %4.1f %9.6f %2d %s\n",
-                        dp->hour, dp->min, dp->snr, dp->dt_print, dp->freq_print, (int) dp->drift1, dp->c_l_p);
+                    wspr_printf("WSPR UPLOAD %02d%02d %3.0f %4.1f %9.6f %2d %s %s\n",
+                        dp->hour, dp->min, dp->snr, dp->dt_print, dp->freq_print, (int) dp->drift1, dp->c_l_p,
+                        w->upload? "" : "(upload disabled)");
 
-                    // make the dp->call field invalid so wsprnet.org rejects the upload
-                    #ifdef TEST_UPLOADS
-                        strcpy(dp->call, "...");
-                    #endif
-                    asprintf(&cmd, WSPR_SPOT, wspr_c.rcall, wspr_c.rgrid, rqrg, year%100, month, day,
-                        dp->hour, dp->min, dp->snr, dp->dt_print, (int) dp->drift1, dp->freq_print, dp->call, dp->grid, dp->pwr,
-                        wspr_c.spot_log? "" : " >/dev/null 2>&1");
-                    if (wspr_c.spot_log) {
-                        non_blocking_cmd_func_forall("kiwi.wsprnet.org", cmd, _upload_task, w->rx_chan, POLL_MSEC(250));
-                        rcprintf(w->rx_chan, "%s UPLOAD: %s\n", w->iwbp? "IWBP" : "WSPR", cmd);
-                        int added = shmem->status_u4[N_SHMEM_ST_WSPR][rx_chan][0];
-                        int total = shmem->status_u4[N_SHMEM_ST_WSPR][rx_chan][1];
-                        rcprintf(w->rx_chan, "%s UPLOAD: wsprnet.org said: \"%d out of %d spot(s) added\" [%s]\n", w->iwbp? "IWBP" : "WSPR", added, total, dp->call);
-                    } else {
-                        non_blocking_cmd_system_child("kiwi.wsprnet.org", cmd, NO_WAIT);
+                    if (w->upload) {
+                        // make the dp->call field invalid so wsprnet.org rejects the upload
+                        #ifdef TEST_UPLOADS
+                            strcpy(dp->call, "...");
+                        #endif
+                        asprintf(&cmd, WSPR_SPOT, wspr_c.rcall, wspr_c.rgrid, rqrg, year%100, month, day,
+                            dp->hour, dp->min, dp->snr, dp->dt_print, (int) dp->drift1, dp->freq_print, dp->call, dp->grid, dp->pwr,
+                            wspr_c.spot_log? "" : " >/dev/null 2>&1");
+                        if (wspr_c.spot_log) {
+                            non_blocking_cmd_func_forall("kiwi.wsprnet.org", cmd, _upload_task, w->rx_chan, POLL_MSEC(250));
+                            rcprintf(w->rx_chan, "%s UPLOAD: %s\n", w->iwbp? "IWBP" : "WSPR", cmd);
+                            int added = shmem->status_u4[N_SHMEM_ST_WSPR][rx_chan][0];
+                            int total = shmem->status_u4[N_SHMEM_ST_WSPR][rx_chan][1];
+                            rcprintf(w->rx_chan, "%s UPLOAD: wsprnet.org said: \"%d out of %d spot(s) added\" [%s]\n", w->iwbp? "IWBP" : "WSPR", added, total, dp->call);
+                        } else {
+                            non_blocking_cmd_system_child("kiwi.wsprnet.org", cmd, NO_WAIT);
+                        }
+                        kiwi_asfree(cmd);
                     }
-                    kiwi_asfree(cmd);
                 #else
                     //printf("WSPR #%d skip_upload %d\n", i, w->skip_upload);
-                    if (w->skip_upload == 0) {
+                    if (w->upload && w->skip_upload == 0) {
                         ext_send_msg_encoded(w->rx_chan, WSPR_DEBUG_MSG, "EXT", "WSPR_UPLOAD",
                             "%02d%02d %3.0f %4.1f %9.6f %2d %s",
                             dp->hour, dp->min, dp->snr, dp->dt_print, dp->freq_print, (int) dp->drift1, dp->c_l_p);
@@ -894,6 +897,13 @@ bool wspr_msgs(char *msg, int rx_chan)
 	n = sscanf(msg, "SET debug=%d", &i);
     if (n == 1) {
         w->debug = i;
+        return true;
+    }
+    
+	n = sscanf(msg, "SET upload=%d", &i);
+    if (n == 1) {
+        printf("WSPR upload=%d\n", i);
+        w->upload = i;
         return true;
     }
     

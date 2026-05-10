@@ -984,6 +984,7 @@ function wspr_set_upload_cb(path, checked)
 	
 	if (!wspr_config_okay || wspr.upload_lockout) checked = false;
 	wspr.upload = checked;
+	ext_send('SET upload='+ (checked? 1:0));
 	w3_checkbox_set('id-wspr.upload', checked);
 	w3_color('id-wspr-upload-container', checked? "white":"black", checked? "inherit":"yellow");
 }
