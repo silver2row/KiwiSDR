@@ -263,7 +263,6 @@ bool ale_2g_msgs(char *msg, int rx_chan)
 
 	if (strcmp(msg, "SET start") == 0) {
 		//printf("ALE_2G: start\n");
-        //c2s_waterfall_no_sync(rx_chan, true);
 
         #ifdef ALE_2G_TEST_FILE
             e->s2p = e->s2px = e->s22p = ale_2g.s2p_start;
@@ -290,7 +289,6 @@ bool ale_2g_msgs(char *msg, int rx_chan)
 
 	if (strcmp(msg, "SET stop") == 0) {
 		//printf("ALE_2G: stop\n");
-        //c2s_waterfall_no_sync(rx_chan, false);
 		ale_2g_close(rx_chan);
 		e->test = false;
 		return true;

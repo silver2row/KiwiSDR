@@ -213,7 +213,6 @@ bool hfdl_msgs(char *msg, int rx_chan)
 
 	if (strcmp(msg, "SET start") == 0) {
 		//printf("HFDL: start\n");
-        //c2s_waterfall_no_sync(rx_chan, true);
 
         e->s2p = e->s2px = e->s22p = hfdl.s2p_start;
 
@@ -234,7 +233,6 @@ bool hfdl_msgs(char *msg, int rx_chan)
 
 	if (strcmp(msg, "SET stop") == 0) {
 		//printf("HFDL: stop\n");
-        //c2s_waterfall_no_sync(rx_chan, false);
 		hfdl_close(rx_chan);
 		e->test = false;
 		return true;

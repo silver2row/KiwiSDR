@@ -8,13 +8,14 @@ var kmap = {
    DIR_RIGHT: false,
    VISIBLE: true,
    NOT_VISIBLE: false,
-   
    NO_CONTAINER: -1,
+   
+   noise_boost: 6,
 
    _last_last: 0
 };
 
-function kiwi_map_init(ext_name, init_latlon, init_zoom, mapZoom_nom, move_cb, zoom_cb)
+function kiwi_map_init(ext_name, init_latlon, init_zoom, mapZoom_nom)
 {
    var map_tiles;
    var maxZoom = 19;
@@ -36,33 +37,35 @@ function kiwi_map_init(ext_name, init_latlon, init_zoom, mapZoom_nom, move_cb, z
       };
    }
 
-   // MapTiler vector tiles using LeafletGL/MapBoxGL
-   if (server == server_e.MapTiler_Vector) {
-      map_tiles = function(map_style) {
-         return L.mapboxGL({
-            attribution: '<a href="https://www.maptiler.com/license/maps/" target="_blank">&copy; MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>',
-            accessToken: 'not-needed',
-            style: 'https://api.maptiler.com/maps/'+ map_style +'/style.json'+ 'key'
-         });
-      };
-   }
-
-   // MapTiler 512/256 px raster tiles
-   if (server == server_e.MapTiler_Raster_512 || server == server_e.MapTiler_Raster_256) {
-      var slash_256 = (server == server_e.MapTiler_Raster_256)? '/256':'';
-      map_tiles = function(map_style) {
-         return L.tileLayer(
-            (map_style == 'hybrid')?
-               'https://api.maptiler.com/maps/'+ map_style + slash_256 +'/{z}/{x}/{y}{r}.jpg'+ 'key'
-            :
-               'https://api.maptiler.com/maps/'+ map_style + slash_256 +'/{z}/{x}/{y}.png'+ 'key', {
-            tileSize: (server == server_e.MapTiler_Raster_256)? 256 : 512,
-            zoomOffset: (server == server_e.MapTiler_Raster_256)? 0 : -1,
-            attribution: '<a href="https://www.maptiler.com/copyright/" target="_blank">&copy; MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>',
-            crossOrigin: true
-         });
-      };
-   }
+   /* not used currently
+      // MapTiler vector tiles using LeafletGL/MapBoxGL
+      if (server == server_e.MapTiler_Vector) {
+         map_tiles = function(map_style) {
+            return L.mapboxGL({
+               attribution: '<a href="https://www.maptiler.com/license/maps/" target="_blank">&copy; MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>',
+               accessToken: 'not-needed',
+               style: 'https://api.maptiler.com/maps/'+ map_style +'/style.json'+ 'key'
+            });
+         };
+      }
+   
+      // MapTiler 512/256 px raster tiles
+      if (server == server_e.MapTiler_Raster_512 || server == server_e.MapTiler_Raster_256) {
+         var slash_256 = (server == server_e.MapTiler_Raster_256)? '/256':'';
+         map_tiles = function(map_style) {
+            return L.tileLayer(
+               (map_style == 'hybrid')?
+                  'https://api.maptiler.com/maps/'+ map_style + slash_256 +'/{z}/{x}/{y}{r}.jpg'+ 'key'
+               :
+                  'https://api.maptiler.com/maps/'+ map_style + slash_256 +'/{z}/{x}/{y}.png'+ 'key', {
+               tileSize: (server == server_e.MapTiler_Raster_256)? 256 : 512,
+               zoomOffset: (server == server_e.MapTiler_Raster_256)? 0 : -1,
+               attribution: '<a href="https://www.maptiler.com/copyright/" target="_blank">&copy; MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>',
+               crossOrigin: true
+            });
+         };
+      }
+   */
 
    var tiles = map_tiles('hybrid');
    var map = L.map('id-'+ ext_name +'-map',
@@ -97,20 +100,22 @@ function kiwi_map_init(ext_name, init_latlon, init_zoom, mapZoom_nom, move_cb, z
    L.control.zoom_Kiwi( { position: 'topleft', zoomNomText: '2', zoomNomLatLon: init_latlon } ).addTo(map);
    tiles.addTo(map);
 
-   // MapTiler map choices
-   if (server != server_e.OSM_Raster) {
-      L.control.layers(
-         {
-            'Satellite': tiles,
-            'Basic': map_tiles('basic'),
-            'Bright': map_tiles('bright'),
-            'Positron': map_tiles('positron'),
-            'Street': map_tiles('streets'),
-            'Topo': map_tiles('topo')
-         },
-         null
-      ).addTo(map);
-   }
+   /* not used currently
+      // MapTiler map choices
+      if (server != server_e.OSM_Raster) {
+         L.control.layers(
+            {
+               'Satellite': tiles,
+               'Basic': map_tiles('basic'),
+               'Bright': map_tiles('bright'),
+               'Positron': map_tiles('positron'),
+               'Street': map_tiles('streets'),
+               'Topo': map_tiles('topo')
+            },
+            null
+         ).addTo(map);
+      }
+   */
 
    var scale = L.control.scale();
    scale.addTo(map);

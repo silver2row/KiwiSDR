@@ -708,7 +708,7 @@ fail:
                 break;
 		    }
 		} else {
-            sb = gps_update_data(FROM_AJAX);
+            sb = gps_update_data();
 		}
         return sb;      // NB: return here because sb is already a kstr_t (don't want to do kstr_wrap() below)
     }
