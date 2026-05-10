@@ -5183,6 +5183,7 @@ function waterfall_add(data_raw, audioFFT)
       }
       
       wf.no_sync = (flags & wf.NO_SYNC);
+      //console.log('no_sync '+ TF(wf.no_sync));
       
       // When zoom level is too high there is a glich in WF DDC data.
       // Swallow a few WF samples in that case (amount is zoom level dependent).
@@ -5403,6 +5404,11 @@ function waterfall_add(data_raw, audioFFT)
       if (!auto && wf.FNAS) {
          //console.log('$$SKIP !auto && wf.FNAS');
       } else {
+         if (kiwi.wf_preview_mode) {
+            var boost = kmap.noise_boost;
+            //console.log('wf_preview_mode AUTOSCALE signal='+ signal +' noise='+ (noise + boost) +'|'+ noise);
+            noise += boost;
+         }
          setmaxdb(signal, {done:1, no_fsel:auto});
          setmindb(noise, {done:1, no_fsel:auto});
          update_maxmindb_sliders();
@@ -8120,6 +8126,17 @@ function confirmation_panel_init2()
             toggle_or_set_hide_panels(0);    // cancel panel hide mode
 	      }
 	   }, w3.CAPTURING);
+}
+
+function confirmation_show_scrolling_content(title, body, w, h, close_cb, bg_color)
+{
+   var s =
+      w3_text('w3-medium w3-bold w3-text-aqua', title) +
+      w3_div('w3-margin-T-8 w3-scroll-y|height:90%',
+         w3_div('w3-margin-R-8', body)
+      );
+   confirmation_show_content(s, w, h, close_cb, bg_color);
+   w3_el('id-confirmation-container').style.height = '100%';   // to get the w3-scroll-y above to work
 }
 
 function confirmation_show_content(s, w, h, close_cb, bg_color)
@@ -11303,7 +11320,7 @@ function panels_setup()
       kiwi.rf_attn_disabled = true;
       w3_disable_multi('id-rf-attn-disable', true);
       var title;
-      if (no_attn && kiwi.model == kiwi.KiwiSDR_2) title = 'no RF attenuator on KiwiSDR 2\nwith serial number >= 23000';
+      if (no_attn && kiwi.model == kiwi.KiwiSDR_2) title = 'no RF attenuator on KiwiSDR 2\nwith serial number above 23000';
       else
       if (no_attn) title = 'no RF attenuator on this KiwiSDR model';
       else
