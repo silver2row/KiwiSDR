@@ -51,6 +51,7 @@ typedef struct {
     model_e model;
     platform_e platform;
     int firmware_sel;
+    bool pcb_has_beads, pcb_has_attn, pcb_ths_4509, pcb_fpga_a50;
     
     int current_nusers, current_nusers_ui;
     int ext_api_nchans;
@@ -74,6 +75,9 @@ typedef struct {
     
     int current_espeed;
     
+    #define WATERFALL_CALIBRATION_DEFAULT -13
+    #define SMETER_CALIBRATION_DEFAULT -13
+    int S_meter_cal, waterfall_cal;
     float rf_attn_dB;
 
     bool snr_initial_meas_done, snr_meas_active, snr_disable_filter;
@@ -111,7 +115,7 @@ extern int wf_sim, wf_real, wf_time, ev_dump, wf_flip, wf_exit, wf_start, down,
 	meas, monitors_max, rx_yield, gps_chans, wf_max, cfg_no_wf, do_gps, do_sdr, wf_olap,
 	spi_clkg, spi_speed, spi_mode, spi_delay, spi_no_async, bg, dx_print, snr_meas, wf_full_rate,
 	port, print_stats, ecpu_cmds, ecpu_tcmds, serial_number, ip_limit_mins, is_locked, test_flag, n_camp,
-	use_spidev, inactivity_timeout_mins, S_meter_cal, waterfall_cal, debian_ver,
+	use_spidev, inactivity_timeout_mins, debian_ver,
 	utc_offset, dst_offset, reg_kiwisdr_com_status, kiwi_reg_lo_kHz, kiwi_reg_hi_kHz,
 	debian_maj, debian_min, gps_debug, gps_var, gps_lo_gain, gps_cg_gain, use_foptim, web_caching_debug,
 	drm_nreg_chans, snr_meas_interval_min,

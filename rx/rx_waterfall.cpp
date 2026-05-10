@@ -205,7 +205,7 @@ void c2s_waterfall_setup(void *param)
     // But need to send actual value via wf_chans_real for use elsewhere.
     bool no_wf = (!conn->isWF_conn || cfg_no_wf);
 	send_msg(conn, SM_WF_DEBUG, "MSG wf_fft_size=1024 wf_fps=%d wf_fps_max=%d zoom_max=%d zoom_cap=%d rx_chans=%d wf_chans=%d wf_chans_real=%d wf_cal=%d wf_setup",
-		WF_SPEED_FAST, WF_SPEED_MAX, MAX_ZOOM, ZOOM_CAP, rx_chans, no_wf? 0:wf_chans, wf_chans, waterfall_cal);
+		WF_SPEED_FAST, WF_SPEED_MAX, MAX_ZOOM, ZOOM_CAP, rx_chans, no_wf? 0:wf_chans, wf_chans, kiwi.waterfall_cal);
 	if (do_gps && !do_sdr) send_msg(conn, SM_WF_DEBUG, "MSG gps");
 
     dx_last_community_download();
@@ -237,7 +237,7 @@ void c2s_waterfall(void *param)
 	int _dvar, _pipe;
 	double adc_clock_corrected = 0;
 	u4_t dx_update_seq = 0, masked_update_seq = 0;
-	int wf_cal = waterfall_cal;
+	int wf_cal = kiwi.waterfall_cal;
 	
 	wf_inst_t *wf = &WF_SHMEM->wf_inst[rx_chan];
 	memset(wf, 0, sizeof(wf_inst_t));
@@ -484,9 +484,9 @@ void c2s_waterfall(void *param)
 		}
 		
 		// forward admin changes of waterfall cal to client side
-		if (waterfall_cal != wf_cal) {
-            send_msg(conn, false, "MSG wf_cal=%d", waterfall_cal);
-		    wf_cal = waterfall_cal;
+		if (kiwi.waterfall_cal != wf_cal) {
+            send_msg(conn, false, "MSG wf_cal=%d", kiwi.waterfall_cal);
+		    wf_cal = kiwi.waterfall_cal;
 		}
 		
 		if (wf->new_scale_mask) {

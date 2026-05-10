@@ -632,6 +632,12 @@ void c2s_sound(void *param)
                     evSnd(EC_EVENT, EV_SND, -1, "rx_snd", "PB_FIR..");
                     fir_samps_c = &iq->iq_samples[iq->iq_wr_pos][0];
                     ns_out  = m_PassbandFIR[rx_chan].ProcessData(rx_chan, ns_in, in_samps_c, fir_samps_c);
+                    
+                    //#define SND_DEBUG
+                    #ifdef SND_DEBUG
+                        real_printf(GREEN "%d:I%d:O%d" NORM " ", rx_chan, ns_in, ns_out); fflush(stdout);
+                    #endif
+                    
                     fir_pos = m_PassbandFIR[rx_chan].FirPos();
         
                     // FIR has a pipeline delay:
@@ -668,6 +674,12 @@ void c2s_sound(void *param)
                         continue;
                     iq->iq_nsamps[iq->iq_wr_pos] = ns_out;
                     rx->real_nsamps[rx->real_wr_pos] = ns_out;
+
+                    #ifdef SND_DEBUG
+                        real_printf("%d:W%d ", rx_chan, iq->iq_wr_pos); fflush(stdout);
+                        real_printf("W%d#%d ", iq->iq_wr_pos, ns_out); fflush(stdout);
+                        real_printf("W%d#%d ", rx_chan, ns_out); fflush(stdout);
+                    #endif
                     
                     // correct GPS timestamp for offset in the FIR filter
                     //  (1) delay in FIR filter
@@ -727,9 +739,9 @@ void c2s_sound(void *param)
                         // forward S-meter samples if requested
                         // S-meter value in audio packet is sent less often than if we send it from here
                         if (receive_S_meter != NULL && (j == 0 || j == ns_out/2))
-                            receive_S_meter(rx_chan, sMeterAvg_dB + S_meter_cal);
+                            receive_S_meter(rx_chan, sMeterAvg_dB + kiwi.S_meter_cal);
                     }
-                    sMeter_dBm = sMeterAvg_dB + S_meter_cal;
+                    sMeter_dBm = sMeterAvg_dB + kiwi.S_meter_cal;
                     
                     if (!IQ_or_DRM_or_stereo) {
                         out_samps_s2 = &rx->real_samples_s2[rx->real_wr_pos][0];

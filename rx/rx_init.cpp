@@ -120,7 +120,6 @@ void cfg_adm_transition()
 }
 
 int inactivity_timeout_mins, ip_limit_mins;
-int S_meter_cal, waterfall_cal;
 double ui_srate_Hz, ui_srate_kHz;
 int kiwi_reg_lo_kHz, kiwi_reg_hi_kHz;
 float max_thr;
@@ -132,9 +131,6 @@ int current_mtu;
 #define DC_OFFSET_DEFAULT_PREV 0.05F
 #define DC_OFFSET_DEFAULT_20kHz -0.034F
 TYPEREAL DC_offset_I, DC_offset_Q;
-
-#define WATERFALL_CALIBRATION_DEFAULT -13
-#define SMETER_CALIBRATION_DEFAULT -13
 
 void update_freqs(bool *update_cfg)
 {
@@ -329,8 +325,9 @@ void update_vars_from_config(bool called_at_init)
 	}
 
 
-    S_meter_cal = cfg_default_int("S_meter_cal", SMETER_CALIBRATION_DEFAULT, &up_cfg);
-    waterfall_cal = cfg_default_int("waterfall_cal", WATERFALL_CALIBRATION_DEFAULT, &up_cfg);
+    kiwi.S_meter_cal = cfg_default_int("S_meter_cal", SMETER_CALIBRATION_DEFAULT, &up_cfg);
+    kiwi.waterfall_cal = cfg_default_int("waterfall_cal", WATERFALL_CALIBRATION_DEFAULT, &up_cfg);
+
     cfg_default_bool("no_zoom_corr", false, &up_cfg);
     cfg_default_bool("contact_admin", true, &up_cfg);
     cfg_default_int("chan_no_pwd", 0, &up_cfg);

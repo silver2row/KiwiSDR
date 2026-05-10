@@ -248,6 +248,7 @@ void rx_loguser(conn_t *c, logtype_e type)
 int rx_chan_free_count(rx_free_count_e flags, int *idx, int *heavy, int *preempt, int *busy)
 {
 	int i, free_cnt = 0, free_idx = -1, heavy_cnt = 0, preempt_cnt = 0, busy_cnt = 0;
+	int wf_nch = wf_chans;
 	rx_chan_t *rx;
 
     // When configuration has a limited number of channels with waterfalls
@@ -271,10 +272,10 @@ int rx_chan_free_count(rx_free_count_e flags, int *idx, int *heavy, int *preempt
         } \
     }
 
-    if (flags != RX_COUNT_ALL && wf_chans != 0 && wf_chans < rx_chans) {
-        for (i = wf_chans; i < rx_chans; i++) RX_CHAN_FREE_COUNT();
+    if (flags != RX_COUNT_ALL && wf_nch != 0 && wf_nch < rx_chans) {
+        for (i = wf_nch; i < rx_chans; i++) RX_CHAN_FREE_COUNT();
         if (flags != RX_COUNT_NO_WF_AT_ALL) {
-            for (i = 0; i < wf_chans; i++) RX_CHAN_FREE_COUNT();
+            for (i = 0; i < wf_nch; i++) RX_CHAN_FREE_COUNT();
         }
     } else {
         for (i = 0; i < rx_chans; i++) RX_CHAN_FREE_COUNT();
@@ -478,7 +479,7 @@ void rx_autorun_restart_victims(bool initial)
     
     // if autorun on configurations with limited wf chans (e.g. rx8_wf2) never use the wf chans at all
     int free_chans = rx_chan_free_count(RX_COUNT_NO_WF_AT_ALL);
-    //printf("rx_autorun_restart_victims: initial=%d free_chans=%d rx_chans=%d wf_chans=%d\n", initial, free_chans, rx_chans, wf_chans);
+    //printf("rx_autorun_restart_victims: initial=%d free_chans=%d rx_chans=%d wf_chans=%d\n", initial, free_chans, rx_chans, wf_nch);
     if (free_chans == 0) {
         //printf("rx_autorun_restart_victims: no free chans\n");
         return;
@@ -1135,7 +1136,7 @@ int dB_wire_to_dBm(int db_value)
     if (db_value < 0) db_value = 0;
 	if (db_value > 255) db_value = 255;
 	int dBm = -(255 - db_value);
-	return (dBm + waterfall_cal);
+	return (dBm + kiwi.waterfall_cal);
 }
 
 // fast, but approximate, dB = 10 * log10(x)
@@ -1270,7 +1271,7 @@ char *gps_IQ_data(int ch, bool from_AJAX)
     return sb;
 }
 
-char *gps_update_data(bool from_AJAX)
+char *gps_update_data()
 {
     int i, j;
     gps_chan_t *c;
@@ -1332,11 +1333,7 @@ char *gps_update_data(bool from_AJAX)
         sb = kstr_cat(sb, ",\"lat\":0");
     }
     
-    sb = kstr_asprintf(sb, ",\"acq\":%d,\"track\":%d,\"good\":%d,\"fixes\":%d,\"fixes_min\":%d,\"adc_clk\":%.6f,\"adc_corr\":%d,\"is_corr\":%d",
+    sb = kstr_asprintf(sb, ",\"acq\":%d,\"track\":%d,\"good\":%d,\"fixes\":%d,\"fixes_min\":%d,\"adc_clk\":%.6f,\"adc_corr\":%d,\"is_corr\":%d}\n",
         gps.acquiring? 1:0, gps.tracking, gps.good, gps.fixes, gps.fixes_min, adc_clock_system()/1e6, clk.adc_gps_clk_corrections, clk.is_corr? 1:0);
-    if (from_AJAX)
-        sb = kstr_asprintf(sb, "}\n");
-    else
-        sb = kstr_asprintf(sb, ",\"a\":\"%s\"}", gps.a);
     return sb;
 }
