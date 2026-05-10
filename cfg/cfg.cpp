@@ -221,6 +221,10 @@ void cfg_reload()
         }
     }
 
+    kiwi.pcb_has_beads = kiwi.pcb_has_attn = (kiwi.model == KiwiSDR_2 && serial_number > 20000 && serial_number < 23000);
+    kiwi.pcb_ths_4509 = (serial_number >= 23000);
+    kiwi.pcb_fpga_a50 = (serial_number >= 25000 && serial_number < 26000);
+
     #ifdef USE_SDR
         dx_label_init();
     #endif

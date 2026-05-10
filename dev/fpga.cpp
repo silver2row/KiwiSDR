@@ -311,8 +311,9 @@ int fpga_init(int check, int fpga_sim_fail) {
 
     #ifdef PLATFORM_beaglebone
         // more favorable timing for kiwi.v:BBB_MISO
-        if (spi_mode == -1)
-            spi_mode = (kiwi.model == KiwiSDR_2 && serial_number > 20000 && serial_number < 23000)? SPI_MODE_BEADS : SPI_MODE_NO_BEADS;
+        if (spi_mode == -1) {
+            spi_mode = kiwi.pcb_has_beads? SPI_MODE_BEADS : SPI_MODE_NO_BEADS;
+        }
         for (i = 0; i < 10; i++) {
             spin_ms(100);
             spi_dev_mode(spi_mode);
@@ -378,10 +379,6 @@ int fpga_init(int check, int fpga_sim_fail) {
         fpga_panic(7, "FPGA not responding to ping2");
         return 0;
 	}
-
-	#ifdef USE_GPS
-        strcpy(&gps.a[13], "[Y5EyEWjA65g");
-    #endif
 
 	stat_reg_t stat = stat_get();
 	//printf("stat.word=0x%04x fw_id=0x%x fpga_ver=0x%x stat_user=0x%x fpga_id=0x%x\n",
