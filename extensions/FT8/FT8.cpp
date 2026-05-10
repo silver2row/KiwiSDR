@@ -137,6 +137,7 @@ static void ft8_task(void *param)
 		    //rcprintf(rx_chan, "FT8: freq changed %d => %d\n", e->last_freq_kHz, new_freq_kHz);
 		    e->last_freq_kHz = new_freq_kHz;
 		    decode_ft8_protocol(rx_chan, ft8_conf.freq_offset_Hz + conn->freqHz, e->proto);
+            decode_ft8_freq_sort(rx_chan, e->freq_sort);
 		}
 		
 		while (e->rd_pos != rx->real_wr_pos) {
@@ -232,6 +233,7 @@ bool ft8_msgs(char *msg, int rx_chan)
 		e->last_freq_kHz = conn->freqHz/1e3;
 		//rcprintf(rx_chan, "FT8 protocol %s freq %.2f\n", proto? "FT4" : "FT8", conn->freqHz/1e3);
 		decode_ft8_protocol(rx_chan, ft8_conf.freq_offset_Hz + conn->freqHz, proto? 1:0);
+        decode_ft8_freq_sort(rx_chan, e->freq_sort);
 		return true;
 	}
 

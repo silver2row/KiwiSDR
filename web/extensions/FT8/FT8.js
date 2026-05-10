@@ -15,7 +15,8 @@ var ft8 = {
    FT8: 0,
    FT4: 1,
    mode_s: ['FT8', 'FT4'],
-   freq_sort: 0,
+   freq_sort: 1,
+   auto_zoom: 1,
 
    // yes, there are really no assigned FT4 freqs for 160m and 60m
    freq_s: {
@@ -187,7 +188,7 @@ function ft8_output_chars(c)
 function ft8_controls_setup()
 {
 	ft8.saved_setup = ext_save_setup();
-   ext_tune(null, 'usb', ext_zoom.ABS, 11, ft8.PASSBAND_LO, ft8.PASSBAND_HI);
+   ext_tune(null, 'usb', ext_zoom.ABS, ft8.auto_zoom? 11 : ext_get_zoom(), ft8.PASSBAND_LO, ft8.PASSBAND_HI);
 
    var data_html =
       time_display_html('ft8') +
@@ -250,13 +251,14 @@ function ft8_controls_setup()
                w3_divs('id-ft8-container/w3-tspace-8',
                   w3_inline('/w3-margin-between-16',
                      w3_select_hier('id-ft8-freq w3-text-red w3-width-auto', '', 'freq', 'ft8.freq_idx', -1, ft8.freq_s, 'ft8_freq_cb'),
-                     w3_select('w3-text-red', '', 'mode', 'ft8.mode', ft8.FT8, ft8.mode_s, 'ft8_mode_cb')
+                     w3_select('w3-text-red', '', 'mode', 'ft8.mode', ft8.FT8, ft8.mode_s, 'ft8_mode_cb'),
+                     (dbgUs? w3_button('id-ft8-test w3-padding-smaller w3-aqua', 'Test', 'ft8_test_cb') : '')
                   ),
    
                   w3_inline('/w3-margin-between-16',
                      w3_button('w3-padding-smaller w3-css-yellow', 'Clear', 'ft8_clear_button_cb'),
-                     w3_checkbox('/w3-label-inline w3-label-not-bold/', 'freq sort', 'ft8.freq_sort', false, 'ft8_freq_sort_cb'),
-                     (dbgUs? w3_button('id-ft8-test w3-padding-smaller w3-aqua', 'Test', 'ft8_test_cb') : '')
+                     w3_checkbox('/w3-label-inline w3-label-not-bold/', 'freq sort', 'ft8.freq_sort', true, 'ft8_freq_sort_cb'),
+                     w3_checkbox('/w3-label-inline w3-label-not-bold/', 'auto zoom', 'ft8.auto_zoom', true, 'w3_bool_cb')
                   ),
    
                   w3_inline('/w3-margin-between-8',
@@ -292,9 +294,17 @@ function ft8_controls_setup()
       p = p.split(',');
       var do_test = 0;
       p.forEach(function(a, i) {
+         if (w3_ext_param('no_sort', a).match) {
+            ft8.auto_zoom = 0;
+            w3_checkbox_set('ft8.auto_zoom', ft8.auto_zoom);
+         } else
+         if (w3_ext_param('no_auto', a).match) {
+            ft8.auto_zoom = 0;
+            w3_checkbox_set('ft8.auto_zoom', ft8.auto_zoom);
+         } else
          if (w3_ext_param('test', a).match) {
             do_test = 1;
-         }
+         } else
          if (w3_ext_param('help', a).match) {
             ext_help_click();
          }
@@ -336,7 +346,7 @@ function ft8_freq_cb(path, idx, first)
 	var freq = +(menu_item.option);
 	var r = ext_get_freq_range();
 	var fo_kHz = freq - r.offset_kHz;
-   ext_tune(fo_kHz, 'usb', ext_zoom.ABS, 11);
+   ext_tune(fo_kHz, 'usb', ext_zoom.ABS, ft8.auto_zoom? 11 : ext_get_zoom());
    var mode = menu_item.last_disabled;
    w3_select_value(path, idx);   // for benefit of direct callers
 	//console.log('ft8_freq_cb: path='+ path +' idx='+ idx +' fo_kHz='+ fo_kHz +' mode='+ mode);
@@ -361,7 +371,7 @@ function ft8_mode_cb(path, idx, first)
 
 function ft8_freq_sort_cb(path, checked, first)
 {
-	if (first) return;
+	//if (first) return;
 	//console.log('ft8_freq_sort_cb: checked='+ checked);
 	w3_bool_cb(path, checked);
    ft8.freq_sort = checked? 1:0;
@@ -666,25 +676,28 @@ function FT8_help(show)
 {
    if (show) {
       var s =
-         w3_text('w3-medium w3-bold w3-text-aqua', 'FT8/FT4 decoder help') +
-         '<br>Spots are uploaded to pskreporter.info if the <x1>reporter call</x1> and <x1>reporter grid</x1> ' +
+         'Spots are uploaded to pskreporter.info if the <x1>reporter call</x1> and <x1>reporter grid</x1> ' +
          'fields on the admin page, extensions tab, FT8 subtab have valid entries. ' +
          'Leave the callsign field blank if you do not want any uploads to pskreporter.info ' +
          'But consider leaving the grid field set so the km distance from the Kiwi to the ' +
          'spot will be shown.<br><br>' +
          
-         'Uploaded spots are highlighted in green. Spots are only uploaded once every 60 minutes. ' +
+         'Uploaded spots are highlighted in green. Spots are uploaded approximately every 5 minutes. ' +
          'The <i>age</i> column shows, in minutes, how long it has been since the last upload. ' +
          'SNR information is currently not uploaded as it is not accurate.<br><br>' +
          
          'Clicking the <i>pskreporter.info</i> link will take you directly to the map with the ' +
          'reporter callsign of the Kiwi preset.<br><br>' +
          
+         'Spots are sorted by SNR or Freq depending on the <i>freq sort</i> checkbox.<br><br>' +
+         
          'URL parameters:<br>' +
-         'The first parameter can select one of the entries in the <i>freq</i> menu<br>' +
+         w3_text('|color:orange', '(freq menu match) no_sort no_auto test') +
+         '<br>The first parameter can select one of the entries in the <i>freq</i> menu<br>' +
          'e.g. <i>my_kiwi:8073/?ext=ft8,10136</i>' +
-         '';
-      confirmation_show_content(s, 610, 325);
+         '<i>no_sort</i> unchecks the "freq sort" checkbox.<br>' +
+         '<i>no_auto</i> unchecks the "auto zoom" checkbox.<br>';
+      confirmation_show_scrolling_content('FT8/FT4 decoder help', s, 610, 400);
    }
    return true;
 }
