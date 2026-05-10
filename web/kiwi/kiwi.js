@@ -61,6 +61,7 @@ var kiwi = {
    uptime: 0,
    isLocal_ip: 0,
    reset_pwd: false,
+   pwd_ask_count: 0,
 
    stats_interval: 10000,
    conn_tstamp: 0,
@@ -459,18 +460,27 @@ function kiwi_ask_pwd(conn_kiwi)
             );
       }
 	}
-
-   // done this way because cfg is not yet available
-	var user_login = conn_kiwi? w3_innerHTML('id-kiwi-user-login').trim() : '';
-
-	var s = isNonEmptyString(user_login)? (user_login +'<br><br>') : 'KiwiSDR: software-defined receiver<br>';
-	s += s1 + try_again +
-      w3_input('w3-margin-TB-8/w3-label-inline w3-label-not-bold/w3-font-16px kiwi-pw w3-padding-1||size=40',
-         'Password:', 'id-pwd', '', 'kiwi_ask_pwd_cb') +
-      reset_s + s2;
-
-	kiwi_show_msg(s);
-	w3_field_select('id-pwd', {mobile:1});
+	
+	// allow admin password to be specified in URL, e.g. passed from mfg after serial number assignment
+	var pwd = kiwi_url_param('pwd');
+	kiwi.pwd_ask_count++;
+	if (!conn_kiwi && kiwi.pwd_ask_count == 1 && isNonEmptyString(pwd)) {
+	   console.log('ADMIN pwd='+ pwd);
+      ext_valpwd(conn_type, pwd);
+	} else {
+   
+      // done this way because cfg is not yet available
+      var user_login = conn_kiwi? w3_innerHTML('id-kiwi-user-login').trim() : '';
+   
+      var s = isNonEmptyString(user_login)? (user_login +'<br><br>') : 'KiwiSDR: software-defined receiver<br>';
+      s += s1 + try_again +
+         w3_input('w3-margin-TB-8/w3-label-inline w3-label-not-bold/w3-font-16px kiwi-pw w3-padding-1||size=40',
+            'Password:', 'id-pwd', '', 'kiwi_ask_pwd_cb') +
+         reset_s + s2;
+   
+      kiwi_show_msg(s);
+      w3_field_select('id-pwd', {mobile:1});
+   }
 }
 
 var body_loaded = false;
