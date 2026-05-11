@@ -532,6 +532,7 @@ static void proxy_task(void *param)
     // Never stops after that (until next server restart with proxy disabled).
     // Just keeps restarting if connection timeout or abnormal exit.
     TaskSleepReason("wait start");
+    int auth_retry = 0;
 
     while (1) {
         if (net.dom_sel != DOM_SEL_REV)
@@ -541,10 +542,18 @@ static void proxy_task(void *param)
         rv = non_blocking_cmd_func_foreach("kiwi.proxy", cmd_p, _frpc_func, 0, 1000);
         rv = WEXITSTATUS(rv);
         if (rv == 42) {
-            // no point in continuing if there is no valid client authorization (i.e. user key invalid)
-            lprintf("PROXY: proxy_task EXIT client authorization failed\n");
-            net.proxy_status = PR_BAD_USER_KEY;     // for benefit of my.kiwisdr.com
-            break;
+
+            // we've seen this, where the initial proxy auth fails for some reason,
+            // but succeeds on a retry
+            auth_retry++;
+            if (auth_retry <= 4) {
+                lprintf("PROXY: proxy_task AUTH-RETRY\n");
+            } else {
+                // no point in continuing if there is no valid client authorization (i.e. user key invalid)
+                lprintf("PROXY: proxy_task EXIT client authorization failed\n");
+                net.proxy_status = PR_BAD_USER_KEY;     // for benefit of my.kiwisdr.com
+                break;
+            }
         } else
         if (rv == 143) {    // 128 + 15(SIGTERM)
             lprintf("PROXY: proxy_task RESTART\n");
