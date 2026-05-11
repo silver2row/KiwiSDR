@@ -833,6 +833,8 @@ fail:
 			"antenna=%s\n"
 			"snr=%d,%d\n"
 			"ant_connected=%d\n"
+			"sm_cal=%d\n"
+			"wf_cal=%d\n"
 			"adc_ov=%u\n"
 			"clk_ext_freq=%d\n"
 			"clk_ext_gps=%d,%d\n"
@@ -884,6 +886,8 @@ fail:
 			"KiwiSDR_v", version_maj, version_min,
 			(s6 = cfg_string("rx_antenna", NULL, CFG_OPTIONAL)),
 			snr_all, snr_HF, ant_connected,
+			cfg_int("S_meter_cal", NULL, CFG_OPTIONAL),
+			cfg_int("waterfall_cal", NULL, CFG_OPTIONAL),
 			dpump.rx_adc_ovfl_cnt,
 			cfg_int("ext_ADC_freq", NULL, CFG_OPTIONAL),
 			clk.ext_ADC_clk? 1:0, clk.do_corrections,
