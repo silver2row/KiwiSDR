@@ -34,13 +34,24 @@ const char * const platform_s[] = { "beaglebone-black", "bbai", "bbai64", "byai"
 
 typedef enum { DAILY_RESTART_NO = 0, DAILY_RESTART = 1, DAILY_REBOOT = 2} daily_restart_e;
 
-typedef enum { RX4_WF4=0, RX8_WF2=1, RX3_WF3=2, RX14_WF0=3 } firmware_e;
+#define FW_CONFIGURED               -2
+#define FW_OTHER                    -1
+#define FW_SEL_SDR_RX4_WF4          0
+#define FW_SEL_SDR_RX8_WF2          1
+#define FW_SEL_SDR_RX3_WF3          2
+#define FW_SEL_SDR_RX14_WF0         3
+#define FW_SEL_SDR_WB               4
+#define FW_SEL_SDR_RX8_WF3_SHARE    5
+#define N_FW_SEL                    6
+#define N_FW_MAX                    (N_FW_SEL-1)
 
 const char * const fw_sel_s[] = { "rx4_wf4", "rx8_wf2", "rx3_wf3", "rx14_wf0" };
 
 typedef struct {
     model_e model;
     platform_e platform;
+    int firmware_sel;
+    bool pcb_has_beads, pcb_has_attn, pcb_ths_4509, pcb_fpga_a50;
     
     int current_nusers, current_nusers_ui;
     int ext_api_nchans;
@@ -54,6 +65,7 @@ typedef struct {
     bool hw;
     bool ext_clk;
     bool isWB;
+    bool isPublic;
     bool allow_admin_conns;
     bool log_denied_conns;
     bool spectral_inversion, spectral_inversion_lockout;
@@ -64,6 +76,9 @@ typedef struct {
     
     int current_espeed;
     
+    #define WATERFALL_CALIBRATION_DEFAULT -13
+    #define SMETER_CALIBRATION_DEFAULT -13
+    int S_meter_cal, waterfall_cal;
     float rf_attn_dB;
 
     bool snr_initial_meas_done, snr_meas_active, snr_disable_filter;
@@ -101,7 +116,7 @@ extern int wf_sim, wf_real, wf_time, ev_dump, wf_flip, wf_exit, wf_start, down,
 	meas, monitors_max, rx_yield, gps_chans, wf_max, cfg_no_wf, do_gps, do_sdr, wf_olap,
 	spi_clkg, spi_speed, spi_mode, spi_delay, spi_no_async, bg, dx_print, snr_meas, wf_full_rate,
 	port, print_stats, ecpu_cmds, ecpu_tcmds, serial_number, ip_limit_mins, is_locked, test_flag, n_camp,
-	use_spidev, inactivity_timeout_mins, S_meter_cal, waterfall_cal, debian_ver,
+	use_spidev, inactivity_timeout_mins, debian_ver,
 	utc_offset, dst_offset, reg_kiwisdr_com_status, kiwi_reg_lo_kHz, kiwi_reg_hi_kHz,
 	debian_maj, debian_min, gps_debug, gps_var, gps_lo_gain, gps_cg_gain, use_foptim, web_caching_debug,
 	drm_nreg_chans, snr_meas_interval_min,
@@ -158,6 +173,7 @@ void c2s_waterfall_no_sync(int rx_chan, bool no_sync);
 void c2s_waterfall_setup(void *param);
 void c2s_waterfall(void *param);
 void c2s_waterfall_shutdown(void *param);
+void c2s_waterfall_stop_data(int rx_chan);
 
 void c2s_mon_setup(void *param);
 void c2s_mon(void *param);

@@ -28,16 +28,6 @@ Boston, MA  02110-1301, USA.
 
 typedef enum { ESPEED_AUTO = 0, ESPEED_10M = 1, ESPEED_100M = 2 } espeed_e;
 
-#define FW_CONFIGURED           -2
-#define FW_OTHER                -1
-#define FW_SEL_SDR_RX4_WF4      0
-#define FW_SEL_SDR_RX8_WF2      1
-#define FW_SEL_SDR_RX3_WF3      2
-#define FW_SEL_SDR_RX14_WF0     3
-#define FW_SEL_SDR_WB           4
-#define N_FW_SEL                5
-#define N_FW_MAX                (N_FW_SEL-1)
-
 #ifdef PLATFORM_beagleY_ai
     #define NRX_BUG 2           // 2w/4b for SPI_32 cfg
 #else
@@ -67,7 +57,7 @@ typedef enum { ESPEED_AUTO = 0, ESPEED_10M = 1, ESPEED_100M = 2 } espeed_e;
 #define PROXY_SERVER_HOST   "proxy.kiwisdr.com"
 #define PROXY_SERVER_PORT   8073
 
-extern int fw_sel, fpga_id, rx_chans, rx_wb_buf_chans, wf_chans, wb_chans,
+extern int fpga_id, rx_chans, rx_wb_buf_chans, wf_chans, wb_chans,
     nrx_bufs, nrx_samps_wb, nrx_samps, nrx_samps_rem,
     snd_rate, snd_rate_i, wb_rate, rx_decim, nwf_nxfer, nwf_samps,
     nrx_samps_total, nrx_samps_loop;

@@ -15,7 +15,7 @@ Boston, MA  02110-1301, USA.
 --------------------------------------------------------------------------------
 */
 
-// Copyright (c) 2014-2016 John Seamons, ZL4VO/KF6VO
+// Copyright (c) 2014-2026 John Seamons, ZL4VO/KF6VO
 
 #pragma once
 
@@ -27,7 +27,7 @@ Boston, MA  02110-1301, USA.
 #include <stdarg.h>
 #include <stdlib.h>
 
-#define N_MISC_MISO 3
+#define N_MISC_MISO 6
 void misc_init();
 enum get_misc_miso_e { MISO_ECPU_CTR, MISO_ECPU_STK, MISO_CTRL, MISO_STAT, MISO_GETMEM, MISO_ADC_CTR };
 SPI_MISO *get_misc_miso(int caller, int which = 0);

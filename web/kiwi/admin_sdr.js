@@ -112,7 +112,7 @@ function config_init()
 {
    if (!kiwi.has_attn && !cfg.rf_attn_alt) {
       var title;
-      if (kiwi.model == kiwi.KiwiSDR_2) title = 'no RF attenuator on KiwiSDR 2\nwith serial number >= 23000';
+      if (kiwi.model == kiwi.KiwiSDR_2) title = 'no RF attenuator on KiwiSDR 2\nwith serial number above 23000';
       else
          title = 'no RF attenuator on this KiwiSDR model';
       w3_disable_multi('id-rf-attn', true);
@@ -1468,6 +1468,7 @@ function kiwisdr_com_register_cb(path, idx, first)
    
    w3_innerHTML('id-kiwisdr_com-reg-status', text);
    w3_remove_then_add_cond('id-kiwisdr_com-reg-status', error, 'w3-red w3-text-white', 'w3-pale-blue w3-text-black');
+   if (first) w3_switch_set_value(path, idx);      // need to set value
    admin_radio_YN_cb(path, idx, /* first: true => no save */ first);
 
    // make sure server side notices change promptly

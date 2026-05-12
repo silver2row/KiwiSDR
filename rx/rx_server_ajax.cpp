@@ -708,7 +708,7 @@ fail:
                 break;
 		    }
 		} else {
-            sb = gps_update_data(FROM_AJAX);
+            sb = gps_update_data();
 		}
         return sb;      // NB: return here because sb is already a kstr_t (don't want to do kstr_wrap() below)
     }
@@ -768,10 +768,9 @@ fail:
         int ext_api_ch = cfg_int("ext_api_nchans", NULL, CFG_REQUIRED);
         if (ext_api_ch == -1) ext_api_ch = rx_chans;    // has never been set
 		bool no_open_access = (has_pwd && chan_no_pwd == 0);
-        bool kiwisdr_com_reg = (admcfg_bool("kiwisdr_com_register", NULL, CFG_OPTIONAL) == 1)? 1:0;
         int model = kiwi.model? kiwi.model : KiwiSDR_1;
 		//printf("STATUS current_nusers=%d users_max=%d users=%d\n", kiwi.current_nusers, users_max, users);
-		//printf("STATUS has_pwd=%d chan_no_pwd=%d no_open_access=%d reg=%d\n", has_pwd, chan_no_pwd, no_open_access, kiwisdr_com_reg);
+		//printf("STATUS has_pwd=%d chan_no_pwd=%d no_open_access=%d reg=%d\n", has_pwd, chan_no_pwd, no_open_access, kiwi.isPublic);
 
 
 		// Advertise whether Kiwi can be publicly listed,
@@ -784,7 +783,7 @@ fail:
 		bool offline = (down || update_in_progress || backup_in_progress);
 		const char *status;
 
-		if (!kiwisdr_com_reg) {
+		if (!kiwi.isPublic) {
 			// Make sure to always keep set to private when private
 			status = "private";
 			users_max = rx_chans;
@@ -808,7 +807,7 @@ fail:
 		if (!admcfg_bool("GPS_tstamp", NULL, CFG_REQUIRED)) tdoa_ch = -1;
 		
 		bool has_20kHz = (snd_rate == SND_RATE_3CH);
-		bool has_WB = (fw_sel == FW_SEL_SDR_WB);
+		bool has_WB = (kiwi.firmware_sel == FW_SEL_SDR_WB);
 		bool has_GPS = (clk.adc_gps_clk_corrections > 8);
 		bool has_tlimit = (inactivity_timeout_mins || ip_limit_mins);
 		bool has_masked = (dx.masked_len > 0);
@@ -833,6 +832,8 @@ fail:
 			"antenna=%s\n"
 			"snr=%d,%d\n"
 			"ant_connected=%d\n"
+			"sm_cal=%d\n"
+			"wf_cal=%d\n"
 			"adc_ov=%u\n"
 			"clk_ext_freq=%d\n"
 			"clk_ext_gps=%d,%d\n"
@@ -869,7 +870,7 @@ fail:
 
 			(s3 = cfg_string("admin_email", NULL, CFG_OPTIONAL)),
 			(float) kiwi_reg_lo_kHz * kHz, (float) kiwi_reg_hi_kHz * kHz, freq.offset_kHz,
-			fw_sel_s[fw_sel],
+			fw_sel_s[kiwi.firmware_sel],
 			users, users_max, ext_api_ch, preempt,
 			avatar_ctime,
 			loc, grid,
@@ -884,6 +885,8 @@ fail:
 			"KiwiSDR_v", version_maj, version_min,
 			(s6 = cfg_string("rx_antenna", NULL, CFG_OPTIONAL)),
 			snr_all, snr_HF, ant_connected,
+			cfg_int("S_meter_cal", NULL, CFG_OPTIONAL),
+			cfg_int("waterfall_cal", NULL, CFG_OPTIONAL),
 			dpump.rx_adc_ovfl_cnt,
 			cfg_int("ext_ADC_freq", NULL, CFG_OPTIONAL),
 			clk.ext_ADC_clk? 1:0, clk.do_corrections,

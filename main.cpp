@@ -64,7 +64,7 @@ Boston, MA  02110-1301, USA.
 kiwi_t kiwi;
 
 int version_maj, version_min;
-int fw_sel, fpga_id, rx_chans, rx_wb_buf_chans, wf_chans, wb_chans, nrx_bufs,
+int fpga_id, rx_chans, rx_wb_buf_chans, wf_chans, wb_chans, nrx_bufs,
     nrx_samps, nrx_samps_total, nrx_samps_wb,
     snd_rate, snd_rate_i, wb_rate, rx_decim, rx1_decim, rx2_decim,
     nwf_nxfer, nwf_samps;
@@ -357,11 +357,11 @@ int main(int argc, char *argv[])
     clock_init();
 
     if (fw_sel_override != FW_CONFIGURED) {
-        fw_sel = fw_sel_override;
+        kiwi.firmware_sel = fw_sel_override;
     } else {
-        fw_sel = admcfg_default_int("firmware_sel", FW_SEL_SDR_RX4_WF4, &update_admcfg);
+        kiwi.firmware_sel = admcfg_default_int("firmware_sel", FW_SEL_SDR_RX4_WF4, &update_admcfg);
     }
-    fw_sel = CLAMP_TO(fw_sel, FW_OTHER, N_FW_MAX, 0);
+    kiwi.firmware_sel = CLAMP_TO(kiwi.firmware_sel, FW_OTHER, N_FW_MAX, 0);
     
     if (wb_sel_override != -1) {
         wb_sel = wb_sel_override;
@@ -374,7 +374,7 @@ int main(int argc, char *argv[])
     
     int v_wb_buf_chans;
 
-    if (fw_sel == FW_SEL_SDR_RX4_WF4) {
+    if (kiwi.firmware_sel == FW_SEL_SDR_RX4_WF4) {
         fpga_id = FPGA_ID_RX4_WF4;
         rx_chans = 4;
         wf_chans = 4;
@@ -384,9 +384,8 @@ int main(int argc, char *argv[])
         rx1_decim = RX1_STD_DECIM;
         rx2_decim = RX2_STD_DECIM;
         nrx_bufs = RXBUF_SIZE_44 / NRX_SPI;
-        lprintf("firmware: SDR_RX4_WF4\n");
     } else
-    if (fw_sel == FW_SEL_SDR_RX8_WF2) {
+    if (kiwi.firmware_sel == FW_SEL_SDR_RX8_WF2) {
         fpga_id = FPGA_ID_RX8_WF2;
         rx_chans = 8;
         wf_chans = 2;
@@ -396,9 +395,8 @@ int main(int argc, char *argv[])
         rx1_decim = RX1_STD_DECIM;
         rx2_decim = RX2_STD_DECIM;
         nrx_bufs = RXBUF_SIZE_82 / NRX_SPI;
-        lprintf("firmware: SDR_RX8_WF2\n");
     } else
-    if (fw_sel == FW_SEL_SDR_RX3_WF3) {
+    if (kiwi.firmware_sel == FW_SEL_SDR_RX3_WF3) {
         fpga_id = FPGA_ID_RX3_WF3;
         rx_chans = 3;
         wf_chans = 3;
@@ -408,9 +406,8 @@ int main(int argc, char *argv[])
         rx1_decim = RX1_WIDE_DECIM;
         rx2_decim = RX2_WIDE_DECIM;
         nrx_bufs = RXBUF_SIZE_33 / NRX_SPI;
-        lprintf("firmware: SDR_RX3_WF3\n");
     } else
-    if (fw_sel == FW_SEL_SDR_RX14_WF0) {
+    if (kiwi.firmware_sel == FW_SEL_SDR_RX14_WF0) {
         fpga_id = FPGA_ID_RX14_WF0;
         rx_chans = 14;
         wf_chans = 0;
@@ -421,9 +418,8 @@ int main(int argc, char *argv[])
         rx1_decim = RX1_STD_DECIM;
         rx2_decim = RX2_STD_DECIM;
         nrx_bufs = RXBUF_SIZE_14 / NRX_SPI;
-        lprintf("firmware: SDR_RX14_WF0\n");
     } else
-    if (fw_sel == FW_SEL_SDR_WB) {
+    if (kiwi.firmware_sel == FW_SEL_SDR_WB) {
         fpga_id = FPGA_ID_WB;
         rx_chans = 1;
         wf_chans = 1;
@@ -447,11 +443,15 @@ int main(int argc, char *argv[])
         wb_rate  = SND_RATE_WB * rx2_decim;
         nrx_bufs = RXBUF_SIZE_WB / NRX_SPI;
         kiwi.isWB = true;
-        lprintf("firmware: SDR_WB %dk\n", wb_rate/1000);
     } else {
         fpga_id = FPGA_ID_OTHER;
         lprintf("firmware: OTHER\n");
     }
+    
+    if (kiwi.firmware_sel != FW_OTHER)
+        lprintf("firmware: %s\n", fw_sel_s[kiwi.firmware_sel]);
+    if (kiwi.firmware_sel == FW_SEL_SDR_WB)
+        lprintf("firmware: wb rate %dk\n", wb_rate/1000);
     
     //          rx_chans
     //          |   rx_wb_buf_chans (USE_WB uses this many equivalent buffer channels)
@@ -580,7 +580,7 @@ int main(int argc, char *argv[])
 	CreateTask(stat_task, NULL, MAIN_PRIORITY);
 
     #ifdef USE_OTHER
-        if (fw_sel == FW_OTHER) {
+        if (kiwi.firmware_sel == FW_OTHER) {
 	        CreateTask(other_task, NULL, MAIN_PRIORITY);
 	    }
     #endif

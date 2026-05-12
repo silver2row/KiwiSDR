@@ -1,5 +1,5 @@
 VERSION_MAJ = 1
-VERSION_MIN = 837
+VERSION_MIN = 838
 
 # Caution: software update mechanism depends on format of first two lines in this file
 
@@ -9,24 +9,10 @@ BINARY_DISTRO := true
 #
 # Makefile for KiwiSDR project
 #
-# Copyright (c) 2014-2025 John Seamons, ZL4VO/KF6VO
+# Copyright (c) 2014-2026 John Seamons, ZL4VO/KF6VO
 #
 # This Makefile can be run on both a build machine (I use a MacBook Pro) and the
 # BeagleBone Black target (Debian release).
-#
-
-#
-# installing FFTW:
-#	to create /usr/local/lib/libfftw3f.a (the 'f' in '3f' means single precision)
-#
-#	Mac:
-#		download the sources from fftw.org
-#		./configure --enable-single
-#		make
-#		(sudo) make install
-#
-#	BeagleBone Black, Debian:
-#		the Makefile automatically installs the package using apt-get
 #
 
 

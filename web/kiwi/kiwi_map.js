@@ -8,13 +8,14 @@ var kmap = {
    DIR_RIGHT: false,
    VISIBLE: true,
    NOT_VISIBLE: false,
-   
    NO_CONTAINER: -1,
+   
+   noise_boost: 6,
 
    _last_last: 0
 };
 
-function kiwi_map_init(ext_name, init_latlon, init_zoom, mapZoom_nom, move_cb, zoom_cb)
+function kiwi_map_init(ext_name, init_latlon, init_zoom, mapZoom_nom)
 {
    var map_tiles;
    var maxZoom = 19;
@@ -36,33 +37,35 @@ function kiwi_map_init(ext_name, init_latlon, init_zoom, mapZoom_nom, move_cb, z
       };
    }
 
-   // MapTiler vector tiles using LeafletGL/MapBoxGL
-   if (server == server_e.MapTiler_Vector) {
-      map_tiles = function(map_style) {
-         return L.mapboxGL({
-            attribution: '<a href="https://www.maptiler.com/license/maps/" target="_blank">&copy; MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>',
-            accessToken: 'not-needed',
-            style: 'https://api.maptiler.com/maps/'+ map_style +'/style.json'+ 'key'
-         });
-      };
-   }
-
-   // MapTiler 512/256 px raster tiles
-   if (server == server_e.MapTiler_Raster_512 || server == server_e.MapTiler_Raster_256) {
-      var slash_256 = (server == server_e.MapTiler_Raster_256)? '/256':'';
-      map_tiles = function(map_style) {
-         return L.tileLayer(
-            (map_style == 'hybrid')?
-               'https://api.maptiler.com/maps/'+ map_style + slash_256 +'/{z}/{x}/{y}{r}.jpg'+ 'key'
-            :
-               'https://api.maptiler.com/maps/'+ map_style + slash_256 +'/{z}/{x}/{y}.png'+ 'key', {
-            tileSize: (server == server_e.MapTiler_Raster_256)? 256 : 512,
-            zoomOffset: (server == server_e.MapTiler_Raster_256)? 0 : -1,
-            attribution: '<a href="https://www.maptiler.com/copyright/" target="_blank">&copy; MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>',
-            crossOrigin: true
-         });
-      };
-   }
+   /* not used currently
+      // MapTiler vector tiles using LeafletGL/MapBoxGL
+      if (server == server_e.MapTiler_Vector) {
+         map_tiles = function(map_style) {
+            return L.mapboxGL({
+               attribution: '<a href="https://www.maptiler.com/license/maps/" target="_blank">&copy; MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>',
+               accessToken: 'not-needed',
+               style: 'https://api.maptiler.com/maps/'+ map_style +'/style.json'+ 'key'
+            });
+         };
+      }
+   
+      // MapTiler 512/256 px raster tiles
+      if (server == server_e.MapTiler_Raster_512 || server == server_e.MapTiler_Raster_256) {
+         var slash_256 = (server == server_e.MapTiler_Raster_256)? '/256':'';
+         map_tiles = function(map_style) {
+            return L.tileLayer(
+               (map_style == 'hybrid')?
+                  'https://api.maptiler.com/maps/'+ map_style + slash_256 +'/{z}/{x}/{y}{r}.jpg'+ 'key'
+               :
+                  'https://api.maptiler.com/maps/'+ map_style + slash_256 +'/{z}/{x}/{y}.png'+ 'key', {
+               tileSize: (server == server_e.MapTiler_Raster_256)? 256 : 512,
+               zoomOffset: (server == server_e.MapTiler_Raster_256)? 0 : -1,
+               attribution: '<a href="https://www.maptiler.com/copyright/" target="_blank">&copy; MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>',
+               crossOrigin: true
+            });
+         };
+      }
+   */
 
    var tiles = map_tiles('hybrid');
    var map = L.map('id-'+ ext_name +'-map',
@@ -97,20 +100,22 @@ function kiwi_map_init(ext_name, init_latlon, init_zoom, mapZoom_nom, move_cb, z
    L.control.zoom_Kiwi( { position: 'topleft', zoomNomText: '2', zoomNomLatLon: init_latlon } ).addTo(map);
    tiles.addTo(map);
 
-   // MapTiler map choices
-   if (server != server_e.OSM_Raster) {
-      L.control.layers(
-         {
-            'Satellite': tiles,
-            'Basic': map_tiles('basic'),
-            'Bright': map_tiles('bright'),
-            'Positron': map_tiles('positron'),
-            'Street': map_tiles('streets'),
-            'Topo': map_tiles('topo')
-         },
-         null
-      ).addTo(map);
-   }
+   /* not used currently
+      // MapTiler map choices
+      if (server != server_e.OSM_Raster) {
+         L.control.layers(
+            {
+               'Satellite': tiles,
+               'Basic': map_tiles('basic'),
+               'Bright': map_tiles('bright'),
+               'Positron': map_tiles('positron'),
+               'Street': map_tiles('streets'),
+               'Topo': map_tiles('topo')
+            },
+            null
+         ).addTo(map);
+      }
+   */
 
    var scale = L.control.scale();
    scale.addTo(map);
@@ -370,7 +375,7 @@ function kiwi_map_preview_click(kmap, host, ev, opt)
       // must also save/restore man maxdb/mindb_un, source depends on aperture mode
       kmap.maxdb_save = auto? wf.save_maxdb : maxdb;
       kmap.mindb_un_save = auto? wf.save_mindb_un : mindb_un;
-      //console.log('$kiwi_map_preview_click aper SAVE '+ (auto? 'AUTO' : 'MAN') +' maxdb='+ kmap.maxdb_save +' mindb='+ kmap.mindb_un_save);
+      //console.log('kmap_wf aper SAVE '+ (auto? 'AUTO' : 'MAN') +' maxdb='+ kmap.maxdb_save +' mindb_un='+ kmap.mindb_un_save);
       kiwi_map_wf_preview(kmap, host);
    }
 }
@@ -452,8 +457,17 @@ function kiwi_map_waterfall_add_queue(what, ws, firstChars)
    if (kiwi.wf_preview_mode) {
       waterfall_add_queue2(what, ws, firstChars);
       kmap.preview_lines++;
+      //console.log('kiwi_map_waterfall_add_queue');
+      var line = kmap.preview_lines % 10;
+      //console.log('kmap_wf '+ kmap.preview_lines +' '+ line +' '+ kmap.wf_id2);
       if (kmap.preview_lines == 2) {
+         //console.log('kmap_wf SET APER');
          wf_aper_cb('wf.aper', kiwi.APER_MAN);
+      }
+      
+      // continuous manual autoscale seems to be needed to get reliable colormap settings
+      if (line == 2) {
+         //console.log('kmap_wf '+ kmap.preview_lines +'|'+ line +' '+ kmap.wf_id2 +' AUTOSCALE');
          setTimeout(wf_autoscale_cb, 1);
       }
    } else {
@@ -481,7 +495,7 @@ function kiwi_map_waterfall_close(kmap_or_ws)
       kmap.wf_ws = kmap.wf_host = null;
       kiwi.wf_preview_mode = false;
       var auto = (wf.aper == kiwi.APER_AUTO);
-      //console.log('kiwi_map aper RESTORE '+ (auto? 'AUTO' : 'MAN') +' maxdb='+ kmap.maxdb_save +' mindb='+ kmap.mindb_un_save);
+      //console.log('kmap_wf aper RESTORE '+ (auto? 'AUTO' : 'MAN') +' maxdb='+ kmap.maxdb_save +' mindb_un='+ kmap.mindb_un_save);
       
       // restore for both cases: returning to auto or man aperture mode
       if (isArg(kmap.maxdb_save)) wf.save_maxdb = maxdb = kmap.maxdb_save;
@@ -535,11 +549,14 @@ function kiwi_map_wf_preview(kmap, h)
          
          // Need to send the start bin, not cf, otherwise the wf preview autoscale
          // doesn't work due to interaction with wf pan/zoom fixup
-         //kmap.wf_ws.send("SET zoom=10 cf="+ freq_displayed_kHz_str_with_freq_offset);
+         //console.log('kmap_wf SET zoom='+ zoom_level +' start='+ x_bin);
          kmap.wf_ws.send('SET zoom='+ zoom_level +' start='+ x_bin);
-
-         kmap.wf_ws.send("SET maxdb=0 mindb=-100");
 	      kmap.wf_ws.send("SET wf_speed=3");
+         //console.log('kmap_wf SET maxdb='+ maxdb +' mindb='+ mindb);
+         kmap.wf_ws.send('SET maxdb='+ maxdb +' mindb='+ mindb);
+	      
+	      // NB: kiwi_map_waterfall_add_queue() sets kiwi.APER_MAN and
+	      // calls wf_autoscale_cb() after a few wf lines.
 
          kmap.preview_timeo = setTimeout(function() { if (kmap.wf_ws) kmap.wf_ws.close(); }, 10000);
          //}, 5000);

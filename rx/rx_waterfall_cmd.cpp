@@ -141,7 +141,7 @@ void rx_waterfall_cmd(conn_t *conn, int n, char *cmd)
             did_cmd = true;
             if (sscanf(cmd, "SET zoom=%d start=%f", &_zoom, &_start) == 2) {
                 //cprintf(conn, "WF: zoom=%d/%d start=%.3f(%.1f)\n", _zoom, wf->zoom, _start, _start * wf->HZperStart / kHz);
-                _zoom = CLAMP(_zoom, 0, MAX_ZOOM);
+                _zoom = CLAMP(_zoom, 0, ZOOM_CAP);
                 float halfSpan_Hz = (ui_srate_Hz / (1 << _zoom)) / 2;
                 wf->cf = (_start * wf->HZperStart) + halfSpan_Hz;
                 #ifdef OPTION_HONEY_POT
@@ -150,7 +150,7 @@ void rx_waterfall_cmd(conn_t *conn, int n, char *cmd)
                 zoom_start_chg = true;
             } else
             if (sscanf(cmd, "SET zoom=%d cf=%f", &_zoom, &wf->cf) == 2) {
-                _zoom = CLAMP(_zoom, 0, MAX_ZOOM);
+                _zoom = CLAMP(_zoom, 0, ZOOM_CAP);
                 float halfSpan_Hz = (ui_srate_Hz / (1 << _zoom)) / 2;
                 wf->cf *= kHz;
                 _start = (wf->cf - halfSpan_Hz) / wf->HZperStart;
@@ -174,7 +174,7 @@ void rx_waterfall_cmd(conn_t *conn, int n, char *cmd)
             
             #define CIC1_DECIM 0x0001
             #define CIC2_DECIM 0x0100
-            u2_t decim, r1, r2;
+            u2_t decim, r;
             
             // NB: because we only use half of the FFT with CIC can zoom one level less
             int zm1 = (WF_USING_HALF_CIC == 2)? (wf->zoom? (wf->zoom-1) : 0) : wf->zoom;
@@ -183,16 +183,16 @@ void rx_waterfall_cmd(conn_t *conn, int n, char *cmd)
             // currently 15-levels of zoom: z0-z14, MAX_ZOOM == 14
             if (zm1 == 0) {
                 // z0-1: R = 1,1
-                r1 = 0;
+                r = 0;
             } else {
                 // z2-14: R = 2,4,8,16,32,64,128,256,512,1k,2k,4k,8k for MAX_ZOOM = 14
-                r1 = zm1;
+                r = zm1;
             }
     
             // hardware limitation
-            assert(r1 >= 0 && r1 <= 15);
+            assert(r >= 0 && r <= 15);
             assert(WF_1CIC_MAXD <= 16384);
-            decim = CIC1_DECIM << r1;
+            decim = CIC1_DECIM << r;
             
             #define WF_CHUNK_WAIT_ADJ           3       // i.e. make the adjustment proportional to the samp_wait_us used
             #define WF_CHUNK_WAIT_ADJ_Z         7       // only applies at higher zoom levels
@@ -207,8 +207,8 @@ void rx_waterfall_cmd(conn_t *conn, int n, char *cmd)
             float samp_wait_us = wf->nfft * (1 << zm1) / conn->adc_clock_corrected * 1000000.0;
             wf->chunk_wait_us = (int) ceilf(samp_wait_us / (n_chunks - WF_SHMEM->chunk_wait_scale));
             wf->samp_wait_ms = (int) ceilf(samp_wait_us / 1000);
-            wf_printf("---- WF z%d zm1 %d/%d R%04x n_chunks %d samp_wait_us %.1f samp_wait_ms %d chunk_wait_us %d(%d)\n",
-                wf->zoom, zm1, 1<<zm1, decim, n_chunks,
+            wf_printf("---- WF z%d|%d r=%d|%d decim=%d n_chunks=%d samp_wait_us=%.1f samp_wait_ms=%d chunk_wait_us=%d(%d)\n",
+                wf->zoom, zm1, r, 1 << r, decim, n_chunks,
                 samp_wait_us, wf->samp_wait_ms, wf->chunk_wait_us, WF_SHMEM->chunk_wait_scale);
         
             wf->new_map = wf->new_map2 = wf->new_map3 = TRUE;

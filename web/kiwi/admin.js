@@ -1613,8 +1613,9 @@ function connect_rev_status_cb(status)
 		case 200: s = 'Reverse proxy enabled and running'; break;
 		case 201: s = 'Reverse proxy enabled and pending'; break;
 
-		case 900: s = 'Problem contacting proxy server; please check Internet connection'; break;
-		case 901: s = 'Proxy server returned invalid status data?'; break;
+		case 900: s = 'Can\'t contact proxy server (port 7000). Please check Internet connection'; break;
+		case 901: s = 'Can\'t contact proxy server (port 80). Please check Internet connection'; break;
+		case 902: s = 'Proxy server returned invalid status data?'; break;
 		default:  s = 'Reverse proxy internal error: '+ status; break;
 	}
 	
@@ -3015,7 +3016,6 @@ var pin = {
 
 var _gps = {
    focus: false,
-   leaflet: true,
    gps_map_loaded: false,
    pkgs_maps_js: [ 'pkgs_maps/pkgs_maps.js', 'pkgs_maps/pkgs_maps.css' ],
 
@@ -3177,28 +3177,32 @@ function gps_html()
             )
          ),
 
-         w3_div('w3-valign w3-text-teal',
-            w3_checkbox('w3-label-inline w3-small/w3-small', 'Acquire<br>if Kiwi<br>busy?', 'adm.always_acq_gps', adm.always_acq_gps, 'w3_bool_set_cfg_cb')
+         w3_div('',
+            w3_div('w3-valign w3-text-teal',
+               w3_checkbox('w3-label-inline w3-small/w3-small', 'Acquire if Kiwi busy?', 'adm.always_acq_gps', adm.always_acq_gps, 'w3_bool_set_cfg_cb')
+            ),
+   
+            w3_div('w3-valign w3-text-teal',
+               w3_checkbox('w3-label-inline w3-small/w3-small', 'Set date from GPS?', 'adm.gps_set_date', adm.gps_set_date, 'w3_bool_set_cfg_cb')
+            )
          ),
 
-         w3_div('w3-valign w3-text-teal',
-            w3_checkbox('w3-label-inline w3-small/w3-small', 'Set date<br>from GPS?', 'adm.gps_set_date', adm.gps_set_date, 'w3_bool_set_cfg_cb')
+         w3_div('',
+            w3_div('w3-valign w3-text-teal',
+               w3_checkbox('w3-label-inline w3-small/w3-small', 'Include alerted sats in solutions? [n]', 'adm.include_alert_gps', adm.include_alert_gps, 'w3_bool_set_cfg_cb')
+            ),
+   
+            w3_div('w3-valign w3-text-teal',
+               w3_checkbox('w3-label-inline w3-small/w3-small', 'Include Galileo in solutions? [y]', 'adm.include_E1B', adm.include_E1B, 'w3_bool_set_cfg_cb')
+            ),
+   
+            w3_div('w3-valign w3-text-teal',
+               w3_checkbox('w3-label-inline w3-small/w3-small', 'Use Kalman filter? [y]', 'adm.use_kalman_position_solver', adm.use_kalman_position_solver, 'w3_bool_set_cfg_cb')
+            )
          ),
 
-         w3_div('w3-valign w3-text-teal',
-            w3_checkbox('w3-label-inline w3-small/w3-small', 'Include<br>alerted sats in<br>solutions? [n]', 'adm.include_alert_gps', adm.include_alert_gps, 'w3_bool_set_cfg_cb')
-         ),
-
-         w3_div('w3-valign w3-text-teal',
-            w3_checkbox('w3-label-inline w3-small/w3-small', 'Include<br>Galileo in<br>solutions? [y]', 'adm.include_E1B', adm.include_E1B, 'w3_bool_set_cfg_cb')
-         ),
-
-         w3_div('w3-valign w3-text-teal',
-            w3_checkbox('w3-label-inline w3-small/w3-small', 'Use<br>Kalman<br>filter? [y]', 'adm.use_kalman_position_solver', adm.use_kalman_position_solver, 'w3_bool_set_cfg_cb')
-         ),
-
-         w3_div('w3-valign w3-hcenter w3-text-teal',
-            w3_div('w3-margin-right', '<b>Select<br>Graph</b>') +
+         w3_div('w3-text-teal',
+            w3_div('w3-margin-B-8', '<b>Select Graph</b>'),
             w3_radio_button('w3-margin-R-4', 'RSSI', 'adm.rssi_azel_iq', adm.rssi_azel_iq == _gps.RSSI, 'gps_graph_cb'),
             w3_radio_button('w3-margin-R-4', 'Az/El', 'adm.rssi_azel_iq', adm.rssi_azel_iq == _gps.AZEL, 'gps_graph_cb'),
             w3_radio_button('w3-margin-R-4', 'Pos', 'adm.rssi_azel_iq', adm.rssi_azel_iq == _gps.POS, 'gps_graph_cb'),
@@ -3587,7 +3591,6 @@ function gps_update_admin_cb()
       if (h) {
          w3_el('id-gps-azel-container').style.height = px(h - 24);
          w3_el('id-gps-map').style.height = px(h - 24);
-         _gps.a = enc(gps.a);
          _gps.map_needs_height = 0;
       }
    }
@@ -3601,91 +3604,7 @@ function gps_update_admin_cb()
    if (adm.rssi_azel_iq == _gps.MAP) {
 
       if (!_gps.map_init && !_gps.map_needs_height) {
-         if (_gps.leaflet) {
-            var map_tiles;
-            maxZoom = 19;
-            var server_e = { MapTiler_Vector:0, MapTiler_Raster_512:1, MapTiler_Raster_256:2, OSM_Raster:3 };
-            var server = server_e.OSM_Raster;
-
-            // MapTiler vector tiles using LeafletGL/MapBoxGL
-            if (server == server_e.MapTiler_Vector) {
-               map_tiles = function(map_style) {
-                  return L.mapboxGL({
-                     attribution: '<a href="https://www.maptiler.com/license/maps/" target="_blank">&copy; MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>',
-                     accessToken: 'not-needed',
-                     style: 'https://api.maptiler.com/maps/'+ map_style +'/style.json'+ _gps.a
-                  });
-               };
-            }
-
-            // MapTiler 512/256 px raster tiles
-            if (server == server_e.MapTiler_Raster_512 || server == server_e.MapTiler_Raster_256) {
-               var slash_256 = (server == server_e.MapTiler_Raster_256)? '/256':'';
-               map_tiles = function(map_style) {
-                  return L.tileLayer(
-                     (map_style == 'hybrid')?
-                        'https://api.maptiler.com/maps/'+ map_style + slash_256 +'/{z}/{x}/{y}{r}.jpg'+ _gps.a
-                     :
-                        'https://api.maptiler.com/maps/'+ map_style + slash_256 +'/{z}/{x}/{y}.png'+ _gps.a, {
-                     tileSize: (server == server_e.MapTiler_Raster_256)? 256 : 512,
-                     zoomOffset: (server == server_e.MapTiler_Raster_256)? 0 : -1,
-                     attribution: '<a href="https://www.maptiler.com/copyright/" target="_blank">&copy; MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>',
-                     crossOrigin: true
-                  });
-               };
-            }
-
-            // OSM raster tiles
-            if (server == server_e.OSM_Raster) {
-               map_tiles = function() {
-                  maxZoom = 18;
-                  return L.tileLayer(
-                     'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                     tileSize: 256,
-                     zoomOffset: 0,
-                     attribution: '<a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>',
-                     crossOrigin: true
-                  });
-               };
-            }
-
-            var sat_map = map_tiles('hybrid');
-            _gps.map = L.map('id-gps-map',
-               {
-                  maxZoom: maxZoom,
-                  minZoom: 1,
-               }
-            ).setView([0, 0], 1);
-            sat_map.addTo(_gps.map);
-
-            // MapTiler map choices
-            if (server != server_e.OSM_Raster) {
-               L.control.layers(
-                  {
-                     'Satellite': sat_map,
-                     'Basic': map_tiles('basic'),
-                     'Bright': map_tiles('bright'),
-                     'Positron': map_tiles('positron'),
-                     'Street': map_tiles('streets'),
-                     'Topo': map_tiles('topo')
-                  },
-                  null
-               ).addTo(_gps.map);
-            }
-
-         } else {
-            latlon = new google.maps.LatLng(0, 0);
-            var map_div = w3_el('id-gps-map');
-            _gps.map = new google.maps.Map(map_div,
-               {
-                  zoom: 1,
-                  center: latlon,
-                  navigationControl: false,
-                  mapTypeControl: false,
-                  streetViewControl: false,
-                  mapTypeId: google.maps.MapTypeId.SATELLITE
-               });
-         }
+         _gps.kmap = kiwi_map_init('gps', [0, 0], 1, 18);
          _gps.map_init = 1;
       }
       
@@ -3694,13 +3613,7 @@ function gps_update_admin_cb()
       if (!_gps.MAP_data || !_gps.map_init) return;
          
       if (!_gps.map_locate) {
-         if (_gps.leaflet) {
-            _gps.map.setView([_gps.MAP_data.ref_lat, _gps.MAP_data.ref_lon], 15, { duration: 0, animate: false });
-         } else {
-            latlon = new google.maps.LatLng(_gps.MAP_data.ref_lat, _gps.MAP_data.ref_lon);
-            _gps.map.panTo(latlon);
-            _gps.map.setZoom(18);
-         }
+         kiwi_map_pan_zoom(_gps.kmap, [_gps.MAP_data.ref_lat, _gps.MAP_data.ref_lon], 15);
          _gps.map_locate = 1;
       }
       
@@ -3709,35 +3622,15 @@ function gps_update_admin_cb()
       for (var j=0; j < mlen; j++) {
          var mp = _gps.MAP_data.MAP[j];
          //console.log(mp);
-         color = (mp.nmap == 0)? (_gps.leaflet? 'lime':'green') : ((mp.nmap == 1)? 'red':'yellow');
-         var mkr;
-         if (_gps.leaflet) {
-            var icon =
-               L.divIcon({
-                  className: "fooLM",
-                  iconAnchor: [12, 12],
-                  labelAnchor: [-6, 0],
-                  popupAnchor: [0, -36],
-                  html: '<span class="cl-leaflet-marker" style="background-color:'+ color +';"/>',
-               });
-            mkr = L.marker([mp.lat, mp.lon], { 'icon':icon, 'opacity':1.0 });
-            mkr.addTo(_gps.map);
-            _gps.map_mkr.push(mkr);
-            while (_gps.map_mkr.length > 12) {
-               _gps.map_mkr.shift().remove();
-            }
-         } else {
-            latlon = new google.maps.LatLng(mp.lat, mp.lon);
-            mkr = new google.maps.Marker({
-               position:latlon,
-               //label: mp.nmap? 'G':'N',
-               icon: 'http://maps.google.com/mapfiles/ms/icons/'+ color +'-dot.png',
-               map:_gps.map
+         color = (mp.nmap == 0)? 'lime' : ((mp.nmap == 1)? 'red':'yellow');
+         var mkr = kiwi_map_add_marker_div(_gps.kmap, kmap.ADD_TO_MAP, [mp.lat, mp.lon],
+            { labelAnchor: [-6, 0], popupAnchor: [0, -36],
+              html: '<span class="cl-leaflet-marker" style="background-color:'+ color +';"/>'
             });
-            _gps.map_mkr.push(mkr);
-            while (_gps.map_mkr.length > 12) {
-               _gps.map_mkr.shift().setMap(null);
-            }
+
+         _gps.map_mkr.push(mkr);
+         while (_gps.map_mkr.length > 12) {
+            _gps.map_mkr.shift().remove();
          }
       }
       _gps.MAP_data = null;
@@ -5100,6 +4993,7 @@ function admin_navkey_cb(ev) {
    }
    if (k == 'escape') {
       confirmation.close_cb();
+      w3_alert_cancel();
       return;
    }
    if (k == 'f') {
@@ -5330,7 +5224,7 @@ function admin_msg(param)
          }
 		   kiwi_clearTimeout(admin.keepalive_timeoout);
 		   if (adm.admin_keepalive) {
-		      //console.log('admin keepalive');
+		      //console.log('admin keepalive from server');
             admin.keepalive_rx_time = Date.now();
             admin.keepalive_timeoout = setTimeout(function() {
          

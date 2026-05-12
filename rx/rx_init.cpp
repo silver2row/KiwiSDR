@@ -120,7 +120,6 @@ void cfg_adm_transition()
 }
 
 int inactivity_timeout_mins, ip_limit_mins;
-int S_meter_cal, waterfall_cal;
 double ui_srate_Hz, ui_srate_kHz;
 int kiwi_reg_lo_kHz, kiwi_reg_hi_kHz;
 float max_thr;
@@ -132,9 +131,6 @@ int current_mtu;
 #define DC_OFFSET_DEFAULT_PREV 0.05F
 #define DC_OFFSET_DEFAULT_20kHz -0.034F
 TYPEREAL DC_offset_I, DC_offset_Q;
-
-#define WATERFALL_CALIBRATION_DEFAULT -13
-#define SMETER_CALIBRATION_DEFAULT -13
 
 void update_freqs(bool *update_cfg)
 {
@@ -213,8 +209,8 @@ void update_vars_from_config(bool called_at_init)
 
     // force DC offsets to the default value if not configured
     // also if set to the previous default value
-    int firmware_sel = admcfg_default_int("firmware_sel", 0, &update_admcfg);   // needed below
-    int mode_20kHz = (firmware_sel == RX3_WF3)? 1:0;
+    kiwi.firmware_sel = admcfg_default_int("firmware_sel", 0, &update_admcfg);   // needed below
+    int mode_20kHz = (kiwi.firmware_sel == FW_SEL_SDR_RX3_WF3)? 1:0;
     TYPEREAL Ioff, Ioff_20kHz, Qoff, Qoff_20kHz;
     //printf("mode_20kHz=%d\n", mode_20kHz);
     admcfg_default_int("wb_sel", 0, &update_admcfg);
@@ -329,8 +325,9 @@ void update_vars_from_config(bool called_at_init)
 	}
 
 
-    S_meter_cal = cfg_default_int("S_meter_cal", SMETER_CALIBRATION_DEFAULT, &up_cfg);
-    waterfall_cal = cfg_default_int("waterfall_cal", WATERFALL_CALIBRATION_DEFAULT, &up_cfg);
+    kiwi.S_meter_cal = cfg_default_int("S_meter_cal", SMETER_CALIBRATION_DEFAULT, &up_cfg);
+    kiwi.waterfall_cal = cfg_default_int("waterfall_cal", WATERFALL_CALIBRATION_DEFAULT, &up_cfg);
+
     cfg_default_bool("no_zoom_corr", false, &up_cfg);
     cfg_default_bool("contact_admin", true, &up_cfg);
     cfg_default_int("chan_no_pwd", 0, &up_cfg);
@@ -626,7 +623,7 @@ void update_vars_from_config(bool called_at_init)
     kiwi.daily_restart = (daily_restart_e) admcfg_default_int("daily_restart", daily_restart, &update_admcfg);
 
     // decouple rx.kiwisdr.com and sdr.hu registration
-    bool sdr_hu_register = admcfg_bool("sdr_hu_register", NULL, CFG_REQUIRED);
+    bool sdr_hu_register = admcfg_true("sdr_hu_register");
 	admcfg_bool("kiwisdr_com_register", &err, CFG_OPTIONAL);
     // never set or incorrectly set to false by v1.365,366
 	if (err || (VERSION_MAJ == 1 && VERSION_MIN <= 369)) {
@@ -635,12 +632,13 @@ void update_vars_from_config(bool called_at_init)
     }
 
     // disable public registration if all the channels are full of WSPR/FT8 autorun
-	bool isPublic = admcfg_bool("kiwisdr_com_register", NULL, CFG_REQUIRED);
+	kiwi.isPublic = admcfg_true("kiwisdr_com_register");
 	int wspr_autorun = cfg_int("WSPR.autorun", NULL, CFG_REQUIRED);
 	int ft8_autorun = cfg_int("ft8.autorun", NULL, CFG_REQUIRED);
-	if (isPublic && (wspr_autorun + ft8_autorun) >= rx_chans) {
+	if (kiwi.isPublic && (wspr_autorun + ft8_autorun) >= rx_chans) {
 	    lprintf("REG: WSPR.autorun(%d) + ft8.autorun(%d) >= rx_chans(%d) -- DISABLING PUBLIC REGISTRATION\n", wspr_autorun, ft8_autorun, rx_chans);
         admcfg_set_bool("kiwisdr_com_register", false);
+        kiwi.isPublic = false;
         update_admcfg = true;
 	}
 

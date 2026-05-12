@@ -39,6 +39,15 @@ x2
 	background: #d9d9d9;
 }
 			
+yel
+{
+	display: inline;
+    padding: 3px 3px 0 3px;
+    color: black;
+	background: yellow;
+    margin-right: 8px;
+}
+			
 .id-kiwi-msg-container
 {
 	display: none;

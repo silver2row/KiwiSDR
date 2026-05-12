@@ -221,6 +221,10 @@ void cfg_reload()
         }
     }
 
+    kiwi.pcb_has_beads = kiwi.pcb_has_attn = (kiwi.model == KiwiSDR_2 && serial_number > 20000 && serial_number < 23000);
+    kiwi.pcb_ths_4509 = (serial_number >= 23000);
+    kiwi.pcb_fpga_a50 = (serial_number >= 25000 && serial_number < 26000);
+
     #ifdef USE_SDR
         dx_label_init();
     #endif
@@ -695,17 +699,22 @@ int _cfg_default_int(cfg_t *cfg, const char *name, int val, bool *error_p)
 	return existing;
 }
 
-int _cfg_update_int(cfg_t *cfg, const char *name, int val, bool *changed)
+int _cfg_update_int(cfg_t *cfg, const char *name, int val, bool *changed, int *existing)
 {
     bool modified = false;
-    int existing = _cfg_default_int(cfg, name, val, &modified);
-    if (existing != val) {
+    int _existing = _cfg_default_int(cfg, name, val, &modified);
+    if (existing != NULL) *existing = _existing;
+
+    int _updated;
+    if (_existing != val) {
         _cfg_set_int(cfg, name, val, CFG_SET, 0);
-        existing = val;
+        _updated = val;
         modified = true;
+    } else {
+        _updated = _existing;
     }
     if (modified && changed != NULL) *changed = true;
-    return existing;
+    return _updated;
 }
 
 

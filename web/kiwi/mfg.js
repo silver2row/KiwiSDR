@@ -13,6 +13,7 @@ var mfg = {
    
    dna: '',
    seed_phrase_ok: false,
+   admin_pwd: '',
    
    model_i: 1,    // KiwiSDR 2
    model: 2,
@@ -276,6 +277,7 @@ function mfg_key_ajax_cb(reply)
       ext_set_cfg_param('adm.rev_auto_host', mfg.next_serno.toString());
       ext_set_cfg_param('adm.rev_auto', true, EXT_SAVE);
       ext_set_cfg_param('cfg.sdr_hu_dom_sel', kiwi.REV, EXT_SAVE);
+      mfg.admin_pwd = reply;
    }
    w3_innerHTML('id-ee-msg', m);
    w3_colors('id-ee-msg', 'w3-green', 'w3-red', err);
@@ -341,8 +343,9 @@ function mfg_restart_cb()
 	var el = w3_innerHTML('id-mfg-restart', 'restarting...');
 	w3_background_color(el, 'red');
 	kiwi.reload_url = kiwi_SSL() + mfg.serno +'.proxy.kiwisdr.com/admin';
+	if (mfg.admin_pwd != '') kiwi.reload_url += '?pwd='+ mfg.admin_pwd;
 	console.log(kiwi.reload_url);
-   wait_then_reload_page(60, 'Reconnecting to admin page.', 'mfg');
+   wait_then_reload_page(75, 'Reconnecting to admin page.', 'mfg');
 	ext_send("SET mfg_restart");
 }
 

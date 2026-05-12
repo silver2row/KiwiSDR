@@ -37,7 +37,7 @@ bool tdoa_msgs(char *msg, int rx_chan)
 	//printf("### tdoa_msgs RX%d <%s>\n", rx_chan, msg);
 	
 	if (strcmp(msg, "SET ext_server_init") == 0) {
-        ext_send_msg_encoded(rx_chan, DEBUG_MSG, "EXT", "ready", "<bvwk>7`g3g7e1be37a03;aa16;322f362:2:`,%s", gps.a);
+        ext_send_msg_encoded(rx_chan, DEBUG_MSG, "EXT", "ready", "<bvwk>7`g3g7e1be37a03;aa16;322f362:2:`");
 		return true;
 	}
 	

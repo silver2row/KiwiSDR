@@ -165,6 +165,8 @@ typedef u4_t reg32;
 #define FC8(f7,s7, f6,s6, f5,s5, f4,s4, f3,s3, f2,s2, f1,s1, f0,s0) \
     ((f7) << (s7) | (f6) << (s6) | (f5) << (s5) | (f4) << (s4) | (f3) << (s3) | (f2) << (s2) | (f1) << (s1) | (f0) << (s0))
 
+#define MASK(n) ((1 << (n)) - 1)
+
 #define m0(w)   ((w)? BT0 : 0)
 #define m1(w)   ((w)? BT1 : 0)
 #define m2(w)   ((w)? BT2 : 0)

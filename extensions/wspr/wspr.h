@@ -303,6 +303,7 @@ typedef struct {
     int send_decode_seq_parent, send_decode_seq;
 
 	bool test;
+	int upload;
 	int skip_upload;
     s2_t *s2p;
     int nsamps;

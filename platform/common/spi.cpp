@@ -534,6 +534,9 @@ void spi_get_noduplex(SPI_CMD cmd, SPI_MISO *rx, int bytes, uint16_t wparam, uin
     spi_check_wakeup(cmd);		// must be done outside the lock
 }
 
+
+// not used presently
+/*
 // spi_get_noduplex() but with 3 uint16_t parameters
 void spi_get3_noduplex(SPI_CMD cmd, SPI_MISO *rx, int bytes, uint16_t wparam, uint16_t w2param, uint16_t w3param) {
 	lock_enter(&spi_lock);		// block other threads
@@ -543,6 +546,40 @@ void spi_get3_noduplex(SPI_CMD cmd, SPI_MISO *rx, int bytes, uint16_t wparam, ui
 		tx->data.cmd = cmd; tx->data.wparam = wparam;
 		tx->data.lparam_lo = w2param; tx->data.lparam_hi = w3param;
 		evSpiCmd(EC_EVENT, EV_SPILOOP, -1, "spi_get3ND", evprintf("ENTER %s(%d) rx %dB %d %d %d", cmds[cmd], cmd, bytes, wparam, w2param, w3param));
+		spi_scan(wait, tx, 0, rx, bytes);	// Send request
+
+#ifdef STACK_CHECK
+        spi_stack_check(wait, tx);
+#else
+		tx->data = _CmdFlush;
+		evSpiCmd(EC_EVENT, EV_SPILOOP, -1, "spi_get3ND", evprintf("CmdNoDuplex self-response"));
+        wait = wait_avail("spi_get3_noduplex RESPONSE", cmd);
+		spi_scan(wait, tx);				// Collect response to our own request
+#endif
+        evSpiStmt(u4_t msec = timer_us() - start;);
+        evSpiStmt(float mbps = (float) bytes / msec;);
+		evSpi(EC_EVENT, EV_SPILOOP, -1, "spi_get3ND", evprintf("DONE %dB %.3f ms = %.3f MB/s (%.0f%%)", bytes, msec/1e3, mbps, mbps*100/6));
+    lock_leave(&spi_lock);		// release block
+
+    spi_check_wakeup(cmd);		// must be done outside the lock
+}
+*/
+
+// CAUTION: The following must be called as a pair so the spi_lock is locked/unlocked correctly.
+SPI_MOSI *spi_getN_SPI_MOSI()
+{
+	lock_enter(&spi_lock);		// block other threads
+	    return &SPI_SHMEM->spi_tx[7];
+	// NB: lock_leave(&spi_lock) is done in spi_getN_noduplex()!
+}
+// spi_get_noduplex() but with arbitrary data
+void spi_getN_noduplex(SPI_CMD cmd, SPI_MISO *rx, int bytes) {
+	// NB: lock_enter(&spi_lock) was done in spi_getN_SPI_MOSI()!
+        evSpiCmdStmt(u4_t start = timer_us(););
+        int wait = wait_avail("spi_get3_noduplex", cmd);
+		SPI_MOSI *tx = &SPI_SHMEM->spi_tx[7];
+		tx->data.cmd = cmd;
+		evSpiCmd(EC_EVENT, EV_SPILOOP, -1, "spi_get3ND", evprintf("ENTER %s(%d) rx %dB", cmds[cmd], cmd, bytes));
 		spi_scan(wait, tx, 0, rx, bytes);	// Send request
 
 #ifdef STACK_CHECK
