@@ -623,7 +623,7 @@ void update_vars_from_config(bool called_at_init)
     kiwi.daily_restart = (daily_restart_e) admcfg_default_int("daily_restart", daily_restart, &update_admcfg);
 
     // decouple rx.kiwisdr.com and sdr.hu registration
-    bool sdr_hu_register = admcfg_bool("sdr_hu_register", NULL, CFG_REQUIRED);
+    bool sdr_hu_register = admcfg_true("sdr_hu_register");
 	admcfg_bool("kiwisdr_com_register", &err, CFG_OPTIONAL);
     // never set or incorrectly set to false by v1.365,366
 	if (err || (VERSION_MAJ == 1 && VERSION_MIN <= 369)) {
@@ -632,12 +632,13 @@ void update_vars_from_config(bool called_at_init)
     }
 
     // disable public registration if all the channels are full of WSPR/FT8 autorun
-	bool isPublic = admcfg_bool("kiwisdr_com_register", NULL, CFG_REQUIRED);
+	kiwi.isPublic = admcfg_true("kiwisdr_com_register");
 	int wspr_autorun = cfg_int("WSPR.autorun", NULL, CFG_REQUIRED);
 	int ft8_autorun = cfg_int("ft8.autorun", NULL, CFG_REQUIRED);
-	if (isPublic && (wspr_autorun + ft8_autorun) >= rx_chans) {
+	if (kiwi.isPublic && (wspr_autorun + ft8_autorun) >= rx_chans) {
 	    lprintf("REG: WSPR.autorun(%d) + ft8.autorun(%d) >= rx_chans(%d) -- DISABLING PUBLIC REGISTRATION\n", wspr_autorun, ft8_autorun, rx_chans);
         admcfg_set_bool("kiwisdr_com_register", false);
+        kiwi.isPublic = false;
         update_admcfg = true;
 	}
 

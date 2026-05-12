@@ -232,7 +232,6 @@ void my_kiwi_register(bool reg, int root_pwd_unset, int debian_pwd_default)
     if (kiwi_emptyStr(server_url)) server_url = strdup("ERROR");
     int add_nat = admcfg_true("auto_add_nat")? 1:0;
     int dhcp = admcfg_true("use_static")? 0:1;
-    bool kiwisdr_com_reg = admcfg_true("kiwisdr_com_register");
 
     const char *admin_email = cfg_string("admin_email", NULL, CFG_OPTIONAL);
     char *email = kiwi_str_encode((char *) admin_email);
@@ -258,7 +257,7 @@ void my_kiwi_register(bool reg, int root_pwd_unset, int debian_pwd_default)
         email, version_maj, version_min, debian_maj, debian_min, kiwi.model, kiwi.platform,
         net.dom_sel, dom_type_s[net.dom_sel], dom_stat, rev_auto, user, host,
         PRINTF_U64_ARG(net.dna), admin_pwd_unsafe(),
-        mtu, net.serno, kiwisdr_com_reg? 1:0, kiwi.vr, timer_sec(),
+        mtu, net.serno, kiwi.isPublic, kiwi.vr, timer_sec(),
         kstr_sp(cmd_p2));
     cfg_string_free(server_url);
     admcfg_string_free(user); admcfg_string_free(host);
@@ -1028,8 +1027,6 @@ static void reg_public(void *param)
         int add_nat = admcfg_true("auto_add_nat")? 1:0;
         int dhcp = admcfg_true("use_static")? 0:1;
 
-        bool kiwisdr_com_reg = admcfg_true("kiwisdr_com_register");
-
         // proxy always uses port 8073
         int server_port = (net.dom_sel == DOM_SEL_REV)? 8073 : net.port_ext;
         int mtu = mtu_v[cfg_int_("ethernet_mtu")];
@@ -1061,22 +1058,22 @@ static void reg_public(void *param)
             email, version_maj, version_min, debian_maj, debian_min, kiwi.model, kiwi.platform,
             net.dom_sel, dom_type_s[net.dom_sel], dom_stat, rev_auto, user, host,
             PRINTF_U64_ARG(net.dna), admin_pwd_unsafe(),
-            mtu, net.serno, kiwisdr_com_reg? 1:0, kiwi.vr, timer_sec()
+            mtu, net.serno, kiwi.isPublic, kiwi.vr, timer_sec()
             );
     
 		bool server_enabled = (!down && admcfg_true("server_enabled"));
         bool send_deregister = false;
         static bool last_reg;
-        if (last_reg && !kiwisdr_com_reg) {     // reg=1 => reg=0 transition
+        if (last_reg && !kiwi.isPublic) {   // reg=1 => reg=0 transition
             printf("REG: deregister\n");
             send_deregister = true;
         }
-        if (!last_reg && kiwisdr_com_reg) {     // reg=0 => reg=1 transition
+        if (!last_reg && kiwi.isPublic) {   // reg=0 => reg=1 transition
             printf("REG: register\n");
         }
-        last_reg = kiwisdr_com_reg;
+        last_reg = kiwi.isPublic;
 
-        if (send_deregister || (server_enabled && kiwisdr_com_reg)) {
+        if (send_deregister || (server_enabled && kiwi.isPublic)) {
             if (kiwi_reg_debug)
                 printf("%s\n", cmd_p);
 

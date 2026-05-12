@@ -630,16 +630,18 @@ retry:
         
         {
             if (!cother) {
-                // if autorun on configurations with limited wf chans (e.g. rx8_wf2) only use the wf chans if preemptable
+                // For publicly listed Kiwi:
+                // If autorun on configurations with limited wf chans (e.g. rx8_wf2) only use the wf chans if preemptable.
+                // Non-public Kiwi use all channels for autoruns.
                 //rx_free_count_e wf_flags = ((ws_flags & WS_FL_IS_AUTORUN) && !(ws_flags & WS_FL_INITIAL))? RX_COUNT_NO_WF_AT_ALL : RX_COUNT_NO_WF_FIRST;
                 rx_free_count_e wf_flags = ((ws_flags & WS_FL_IS_AUTORUN) && !(ws_flags & WS_FL_IS_PREMPTABLE))? RX_COUNT_NO_WF_AT_ALL : RX_COUNT_NO_WF_FIRST;
-                rx_free_count_e flags = ((isKiwi_UI || isWF_conn) && !isNo_WF)? RX_COUNT_ALL : wf_flags;
+                rx_free_count_e ct_flags = ((isKiwi_UI || isWF_conn) && !isNo_WF)? RX_COUNT_ALL : (kiwi.isPublic? wf_flags : RX_COUNT_ALL);
                 int preempt = 0;
-                int free = rx_chan_free_count(flags, &rx_n, &heavy, &preempt);
+                int free = rx_chan_free_count(ct_flags, &rx_n, &heavy, &preempt);
                 int inuse = rx_chans - free - preempt;
                 conn_printf("%s cother=%p isKiwi_UI=%d isWF_conn=%d isNo_WF=%d isKrec=%d inuse=%d/%d preempt=%d use_rx=%d heavy=%d locked=%d %s\n",
                     st->uri, cother, isKiwi_UI, isWF_conn, isNo_WF, isKrec, inuse, rx_chans, preempt, rx_n, heavy, is_locked,
-                    (flags == RX_COUNT_ALL)? "RX_COUNT_ALL" : ((flags == RX_COUNT_NO_WF_FIRST)? "RX_COUNT_NO_WF_FIRST" : "RX_COUNT_NO_WF_AT_ALL"));
+                    (ct_flags == RX_COUNT_ALL)? "RX_COUNT_ALL" : ((ct_flags == RX_COUNT_NO_WF_FIRST)? "RX_COUNT_NO_WF_FIRST" : "RX_COUNT_NO_WF_AT_ALL"));
             
                 // possibly deny new user connection if DRM has locked and drm_nreg_chans exceeded
                 if (is_locked) {

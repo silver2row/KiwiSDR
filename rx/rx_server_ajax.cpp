@@ -768,10 +768,9 @@ fail:
         int ext_api_ch = cfg_int("ext_api_nchans", NULL, CFG_REQUIRED);
         if (ext_api_ch == -1) ext_api_ch = rx_chans;    // has never been set
 		bool no_open_access = (has_pwd && chan_no_pwd == 0);
-        bool kiwisdr_com_reg = (admcfg_bool("kiwisdr_com_register", NULL, CFG_OPTIONAL) == 1)? 1:0;
         int model = kiwi.model? kiwi.model : KiwiSDR_1;
 		//printf("STATUS current_nusers=%d users_max=%d users=%d\n", kiwi.current_nusers, users_max, users);
-		//printf("STATUS has_pwd=%d chan_no_pwd=%d no_open_access=%d reg=%d\n", has_pwd, chan_no_pwd, no_open_access, kiwisdr_com_reg);
+		//printf("STATUS has_pwd=%d chan_no_pwd=%d no_open_access=%d reg=%d\n", has_pwd, chan_no_pwd, no_open_access, kiwi.isPublic);
 
 
 		// Advertise whether Kiwi can be publicly listed,
@@ -784,7 +783,7 @@ fail:
 		bool offline = (down || update_in_progress || backup_in_progress);
 		const char *status;
 
-		if (!kiwisdr_com_reg) {
+		if (!kiwi.isPublic) {
 			// Make sure to always keep set to private when private
 			status = "private";
 			users_max = rx_chans;

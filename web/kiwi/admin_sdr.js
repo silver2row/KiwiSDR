@@ -1468,6 +1468,7 @@ function kiwisdr_com_register_cb(path, idx, first)
    
    w3_innerHTML('id-kiwisdr_com-reg-status', text);
    w3_remove_then_add_cond('id-kiwisdr_com-reg-status', error, 'w3-red w3-text-white', 'w3-pale-blue w3-text-black');
+   if (first) w3_switch_set_value(path, idx);      // need to set value
    admin_radio_YN_cb(path, idx, /* first: true => no save */ first);
 
    // make sure server side notices change promptly

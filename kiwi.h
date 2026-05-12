@@ -65,6 +65,7 @@ typedef struct {
     bool hw;
     bool ext_clk;
     bool isWB;
+    bool isPublic;
     bool allow_admin_conns;
     bool log_denied_conns;
     bool spectral_inversion, spectral_inversion_lockout;

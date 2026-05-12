@@ -1498,7 +1498,7 @@ void c2s_admin(void *param)
 #ifdef USE_SDR
             i = strcmp(cmd, "SET admin_update");
             if (i == 0) {
-                if (admcfg_bool("kiwisdr_com_register", NULL, CFG_REQUIRED) == false) {
+                if (kiwi.isPublic == false) {
                     // force switch to short sleep cycle so we get status returned sooner
                     wakeup_reg_kiwisdr_com(WAKEUP_REG_STATUS);
                 }
