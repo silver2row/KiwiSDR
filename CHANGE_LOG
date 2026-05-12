@@ -3,6 +3,30 @@ CHANGE_LOG
 For the Github commit log see here: github.com/jks-prv/KiwiSDR/commits/master
     Older commits: github.com/jks-prv/Beagle_SDR_GPS/commits/master
 
+v1.838  May ?, 2026
+    Proxy service: Added a check to see if port 7000 on kiwisdr.com is reachable when using the
+    "click to (re)register" button on the admin connect tab. In some cases people had network setups
+    allowing kiwisdr.com port 80 access (web pages), but not port 7000 which is used by the actual
+    proxy service. This was causing a great deal of network debugging confusion.
+    
+    WSPR extension: Made "upload spots" button work again, i.e. actually stop uploading spots
+    when unchecked. (thanks DK6UG)
+    
+    /status: added parameters "sm_cal" and "wf_cal" that show the calibration values on the
+    admin config tab for the S-meter and waterfall respectively. (thanks AD0VC and G8JNJ)
+    
+    FT8 extension: Fixed "freq sort" option so it works when bands changed. Added "auto zoom" option.
+    When unchecked prevents automatic zooming on band change. Both now checked by default and have
+    URL options to uncheck them (see help panel).
+    
+    WSPR/FT8 autorun: In rx8wf2 mode, the requirement that rx channels 0 & 1 can only be used by
+    preemptable autoruns now only applies to public mode Kiwi. (thanks F4FPR)
+    
+    Improved waterfall preview mode of TDoA extension so that colormap of remote Kiwi is setup
+    more consistently.
+    
+    Code changes to support the next Kiwi-2 manufacturing run.
+
 v1.837  April 24, 2026
     Fixed waterfall and audio glitching when in 3-channel mode. (thanks F5AFY and Owdjim)
     /status: Added "mode=" (firmware mode) and "ext_api=" (number of external API chans available)
