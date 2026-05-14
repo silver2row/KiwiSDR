@@ -630,12 +630,10 @@ retry:
         
         {
             if (!cother) {
-                // For publicly listed Kiwi:
-                // If autorun on configurations with limited wf chans (e.g. rx8_wf2) only use the wf chans if preemptable.
-                // Non-public Kiwi use all channels for autoruns.
+                // if autorun on configurations with limited wf chans (e.g. rx8_wf2) only use the wf chans if preemptable
                 //rx_free_count_e wf_flags = ((ws_flags & WS_FL_IS_AUTORUN) && !(ws_flags & WS_FL_INITIAL))? RX_COUNT_NO_WF_AT_ALL : RX_COUNT_NO_WF_FIRST;
                 rx_free_count_e wf_flags = ((ws_flags & WS_FL_IS_AUTORUN) && !(ws_flags & WS_FL_IS_PREMPTABLE))? RX_COUNT_NO_WF_AT_ALL : RX_COUNT_NO_WF_FIRST;
-                rx_free_count_e ct_flags = ((isKiwi_UI || isWF_conn) && !isNo_WF)? RX_COUNT_ALL : (kiwi.isPublic? wf_flags : RX_COUNT_ALL);
+                rx_free_count_e ct_flags = ((isKiwi_UI || isWF_conn) && !isNo_WF)? RX_COUNT_ALL : wf_flags;
                 int preempt = 0;
                 int free = rx_chan_free_count(ct_flags, &rx_n, &heavy, &preempt);
                 int inuse = rx_chans - free - preempt;
