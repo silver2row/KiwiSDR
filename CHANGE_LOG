@@ -3,6 +3,9 @@ CHANGE_LOG
 For the Github commit log see here: github.com/jks-prv/KiwiSDR/commits/master
     Older commits: github.com/jks-prv/Beagle_SDR_GPS/commits/master
 
+v1.839  May 15, 2026
+    Reverted the v1.838 WSPR/FT8 autorun change due to unintended consequences.
+
 v1.838  May 13, 2026
     Proxy service: Added a check to see if port 7000 on kiwisdr.com is reachable when using the
     "click to (re)register" button on the admin connect tab. In some cases people had network setups

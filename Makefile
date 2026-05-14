@@ -1,5 +1,5 @@
 VERSION_MAJ = 1
-VERSION_MIN = 838
+VERSION_MIN = 839
 
 # Caution: software update mechanism depends on format of first two lines in this file
 
@@ -1368,11 +1368,12 @@ ifeq ($(DEBIAN_DEVSYS),$(DEBIAN))
 
     ifeq ($(BBG_BBB),true)
         DTS = cape-bone-kiwi-00A0.dts
+        DTS2 = 
         DIR_DTS = platform/beaglebone_black
 
         ifeq ($(DEBIAN_12_AND_LATER),true)
-            #DIR_DTB_BASE = $(wildcard /opt/source/dtb-$(SYS_MAJ).$(SYS_MIN)-*)
-            #DIR_DTB = $(DIR_DTB_BASE)/src/arm
+            DIR_DTB_BASE = $(wildcard /opt/source/dtb-$(SYS_MAJ).$(SYS_MIN).*)
+            DIR_DTB = $(DIR_DTB_BASE)/src/arm
         else
             DIR_DTB = /lib/firmware
         endif

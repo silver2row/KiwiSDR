@@ -552,7 +552,7 @@ alias pmux="${d_bb}/show-pins.pl"
 alias bbser="screen -h 10240 /dev/ttyUSB0 115200"
 
 # MMC
-alias sdh="echo \"/media/sd_p1: msd0p1 msd1p1 cdsdp1(cdsd) usdp1(usd)\"; echo \"/media/sd_p2: msd0p2 msd1p2 cdsdp2 usdp2\""
+alias sdh="echo \"/media/sd_p1: msd0p1 msd1p1 cdsdp1(cdsd) usdp1(usd)\"; echo \"/media/sd_p2: msd0p2 msd1p2 cdsdp2 usdp2\"; echo \"/media/sd_p3: msd0p3 msd1p3 cdsdp3 usdp3\""
 alias mmch=sdh
 
 alias mmc="lsblk"
@@ -560,10 +560,18 @@ alias mmc="lsblk"
 alias mmcfs="lsblk --fs"
 
 alias msd0p1="mkdir -p /media/sd_p1; mount /dev/mmcblk0p1 /media/sd_p1"
+alias msd0p2="mkdir -p /media/sd_p2; mount /dev/mmcblk0p2 /media/sd_p2"
+alias msd0p3="mkdir -p /media/sd_p3; mount /dev/mmcblk0p3 /media/sd_p3"
 alias msd1p1="mkdir -p /media/sd_p1; mount /dev/mmcblk1p1 /media/sd_p1"
+alias msd1p2="mkdir -p /media/sd_p2; mount /dev/mmcblk1p2 /media/sd_p2"
+alias msd1p3="mkdir -p /media/sd_p3; mount /dev/mmcblk1p3 /media/sd_p3"
 alias cdsdp1="cd /media/sd_p1"
+alias cdsdp2="cd /media/sd_p2"
+alias cdsdp3="cd /media/sd_p3"
 alias cdsd=cdsdp1
 alias usdp1="umount /media/sd_p1"
+alias usdp2="umount /media/sd_p2"
+alias usdp3="umount /media/sd_p3"
 alias usd=usdp1
 
 alias msd0p2="mkdir -p /media/sd_p2; mount /dev/mmcblk0p2 /media/sd_p2"
