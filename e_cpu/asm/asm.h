@@ -1,4 +1,4 @@
-// Copyright (c) 2013-2025 John Seamons, ZL4VO/KF6VO
+// Copyright (c) 2013-2026 John Seamons, ZL4VO/KF6VO
 
 #pragma once
 
@@ -25,7 +25,7 @@ extern char ifiles_list[NIFILES_LIST][N_FN];
 extern char ifiles[NIFILES_NEST][N_FN];
 
 extern int ifn, ifl, curline, debug;
-extern char *fn, *bfs, *cfs, *hfs, *vfs, *efs;
+extern char *fn, *bfs, *cfs, *hfs, *vfs, *efs, *dfs;
 
 #define	assert(cond) _assert(cond, # cond, __FILE__, __LINE__);
 
@@ -49,8 +49,8 @@ int num_strings();
 // tokens
 
 typedef enum {
-	TT_EOL=0, TT_LABEL, TT_SYM, TT_NUM, TT_STR, TT_OPC, TT_PRE, TT_OPR, TT_DATA, TT_STRUCT,
-	TT_ITER, TT_DEF, TT_FILE, TT_STATS, TT_ALIGN
+	TT_EOL=0, TT_LABEL, TT_SYM, TT_NUM, TT_STR, TT_OPC, TT_PRE, TT_OPR, TT_DATA,
+	TT_STRUCT, TT_ITER, TT_DEF, TT_FILE, TT_STATS, TT_ALIGN
 } token_type_e;
 
 const char * const ttype_s[] = {
@@ -62,17 +62,20 @@ const char * const ttype_s[] = {
 #define	TF_RET		0x0002
 #define	TF_CIN		0x0004
 #define	TF_LOOP		0x0008
+#define	TF_LOOP2    0x0010
 
-#define	TF_SKIP		0x0010
+#define	TF_SKIP		0x0020
+#define	TF_OPC9		0x0040
+#define	TF_TRACE    0x0080
 
-#define	TF_CFG_H	0x0100
-#define	TF_DOT_H	0x0200
-#define	TF_DOT_VP	0x0400
-#define	TF_DOT_VB	0x0800
+#define	TF_CFG_H	0x01000
+#define	TF_DOT_H	0x02000
+#define	TF_DOT_VP	0x04000
+#define	TF_DOT_VB	0x08000
 
-#define	TF_FIELD	0x1000
-#define	TF_2OPR		0x2000
-#define	TF_1OPR		0x4000
+#define	TF_FIELD	0x10000
+#define	TF_2OPR		0x20000
+#define	TF_1OPR		0x40000
 
 typedef struct {
 	token_type_e ttype;

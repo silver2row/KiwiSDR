@@ -13,7 +13,7 @@ var gen = {
 	attn_ampl: 0,
 	filter: 0,
 
-   mode: 1,
+   mode: 0,
    OFF: 0,
    RF: 1,
    AF: 2,
@@ -114,10 +114,10 @@ function gen_controls_setup()
             gen.mode = gen.OFF;
          } else
          if ((r = w3_ext_param('rf', a)).match) {
-            gen.mode = gen.RF;
+            if (kiwi.firmware_sel != kiwi.RX8_WF3) gen.mode = gen.RF;
          } else
          if ((r = w3_ext_param('af', a)).match) {
-            gen.mode = gen.AF;
+            if (kiwi.firmware_sel != kiwi.RX8_WF3) gen.mode = gen.AF;
          } else
          if ((r = w3_ext_param('self', a)).match) {
             gen.mode = kiwi.ext_clk? gen.OFF : gen.SELF_TEST;
@@ -189,7 +189,15 @@ function gen_controls_setup()
 
 	ext_panel_show(controls_html, null, null);
 	ext_set_controls_width_height(dbgUs? 575 : 450, 250);
-	gen_freq_cb('gen.freq', gen.freq);
+	if (kiwi.ext_clk)
+	   w3_select_set_disabled('id-gen-mode', gen.SELF_TEST, true, 'no self-test available when ext clk used');
+
+	if (kiwi.firmware_sel == kiwi.RX8_WF3) {
+	   w3_select_set_disabled('id-gen-mode', gen.RF, true, 'no RF tone mode in full 8 channel mode');
+	   w3_select_set_disabled('id-gen-mode', gen.AF, true, 'no AF noise mode in full 8 channel mode');
+	}
+	if (gen.mode != gen.OFF)
+	   gen_freq_cb('gen.freq', gen.freq);
 
 	// if no URL "f=" param set freq so signal appears on screen
 	// (in case off screen at current zoom level)
@@ -200,14 +208,13 @@ function gen_controls_setup()
 	spec.saved_audio_comp = ext_get_audio_comp();
 	if (spec.saved_audio_comp) ext_set_audio_comp(false, /* NO_WRITE_COOKIE */ true);
 	ext_send('SET wf_comp=0');
-	if (kiwi.ext_clk) w3_select_set_disabled('id-gen-mode', gen.SELF_TEST, true, 'no self-test available when ext clk used');
 	if (do_sweep) gen_sweep_cb();
    if (do_help) ext_help_click();
 }
 
 function gen_set(freq, ampl, always)
 {
-   console.log('gen_set f='+ freq +' ampl='+ ampl +' attn='+ gen.attn_dB +' self_test='+ (gen.SELF_TEST? 1:0));
+   console.log('gen_set f='+ freq +' ampl='+ ampl +' attn='+ gen.attn_dB +' mode='+ gen.mode +' self_test='+ (gen.mode == gen.SELF_TEST? 1:0));
    //kiwi_trace();
    if (always == true || gen.rf_enable) set_gen((gen.mode == gen.SELF_TEST)? -freq : freq, ampl);
 }

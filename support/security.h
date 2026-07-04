@@ -21,6 +21,8 @@ Boston, MA  02110-1301, USA.
 
 #include "types.h"
 
+void drop_root_privileges();
+
 //#define CRYPT_PW
 
 extern char *current_authkey;

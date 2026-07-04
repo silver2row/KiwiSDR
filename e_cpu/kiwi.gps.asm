@@ -19,7 +19,7 @@
 ; http://www.aholme.co.uk/GPS/Main.htm
 ; ============================================================================
 
-; Copyright (c) 2014-2025 John Seamons, ZL4VO/KF6VO
+; Copyright (c) 2014-2026 John Seamons, ZL4VO/KF6VO
 
 
 ; ============================================================================
@@ -325,9 +325,11 @@ close_CG_loop:                              ; Inav errH L
                 push    E1B_MODE            ; Inav this ch_sat_mode ch_sat_mode E1B_MODE
                 and                         ; Inav this ch_sat_mode E1B_MODE?
                 brNZ    E1BSave             ; Inav this ch_sat_mode         // E1B nav case
+#if USE_SBAS
                 push    SBAS_MODE           ; Inav this ch_sat_mode SBAS_MODE
                 and                         ; Inav this SBAS_MODE?
                 brNZ    SBASave             ; Inav this                     // SBAS nav case
+#endif
                 // fall through ...                                         // L1 C/A nav case
 
                 //
@@ -408,6 +410,7 @@ NavSame:        // if ch_NAV_MS == 19 then goto NavSave
                 drop						; Inav
                 drop.r						;
 
+#if USE_SBAS
 SBASave:                                    ; Inav this
                 addi	ch_even_odd			; Inav &even_odd
                 xor16						; Inav even_odd^1
@@ -434,6 +437,7 @@ SBASave2:                                   ; Inav
                 store16                     ; ; Inav cnt &cnt
                 drop						; Inav cnt
                 br      NavShift            ; Inav cnt
+#endif
 
 E1BSave:                                    ; Inav &ms ch_sat_mode
                 pop                         ; Inav &ms
@@ -494,7 +498,9 @@ NavShift:                                   ; Inav cnt
 UploadChan:										; &GPS_channels[n]
 				loop_ct (sizeof GPS_CHAN / 2)
                 ALIGN
+upload_loop:
                 wrEvtL  GET_MEMORY_LOOP
+				// wrEvtL will automatically loop to upload_loop which must be aligned
 				ret
 
 // "wrEvt GET_MEMORY" side-effect: auto mem ptr incr, i.e. 2x tos += 2 (explains "-4" below)
@@ -627,7 +633,7 @@ CmdGetGPSSamples:
                 ALIGN
 gps_loop:
                 wrEvtL	GET_GPS_SAMPS_LOOP
-				// wrEvtL will automatically loop to gps_loop
+				// wrEvtL will automatically loop to gps_loop which must be aligned
 				ret
 
 CmdGetChan:     rdReg	HOST_RX				; chan#
@@ -675,13 +681,9 @@ CmdIQLogReset:  rdReg	HOST_RX             ; ch#
 				wrEvt	LOG_RST             ; &iq_ch
                 pop.r                       ;
 
-// not used enough to justify implementing a "wrEvtL GET_LOG_LOOP"
 CmdIQLogGet:    wrEvt	HOST_RST
-				loop_ct	GPS_IQ_SAMPS
+				loop_ct	(GPS_IQ_SAMPS * 4)
 up_more_log:
-				wrEvt	GET_LOG             ; IH
-				wrEvt	GET_LOG             ; IL
-				wrEvt	GET_LOG             ; QH
-				wrEvt	GET_LOG             ; QL
+				wrEvt	GET_LOG             ; IH, IL, QH, QL
 				loop    up_more_log
 				ret

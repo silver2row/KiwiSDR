@@ -7,3 +7,9 @@ RequiredForOnline=yes
 
 [Network]
 DHCP=ipv4
+
+[DHCPv4]
+UseNTP=yes
+
+[DHCPv6]
+UseNTP=yes

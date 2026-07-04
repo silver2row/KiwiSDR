@@ -15,12 +15,13 @@ Boston, MA  02110-1301, USA.
 --------------------------------------------------------------------------------
 */
 
-// Copyright (c) 2014-2025 John Seamons, ZL4VO/KF6VO
+// Copyright (c) 2014-2026 John Seamons, ZL4VO/KF6VO
 
 #include "kiwi.h"
 #include "printf.h"
 #include "debug.h"
 #include "mem.h"
+#include "ansi.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -47,7 +48,7 @@ Boston, MA  02110-1301, USA.
 #ifdef EV_MEAS
 
 typedef struct {
-	u1_t prev_valid, free_s2, cmd, event, rx_chan, dump_point, state, reserved;
+	u1_t prev_valid, free_s2, cmd, event, rx_chan, dump_point, state, param_u1;
 	const char *s, *s2, *task;
 	u4_t tprio, tid, trig1, trig2, trig3;
 	u4_t tlast;             // time since event last occurred
@@ -67,15 +68,15 @@ static int evc, ev_wrapped, ev_idle;
 ev_t evs[NEV+1024];
 
 const char *evcmd[NECMD] = {
-	"Event", "Dump", "DumpCont", "Sched", "Idle", "Switch", "Trig1", "Trig2", "Trig3", "Real", "Acc1", "Acc0"
+	"Event", "Dump", "DumpCont", "Sched", "Idle", "Switch", "Trig1", "Trig2", "Trig3", "Real", "Acc1", "Acc0", "Snap"
 };
 
 const char *evn[NEVT] = {
 	"NextTask", "SPI", "WF", "SND", "GPS", "DataPump", "Printf", "EXT", "RX", "WebSrvr"
 };
 
-const char *ev_state_s[4] = {
-	"?", "sched", "idle", "sched"
+const char *ev_state_s[5] = {
+	"?", "sched", "idle", "sched", "invalid"
 };
 
 enum evdump_e { REG, SUMMARY };
@@ -194,14 +195,45 @@ static bool ev_dump_continue;
 static bool ev_already_dumped = false;
 static u4_t triggered, ev_trig1, ev_trig2, ev_trig3;
 //static u4_t ev_trig3[256];
+bool ev_snapshot;
+
+static void evdump_snapshot(int lo, int hi)
+{
+    int i, j;
+    for (i = lo; i < hi; i++) {
+        ev_t *e = &evs[i];
+        if (e->cmd != EC_SNAPSHOT) continue;
+        if (e->param_u1 == 0) {
+            lfprintf(PRINTF_REAL, "SNAP %9.6f | %s\n", (float) e->tepoch/1e6, e->s2);
+        } else {
+            int rx = e->param_u1 - 1;
+            char spacing[4*8 + SPACE_FOR_NULL];
+            for (j = 0; j < e->param_u1 * 4; j++) spacing[j] = ' ';
+            spacing[j] = '\0';
+            lfprintf(PRINTF_REAL, "SNAP %9.6f | %s%s%s" NONL, (float) e->tepoch/1e6, spacing, COLORS[rx], e->s2);
+        }
+    }
+}
 
 static void evsig(int signum)
 {
-    ev(EC_DUMP, EV_NEXTTASK, -1, "main", "dump");
+    #ifdef EV_SNAPSHOT
+        ev_snapshot = true;
+        
+        #if 1
+            if (ev_wrapped) evdump_snapshot(evc+1, NEV);
+            evdump_snapshot(0, evc);
+            kiwi_exit(0);
+        #endif
+    #else
+        ev(EC_DUMP, EV_NEXTTASK, -1, "main", "dump");
+    #endif
 }
 
 void ev(int cmd, int event, int param, const char *s, const char *s2)
 {
+    if (ev_snapshot) return;
+    
 	int i, id = param;
 	int tid = TaskID();
 	ev_t *e;
@@ -313,6 +345,7 @@ void ev(int cmd, int event, int param, const char *s, const char *s2)
 
 	e->prev_valid = 1;
 	e->cmd = cmd;
+	e->param_u1 = (cmd == EC_SNAPSHOT)? (u1_t) (param+1) : 0;
 	e->event = event;
 	e->s = s;
 	e->s2 = s2;

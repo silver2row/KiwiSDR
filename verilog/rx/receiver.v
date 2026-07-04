@@ -15,22 +15,23 @@ Boston, MA  02110-1301, USA.
 --------------------------------------------------------------------------------
 */
 
-// Copyright (c) 2014-2025 John Seamons, ZL4VO/KF6VO
+// Copyright (c) 2014-2026 John Seamons, ZL4VO/KF6VO
 
 `timescale 1ns / 100ps
 
 module receiver
     #(parameter _ADC_BITS = "required")
     (
-        input wire		   adc_clk,
-        input wire signed [_ADC_BITS-1:0] adc_data,
-        input wire         adc_ovfl,
+        input  wire		   adc_clk,
+        input  wire signed [_ADC_BITS-1:0] adc_data,
+        input  wire        adc_ovfl,
     
         output wire        rx_rd_C,
         output wire [15:0] rx_dout_C,
     
         output wire        wf_rd_C,
         output wire [15:0] wf_dout_C,
+        output wire [3:0]  wf_full_C,
     
         input  wire [47:0] ticks_A,
         output wire        adc_ovfl_C,
@@ -38,6 +39,7 @@ module receiver
         
         input  wire		   cpu_clk,
         output wire        rx_ser,
+        output wire        wf_ser,
         input  wire [31:0] tos,
         input  wire [10:0] op_11,
         input  wire        rdReg,
@@ -49,7 +51,8 @@ module receiver
         input  wire        use_gen_C,
         
         input  wire        self_test_en_C,
-        output wire        self_test
+        output wire        self_test,
+        output wire [15:0] debug
 	);
 	
 `include "kiwi.gen.vh"
@@ -62,6 +65,7 @@ module receiver
     wire set_reg         = wrReg2 && op_11[SET_REG];
     wire [2:0] set_regno = op_11[2:0];  // SET_REG_NO
 	wire set_wf_chan_C   = set_reg && (set_regno == SET_WF_CHAN);
+	wire set_wf_chan2_C  = set_reg && (set_regno == SET_WF_CHAN2);
 	wire set_wf_freqH_C  = set_reg && (set_regno == SET_WF_FREQ) && !freq_l;
 	wire set_wf_freqL_C  = set_reg && (set_regno == SET_WF_FREQ) &&  freq_l;
 	wire set_wf_decim_C  = set_reg && (set_regno == SET_WF_DECIM);
@@ -157,8 +161,9 @@ module receiver
 `ifdef USE_GEN
     localparam RX_IN_WIDTH = 18;
 
-    wire use_gen_A;
+    wire use_gen_A, use_ste_A;
     SYNC_WIRE sync_use_gen (.in(use_gen_C && !self_test_en_C), .out_clk(adc_clk), .out(use_gen_A));
+    SYNC_WIRE sync_use_ste (.in(use_gen_C &&  self_test_en_C), .out_clk(adc_clk), .out(use_ste_A));
 
     wire signed [RX_IN_WIDTH-1:0] gen_data;
     wire signed [RX_IN_WIDTH-1:0] adc_ext_data = { adc_data, {RX_IN_WIDTH-ADC_BITS{1'b0}} };
@@ -166,10 +171,13 @@ module receiver
     // only allow gen to be used on channel 0 to prevent disruption to others when multiple channels in use
     wire [(V_RX_CHANS * RX_IN_WIDTH)-1:0] rx_data = { {V_RX_CHANS-1{adc_ext_data}}, use_gen_A? gen_data : adc_ext_data };
 `ifdef USE_WF
-    wire [(V_WF_CHANS * RX_IN_WIDTH)-1:0] wf_data = { {V_WF_CHANS-1{adc_ext_data}}, use_gen_A? gen_data : adc_ext_data };
+    wire [RX_IN_WIDTH-1:0] wf_data     = adc_ext_data;
+    wire [RX_IN_WIDTH-1:0] wf_gen_data = use_gen_A? gen_data : adc_ext_data;
 `endif
     
-    assign self_test = gen_data[RX_IN_WIDTH-1] & self_test_en_C;
+    //assign self_test = gen_data[RX_IN_WIDTH-1] & use_ste_A;
+    wire _self_test;
+    assign self_test = _self_test & use_ste_A;
 
     wire set_gen_freqH_C = (wrReg2 & op_11[SET_GEN_FREQ]) && !freq_l;
     wire set_gen_freqL_C = (wrReg2 & op_11[SET_GEN_FREQ]) &&  freq_l;
@@ -178,6 +186,7 @@ module receiver
     GEN gen_inst (
         .adc_clk	        (adc_clk),
         .gen_data	        (gen_data),
+        .self_test	        (_self_test),
 
         .cpu_clk	        (cpu_clk),
         .freeze_tos_A       (freeze_tos_A),
@@ -191,7 +200,8 @@ module receiver
 	
 	wire [RX_IN_WIDTH-1:0] rx_data = adc_data;
 `ifdef USE_WF
-	wire [RX_IN_WIDTH-1:0] wf_data = adc_data;
+	wire [RX_IN_WIDTH-1:0] wf_data     = adc_data;
+	wire [RX_IN_WIDTH-1:0] wf_gen_data = adc_data;
 `endif
         
     assign self_test = 0;
@@ -261,7 +271,7 @@ module receiver
 
 	rx_audio_mem #(._V_RX_CHANS(V_RX_CHANS)) rx_audio_mem_inst (
 		.adc_clk		(adc_clk),
-		.nrx_samps      (nrx_samps_A),
+		.nrx_samps_A    (nrx_samps_A),
 		.rx_avail_A     (rxn_avail_A[0]),   // all DDCs should signal available at the same time since decimation is the same
 		.rxn_din_A      (rxn_data_A),
 		.ticks_A        (ticks_latched_A),
@@ -286,50 +296,171 @@ module receiver
     //////////////////////////////////////////////////////////////////////////
 
 `ifdef USE_WF
+
     localparam L2WF = max(1, clog2(V_WF_CHANS) - 1);
+
+    // wf_channel_C  refers to WATERFALL_1CIC[N]
     reg [L2WF:0] wf_channel_C;
-	wire [V_WF_CHANS-1:0] wfn_sel_C = 1 << wf_channel_C;
+	wire [V_WF_CHANS-1:0] wfn_sel_C  = 1 << wf_channel_C;
 	
     always @ (posedge cpu_clk)
-    begin
-    	if (set_wf_chan_C) wf_channel_C <= tos[L2WF:0];
-    end
+    	if (set_wf_chan_C)  wf_channel_C  <= tos[L2WF:0];
     
+`ifdef USE_CICF_83
+
+    // wf_channel2_C refers to WF_CICF_MEM
+    reg [L2WF:0] wf_channel2_C;
+	wire [V_WF_CHANS-1:0] wfn_sel2_C = 1 << wf_channel2_C;
+	
+    always @ (posedge cpu_clk)
+    	if (set_wf_chan2_C) wf_channel2_C <= tos[L2WF:0];
+    
+    wire [L2WF:0] wf_channel2_A;
+	SYNC_REG #(.WIDTH(L2WF+1)) wf_channel2_A_inst (
+	    .in_strobe(set_wf_chan2_C), .in_reg(tos[L2WF:0]),       .in_clk(cpu_clk),
+	    .out_strobe(),              .out_reg(wf_channel2_A),    .out_clk(adc_clk)
+	);
+
+    // WF_CICF_MEM asks WATERFALL_SHARE_1CIC instance for output data
+    wire rd_data_i, rd_data_q;
+    wire [V_WF_CHANS-1:0] wfn_rd_i_A = rd_data_i << wf_channel2_A;
+    wire [V_WF_CHANS-1:0] wfn_rd_q_A = rd_data_q << wf_channel2_A;
+
+	wire [V_WF_CHANS*16-1:0] wfn_dout_A;
+    wire [15:0] wf_data_to_cicf;
+	MUX #(.WIDTH(16), .SEL(V_WF_CHANS)) wf_dout_mux(.in(wfn_dout_A), .sel(wf_channel2_A), .out(wf_data_to_cicf));
+
+    // further qualified with tos[WF_SAMP_*]
+	wire rst_wf_sampler_C =	set_reg && (set_regno == SET_WF_RST);
+	wire rst_wf_sampler_A;
+	SYNC_PULSE reset_wr_inst (.in_clk(cpu_clk), .in(rst_wf_sampler_C), .out_clk(adc_clk), .out(rst_wf_sampler_A));
+
+	wire rst_wf_wr_A    = rst_wf_sampler_A && freeze_tos_A[WF_SAMP_WR_RST];
+	wire rst_wf_rd_A    = rst_wf_sampler_A && freeze_tos_A[WF_SAMP_RD_RST];
+	wire rst_wf_rd_C    = rst_wf_sampler_C &&          tos[WF_SAMP_RD_RST];
+	wire run_wf_fir_A   = rst_wf_sampler_A && freeze_tos_A[WF_SAMP_FIR_RUN];
+
+	wire set_wf_fir_tap_C =	set_reg && (set_regno == SET_WF_FIR_TAP);
+
+    wire [V_WF_CHANS-1:0] wfn_decim_zero_A;
+    wire wf_decim_zero_A = wfn_decim_zero_A[wf_channel2_A];
+`else
+	wire samp_wf_rd_rst_C = tos[WF_SAMP_RD_RST];
+	wire samp_wf_sync_C   = tos[WF_SAMP_SYNC];
+
 	wire [V_WF_CHANS*16-1:0] wfn_dout_C;
 	MUX #(.WIDTH(16), .SEL(V_WF_CHANS)) wf_dout_mux(.in(wfn_dout_C), .sel(wf_channel_C), .out(wf_dout_C));
 
     // further qualified with tos[WF_SAMP_*]
 	wire rst_wf_sampler_C =	set_reg && (set_regno == SET_WF_RST);
+`endif
 
 	wire get_wf_samp_i_C  =	wrEvt2 & op_11[GET_WF_SAMP_I];
 	wire get_wf_samp_q_C  =	(wrEvt2 & op_11[GET_WF_SAMP_Q]) || (wrEvtL & op_11[GET_WF_SAMP_Q_LOOP]);
 	assign wf_rd_C        = get_wf_samp_i_C || get_wf_samp_q_C;
+    wire get_wf_srq_C     = rdReg & op_11[GET_WF_SRQ];
 
-	wire samp_wf_rd_rst_C = tos[WF_SAMP_RD_RST];
-	wire samp_wf_sync_C   = tos[WF_SAMP_SYNC];
+	wire [V_WF_CHANS-1:0] wfn_full_C, wfn_full_pulse_C;	
+	wire wf_all_pulse = |wfn_full_pulse_C;
+	reg srq_noted, srq_out;
+	assign wf_full_C = wfn_full_C;
 
-	WATERFALL_1CIC #(.IN_WIDTH(RX_IN_WIDTH)) waterfall_inst [V_WF_CHANS-1:0] (
-		.adc_clk			(adc_clk),
-		.adc_data			(wf_data),
-		
-		.wf_sel_C			(wfn_sel_C),
-		// o
-		.wf_dout_C			(wfn_dout_C),
+    always @ (posedge cpu_clk)
+    begin
+        if (get_wf_srq_C) srq_noted <= wf_all_pulse;
+        else			  srq_noted <= wf_all_pulse | srq_noted;
+        if (get_wf_srq_C) srq_out   <= srq_noted;
+    end
+	assign wf_ser = srq_out;
 
-		.cpu_clk			(cpu_clk),
-		.tos_C              (tos[11:0]),
-		.freeze_tos_A       (freeze_tos_A),
+    genvar i;
+    generate
+    for (i = 0; i < V_WF_CHANS; i = i+1)
+        begin: wf_inst
 
-		.samp_wf_rd_rst_C   (samp_wf_rd_rst_C),
-		.samp_wf_sync_C		(samp_wf_sync_C),
-		.set_wf_freqH_C		(set_wf_freqH_C),
-		.set_wf_freqL_C		(set_wf_freqL_C),
-		.set_wf_decim_C		(set_wf_decim_C),
-		.set_wf_offset_C    (set_wf_offset_C),
-		.rst_wf_sampler_C	(rst_wf_sampler_C),
-		.get_wf_samp_i_C	(get_wf_samp_i_C),
-		.get_wf_samp_q_C	(get_wf_samp_q_C)
-	);
+        `ifdef USE_CICF_83
+	        WATERFALL_SHARE_1CIC #(.IN_WIDTH(RX_IN_WIDTH)) waterfall_inst (
+                .adc_clk			(adc_clk),
+                .adc_data			(i? wf_data : wf_gen_data),
+                
+                .wf_sel_C			(wfn_sel_C[i]),
+                .wf_sel2_C			(wfn_sel2_C[i]),
+                .rd_i_A			    (wfn_rd_i_A[i]),
+                .rd_q_A			    (wfn_rd_q_A[i]),
+                // o
+                .wf_decim_zero_A    (wfn_decim_zero_A[i]),
+                .wf_full_C          (wfn_full_C[i]),
+                .wf_full_pulse_C    (wfn_full_pulse_C[i]),
+                .wf_dout_A			(wfn_dout_A[16*i +:16]),
+        
+                .cpu_clk			(cpu_clk),
+                .freeze_tos_A       (freeze_tos_A),
+        
+                .rst_wf_wr_A	    (rst_wf_wr_A),
+                .rst_wf_rd_A        (rst_wf_rd_A),
+                .set_wf_freqH_C		(set_wf_freqH_C),
+                .set_wf_freqL_C		(set_wf_freqL_C),
+                .set_wf_decim_C		(set_wf_decim_C),
+                
+                .ch                 ((i == 0)? 1'b0 : 1'b1)
+            );
+        `else
+            WATERFALL_1CIC #(.IN_WIDTH(RX_IN_WIDTH)) waterfall_inst (
+                .adc_clk			(adc_clk),
+                .adc_data			(i? wf_data : wf_gen_data),
+                
+                .wf_sel_C			(wfn_sel_C[i]),
+                // o
+                .wf_full_C          (wfn_full_C[i]),
+                .wf_full_pulse_C    (wfn_full_pulse_C[i]),
+                .wf_dout_C			(wfn_dout_C[16*i +:16]),
+        
+                .cpu_clk			(cpu_clk),
+                .tos_C              (tos[11:0]),
+                .freeze_tos_A       (freeze_tos_A),
+        
+                .samp_wf_rd_rst_C   (samp_wf_rd_rst_C),
+                .samp_wf_sync_C		(samp_wf_sync_C),
+                .set_wf_freqH_C		(set_wf_freqH_C),
+                .set_wf_freqL_C		(set_wf_freqL_C),
+                .set_wf_decim_C		(set_wf_decim_C),
+                .set_wf_offset_C    (set_wf_offset_C),
+                .rst_wf_sampler_C	(rst_wf_sampler_C),
+                .get_wf_samp_i_C	(get_wf_samp_i_C),
+                .get_wf_samp_q_C	(get_wf_samp_q_C)
+            );
+        `endif
+        end
+    endgenerate
+    
+    `ifdef USE_CICF_83
+        WF_CICF_MEM #(.WIDTH(WFO_BITS)) wf_cicf_mem_inst (
+            .adc_clk			(adc_clk),
+            
+            .wf_data_to_cicf    (wf_data_to_cicf),
+            .wf_decim_zero_A    (wf_decim_zero_A),
+            // o
+            .rd_data_i          (rd_data_i),
+            .rd_data_q          (rd_data_q),
+            
+            .get_wf_samp_i_C    (get_wf_samp_i_C),
+            .get_wf_samp_q_C    (get_wf_samp_q_C),
+            // o
+            .wf_dout_C          (wf_dout_C),
+    
+            .cpu_clk			(cpu_clk),
+            .freeze_tos_A       (freeze_tos_A),
+            // o
+            .debug              (debug),
+            
+            .set_wf_fir_tap_C   (set_wf_fir_tap_C),
+            .rst_wf_fir_A       (rst_wf_rd_A),         // NB: rst_wf_rd_A driving rst_wf_fir_A
+            .rst_wf_fir_C       (rst_wf_rd_C),         // NB: rst_wf_rd_C driving rst_wf_fir_C
+            .run_wf_fir_A       (run_wf_fir_A)
+        );
+    `else
+        assign debug = 16'b0;
+    `endif
 `else
     assign wf_rd_C = 0;
     assign wf_dout_C = 16'b0;

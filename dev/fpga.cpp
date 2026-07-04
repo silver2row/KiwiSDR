@@ -228,7 +228,7 @@ int fpga_init(int check, int fpga_sim_fail) {
 
         // FPGA configuration bitstream
         char *file;
-        asprintf(&file, "%sKiwiSDR%s.%s.bit", background_mode? "/usr/local/bin/":"", a50? "_a50" : "", fpga_file);
+        asprintf(&file, "%sKiwiSDR%s.%s.bit", background_mode? "/usr/local/bin/":"", a50? "_a50" : "", kiwi.mode_id);
         sum = non_blocking_cmd_fmt(NULL, "sum %s", file);
         lprintf("FPGA firmware: %s %.5s%s\n", file, kstr_sp(sum), retry? stprintf(" (retry %d)", retry) : "");
         fp = fopen(file, "rb");
@@ -304,7 +304,6 @@ int fpga_init(int check, int fpga_sim_fail) {
         a50 = !a50;
     }
     
-    kiwi_asfree(fpga_file);
     if (retry >= N_FPGA_RETRY) {
         kiwi.pcb_fpga_a50 = false;
         fpga_panic(4, "FPGA config CRC error");
@@ -313,7 +312,8 @@ int fpga_init(int check, int fpga_sim_fail) {
     kiwi.pcb_fpga_a50 = a50;
 
 	// download embedded CPU program binary
-	const char *aout = background_mode? "/usr/local/bin/kiwid.aout" : (BUILD_DIR "/gen/kiwi.aout");
+	char *aout;
+	asprintf(&aout, "%sKiwiSDR.%s.aout", background_mode? "/usr/local/bin/":"", kiwi.mode_id);
     sum = non_blocking_cmd_fmt(NULL, "sum %s", aout);
 	lprintf("e_cpu firmware: %s %.5s\n", aout, kstr_sp(sum));
     fp = fopen(aout, "rb");

@@ -28,7 +28,7 @@ module rx_audio_mem
     #(parameter _V_RX_CHANS = "required")
     (
         input  wire		   adc_clk,
-        input  wire [ 7:0] nrx_samps,
+        input  wire [ 7:0] nrx_samps_A,
         input  wire		   rx_avail_A,
         input  wire [_V_RX_CHANS*16-1:0] rxn_din_A,
         input  wire [47:0] ticks_A,
@@ -89,7 +89,7 @@ module rx_audio_mem
 		begin
 			if (rxn == V_RX_CHANS)    // after moving all channel data
 			begin
-				if ((count == (nrx_samps-1)) && !use_ts)    // keep going after last count and move ticks
+				if ((count == (nrx_samps_A-1)) && !use_ts)    // keep going after last count and move ticks
 				begin
 					move <= 1;          // this state starts first move, below moves second and third
 					wr <= 1;
@@ -98,7 +98,7 @@ module rx_audio_mem
 				    tsel <= 0;
 				end
 				else
-				if ((count == (nrx_samps-1)) && use_ts)     // keep going after last count and move buffer count
+				if ((count == (nrx_samps_A-1)) && use_ts)     // keep going after last count and move buffer count
 				begin
 					wr <= 1;
 					count <= count + 1;     // ensures only single word moved
@@ -106,7 +106,7 @@ module rx_audio_mem
 					use_ctr <= 1;           // move single counter word
 				end
 				else
-				if (count == nrx_samps)
+				if (count == nrx_samps_A)
 				begin   // all done, increment buffer count and reset
 					move <= 0;
 					wr <= 0;
@@ -119,7 +119,7 @@ module rx_audio_mem
                     tsel <= 0;
 				end
 				else
-				begin   // count = 0 .. (nrx_samps-2), stop string of channel data writes until next transfer
+				begin   // count = 0 .. (nrx_samps_A-2), stop string of channel data writes until next transfer
 					move <= 0;
 					wr <= 0;
 					rxn <= 0;

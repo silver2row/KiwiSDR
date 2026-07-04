@@ -29,6 +29,7 @@ var kiwi = {
    
    WIN_WIDTH_MIN: 1400,
    
+   wf_share: false,
    force_mobile: false,
    mdev: false,
    mdev_s: '',
@@ -127,7 +128,7 @@ var kiwi = {
    BAND_SCALE_ONLY: 4,
    BAND_MENU_ONLY: 5,
 
-   RX4_WF4:0, RX8_WF2:1, RX3_WF3:2, RX14_WF0:3, RX_WB:4,
+   RX4_WF4:0, RX8_WF2:1, RX3_WF3:2, RX14_WF0:3, RX_WB:4, RX8_WF3:5,
    
    NAM:0, DUC:1, PUB:2, SIP:3, REV:4,
    
@@ -3318,6 +3319,10 @@ function kiwi_msg(param, ws)     // #msg-proc #MSG
 			wf_chans_real = parseInt(param[1]);
 			break;
 
+		case "wf_share":
+			kiwi.wf_share = parseInt(param[1]);
+			break;
+
 		case "rx_chan":
 			rx_chan = parseInt(param[1]);
 			//console.log('rx_chan='+ rx_chan);
@@ -3501,12 +3506,12 @@ function kiwi_msg(param, ws)     // #msg-proc #MSG
 
 				kiwi.admin_advisory = o.aa;
 				if (kiwi.admin_advisory && !kiwi.seen_admin_advisory && kiwi.is_local[rx_chan] && !isAdmin()) {
-               w3_alert('|border: 1px solid white/w3-font-15px',
+               w3_alert('kiwi_security_msg', '|border: 1px solid white/w3-font-15px',
                   '<yel>Kiwi owner/admin: Please open the admin page for an important security advisory.</yel>' +
                   '<br><br>' +
                   w3_button('w3-aqua w3-medium w3-padding-small w3-margin-L-16x', 'admin page', 'admin_page_cb') +
                   ' &nbsp; Thank you.',
-                  650, 250
+                  null, 650, 250
                );
 				   kiwi.seen_admin_advisory = true;
 				}

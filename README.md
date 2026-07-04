@@ -36,7 +36,7 @@ An add-on board ("cape") that turns your BeagleBone into a web-accessible shortw
 * [KiwiSDR 2 rev 1.1 schematic](http://www.kiwisdr.com/docs/KiwiSDR/kiwi-2-rev1.1.schematic.pdf)
 
 ### Description
-This SDR is a bit different. It has a web interface that can be used by up to four separate listeners. Each one listening and tuning an independent frequency simultaneously. See the screenshots below.
+This SDR is a bit different. It has a web interface that can be used by up to eight separate listeners. Each one listening and tuning an independent frequency simultaneously. See the screenshots below.
 
 ### Components
 * SDR covering the 10 kHz to 30 MHz (VLF-HF) spectrum.

@@ -23,11 +23,12 @@
 		need runtime args instead of hardcoded stuff
 */
 
-// Copyright (c) 2013-2025 John Seamons, ZL4VO/KF6VO
+// Copyright (c) 2013-2026 John Seamons, ZL4VO/KF6VO
 
 #include "asm.h"
+#include "dict.h"
 
-int show_bin, gen=1, only_gen_other=0, write_coe;
+int show_bin, show_addr=1, gen=1, only_gen_other=0, write_incl_fmt, write_code_coe, write_data_coe, write_symtab_file;
 
 #define LBUF 1024
 char linebuf[LBUF];
@@ -35,131 +36,6 @@ char linebuf[LBUF];
 #define	TBUF	64*1024
 tokens_t tokens[TBUF], *pass0, *pass1, *pass2, *pass3, *pass4;
 tokens_t *tp_start, *tp_end;
-
-typedef struct {
-	const char *str;
-	token_type_e ttype;
-	int val;
-    u4_t flags;     // TF_* flags
-    u4_t mask;      // opcode mask for TT_OPC entries
-	u4_t stats;
-} dict_t;
-
-#include <cpu.h>
-
-// dictionary of reserved symbols and tokens
-dict_t dict[] = {
-	{ "DEF",		TT_PRE,		PP_DEF },
-	{ "DEFc",		TT_PRE,		PP_DEF,			TF_CFG_H },		// gens RX_CFG in kiwi.cfg.vh
-	{ "DEFh",		TT_PRE,		PP_DEF,			TF_DOT_H },		// gens a '#define' in .h and '`define' in .vh
-	{ "DEFp",		TT_PRE,		PP_DEF,			TF_DOT_VP },	// gens a 'localparam' in .vh and '#define' in .h
-	{ "DEFb",		TT_PRE,		PP_DEF,			TF_DOT_VB },	// gens a 'localparam' of bit position in .vh
-	{ "MACRO",		TT_PRE,		PP_MACRO },
-	{ "ENDM",		TT_PRE,		PP_ENDM },
-	{ "REPEAT",		TT_PRE,		PP_REPEAT },
-	{ "ENDR",		TT_PRE,		PP_ENDR },
-	{ "STRUCT",		TT_PRE,		PP_STRUCT },
-	{ "ENDS",		TT_PRE,		PP_ENDS },
-	{ "FACTOR",		TT_PRE,		PP_FACTOR },
-	{ "ENDF",		TT_PRE,		PP_ENDF },
-	{ "FCALL",		TT_PRE,		PP_FCALL },
-	{ "#if",		TT_PRE,		PP_IF },        // supports '#if NUM|SYM (implied != 0)' and '#if SYM|NUM OPR SYM|NUM'
-	{ "#elif",		TT_PRE,		PP_ELIF },
-	{ "#else",		TT_PRE,		PP_ELSE },
-	{ "#endif",		TT_PRE,		PP_ENDIF },
-	{ "#error",		TT_PRE,		PP_ERROR },
-	{ "#warning",   TT_PRE,		PP_WARNING },
-	{ "#display",   TT_PRE,		PP_DISPLAY },
-
-	{ "push",		TT_OPC,		OC_PUSH,            0,              OCM_CONST },
-	{ "nop",		TT_OPC,		OC_NOP },
-	{ "ret",		TT_OPC,		OC_NOP | OPT_RET,   TF_RET },
-	{ "dup",		TT_OPC,		OC_DUP,             TF_RET },
-	{ "swap",		TT_OPC,		OC_SWAP,            TF_RET },
-	{ "swap16",		TT_OPC,		OC_SWAP16,          TF_RET },
-	{ "over",		TT_OPC,		OC_OVER,            TF_RET },
-	{ "pop",		TT_OPC,		OC_POP,             TF_RET },
-	{ "drop",		TT_OPC,		OC_POP,             TF_RET },
-	{ "rot",		TT_OPC,		OC_ROT,             TF_RET },
-	{ "addi",		TT_OPC,		OC_ADDI,            TF_RET },
-	{ "add",		TT_OPC,		OC_ADD,             TF_RET | TF_CIN },
-	{ "add.cin",    TT_STATS,   OC_ADD | OPT_CIN,   TF_RET | TF_CIN },  // only for benefit of stats
-	{ "sub",		TT_OPC,		OC_SUB,             TF_RET },
-	{ "mult",		TT_OPC,		OC_MULT,            TF_RET },
-	{ "mult20",		TT_OPC,		OC_MULT20,          TF_RET },
-	{ "and",		TT_OPC,		OC_AND,             TF_RET },
-	{ "or",			TT_OPC,		OC_OR,              TF_RET },
-	{ "xor",		TT_OPC,		OC_XOR,             TF_RET },
-	{ "not",		TT_OPC,		OC_NOT,             TF_RET },
-	{ "shl64",		TT_OPC,		OC_SHL64,           TF_RET | TF_LOOP },
-	{ "shl",		TT_OPC,		OC_SHL,             TF_RET },
-	{ "rol",		TT_OPC,		OC_ROL,             TF_RET },
-	{ "shr",		TT_OPC,		OC_SHR,             TF_RET },
-	{ "ror",		TT_OPC,		OC_ROR,             TF_RET },
-	{ "usr",		TT_OPC,		OC_USR,             TF_RET },
-	{ "rdBit0",		TT_OPC,		OC_RDBIT0,          TF_RET | TF_LOOP },
-	{ "rdBit1",		TT_OPC,		OC_RDBIT1,          TF_RET | TF_LOOP },
-	{ "rdBit2",		TT_OPC,		OC_RDBIT2,          TF_RET | TF_LOOP },
-	{ "fetch16",	TT_OPC,		OC_FETCH16,         TF_RET },
-	{ "store16",	TT_OPC,		OC_STORE16,         TF_RET },
-	{ "stk_rd",	    TT_OPC,		OC_STK_RD,          TF_RET },
-	{ "stk_wr",	    TT_OPC,		OC_STK_WR,          TF_RET },
-	{ "sp_rp",      TT_OPC,		OC_SP_RP,           TF_RET },
-
-	{ "r",			TT_OPC,		OC_R,               TF_RET,     OCM_NONE },
-	{ "r_from",		TT_OPC,		OC_R_FROM,          TF_RET,     OCM_NONE },
-	{ "to_r",		TT_OPC,		OC_TO_R,            TF_RET,     OCM_NONE },
-	{ "call",		TT_OPC,		OC_CALL,            0,          OCM_ADDR },
-	{ "br",			TT_OPC,		OC_BR,              0,          OCM_ADDR },
-	{ "brZ",		TT_OPC,		OC_BRZ,             0,          OCM_ADDR },
-	{ "brNZ",		TT_OPC,		OC_BRNZ,            0,          OCM_ADDR },
-	{ "loop",		TT_OPC,		OC_LOOP,            0,          OCM_ADDR },
-	{ "loop2",		TT_OPC,		OC_LOOP2,           0,          OCM_ADDR },
-	{ "to_loop",    TT_OPC,		OC_TO_LOOP,         TF_RET },
-	{ "to_loop2",   TT_OPC,		OC_TO_LOOP2,        TF_RET },
-	{ "loop_from",  TT_OPC,		OC_LOOP_FROM,       TF_RET },
-	{ "loop2_from", TT_OPC,		OC_LOOP2_FROM,      TF_RET },
-	{ "rdReg",		TT_OPC,		OC_RDREG,           0,          OCM_IO },
-	{ "wrEvtL",		TT_OPC,		OC_WREVTL,          0,          OCM_IO },
-	{ "wrReg",		TT_OPC,		OC_WRREG,           0,          OCM_IO },
-	{ "wrReg2",		TT_OPC,		OC_WRREG2,          0,          OCM_IO },
-	{ "wrEvt",		TT_OPC,		OC_WREVT,           0,          OCM_IO },
-	{ "wrEvt2",		TT_OPC,		OC_WREVT2,          0,          OCM_IO },
-	
-	{ "ALIGN",		TT_ALIGN,   0 },
-
-	{ "u8",			TT_DATA,	1 },
-	{ "u16",		TT_DATA,	2 },
-	{ "u32",		TT_DATA,	4 },
-	{ "u64",		TT_DATA,	8 },
-	
-	{ "++",			TT_OPR,		OPR_INC,	TF_1OPR },
-	{ "+",			TT_OPR,		OPR_ADD,	TF_2OPR },
-	{ "--",			TT_OPR,		OPR_DEC,	TF_1OPR },
-	{ "-",			TT_OPR,		OPR_SUB,	TF_2OPR },
-	{ "*",			TT_OPR,		OPR_MUL,	TF_2OPR },
-	{ "/",			TT_OPR,		OPR_DIV,	TF_2OPR },
-	{ "<<",			TT_OPR,		OPR_SHL,	TF_2OPR },
-	{ ">>",			TT_OPR,		OPR_SHR,	TF_2OPR },
-	{ "&&",			TT_OPR,		OPR_LAND,	TF_2OPR },
-	{ "&",			TT_OPR,		OPR_AND,	TF_2OPR },
-	{ "||",			TT_OPR,		OPR_LOR,    TF_2OPR },
-	{ "|",			TT_OPR,		OPR_OR,		TF_2OPR },
-	{ "==",			TT_OPR,		OPR_EQ,	    TF_2OPR },
-	{ "!=",			TT_OPR,		OPR_NEQ,	TF_2OPR },
-	{ "~",			TT_OPR,		OPR_NOT,	TF_1OPR },      // NB: currently done postfix
-	{ "max",        TT_OPR,		OPR_MAX,    TF_2OPR },
-	{ "min",        TT_OPR,		OPR_MIN,    TF_2OPR },
-	{ "sizeof",		TT_OPR,		OPR_SIZEOF },
-	{ "#",			TT_OPR,		OPR_CONCAT },
-	{ ":",			TT_OPR,		OPR_LABEL },
-	{ "(",			TT_OPR,		OPR_OPEN },
-	{ ")",			TT_OPR,		OPR_CLOSE },
-	
-	{ "<iter>",		TT_ITER,	0 },
-	
-	{ 0,			TT_EOL,     0 }
-};
 
 #define SBUF 1024
 char sym[SBUF];
@@ -191,7 +67,7 @@ int main(int argc, char *argv[])
 	char *ifs = (char *) FN_PREFIX ".asm";                  // source input
 	char *ofs;                                              
 
-	FILE *ifp[NIFILES_NEST], *ofp, *efp;
+	FILE *ifp[NIFILES_NEST], *ofp, *efp, *tfp, *sfp;
 	
 	int bfd;
 	char *lp = linebuf, *cp, *scp, *np, *sp;
@@ -211,12 +87,18 @@ int main(int argc, char *argv[])
             case 'c': compare_code=1; printf("compare mode\n"); break;
             case 'd': debug=1; gen=0; break;
             case 'b': show_bin=1; gen=0; break;
+            case 'a': show_addr=0; break;
             case 'g': only_gen_other=1; break;
             case 'n': gen=0; break;
             case 's': stats=1; break;
             case 'o': i++; odir = argv[i]; break;
             case 'x': i++; other_dir = argv[i]; break;
             case 'i': info=1; break;
+            case 'h': write_incl_fmt=1; break;
+            case '1': write_code_coe=1; break;
+            case '2': write_data_coe=1; break;
+            case '3': write_symtab_file=1; break;
+            default: printf("unknown arg \"%s\"\n", argv[i]); panic("args"); break;
         }
 	
 	if (!test) {
@@ -232,10 +114,23 @@ int main(int argc, char *argv[])
 	if ((bfd = open(bfs, O_WRONLY | O_CREAT | O_TRUNC, 0666)) < 0) sys_panic("open bfs");
 	printf("assembling %s to: %s, %s\n", ifs, bfs, ofs);
 
-	if (write_coe) {
-        efs = (char *) "../verilog/" FN_PREFIX ".coe";    // .coe file to init BRAMs (optional during FPGA development)
+	if (write_code_coe) {
+        efs = (char *) "../verilog/" FN_PREFIX ".code.coe";    // .coe file to init code BRAM (optional during FPGA development)
 		if ((efp = fopen(efs, "w")) == NULL) sys_panic("fopen efs");
-		fprintf(efp, "; DEPTH = 2048\n; WIDTH = 16\nmemory_initialization_radix=16;\nmemory_initialization_vector=");
+		if (!write_incl_fmt)
+		    fprintf(efp, "; DEPTH = 2048\n; WIDTH = 16\nmemory_initialization_radix=16;\nmemory_initialization_vector=");
+	}
+	
+	if (write_data_coe) {
+        dfs = (char *) "../verilog/" FN_PREFIX ".data.coe";    // .coe file to init data BRAM (optional during FPGA development)
+		if ((tfp = fopen(dfs, "w")) == NULL) sys_panic("fopen dfs");
+        if (!write_incl_fmt)
+    		fprintf(tfp, "; DEPTH = 1024\n; WIDTH = 32\nmemory_initialization_radix=16;\nmemory_initialization_vector=");
+	}
+	
+	if (write_symtab_file) {
+        char *sts = (char *) "../verilog/" FN_PREFIX ".symtab.h";    // symbol table file
+		if ((sfp = fopen(sts, "w")) == NULL) sys_panic("fopen sts");
 	}
 	
 	// pass 0: tokenize
@@ -341,6 +236,7 @@ int main(int argc, char *argv[])
 						    }
 							if (strncmp(cp, ".r", 2) == 0) tp->flags |= TF_RET, cp+=2;
 							if (strncmp(cp, ".cin", 4) == 0) tp->flags |= TF_CIN, cp+=4;
+							if (strncmp(cp, ".loop2", 6) == 0) tp->flags |= TF_LOOP | TF_LOOP2, cp+=6;
 							if (strncmp(cp, ".loop", 5) == 0) tp->flags |= TF_LOOP, cp+=5;
 							break;
 						}
@@ -352,6 +248,7 @@ int main(int argc, char *argv[])
 						tp->ttype = ttype; string_enter(sym, &(tp->str), (ttype==TT_LABEL)? SF_LABEL:0);
 						if (strncmp(cp, ".r", 2) == 0) tp->flags |= TF_RET, cp+=2;
 						if (strncmp(cp, ".cin", 4) == 0) tp->flags |= TF_CIN, cp+=4;
+						if (strncmp(cp, ".loop2", 6) == 0) tp->flags |= TF_LOOP | TF_LOOP2, cp+=6;
                         if (strncmp(cp, ".loop", 5) == 0) tp->flags |= TF_LOOP, cp+=5;
 					}
 	
@@ -417,14 +314,12 @@ int main(int argc, char *argv[])
 		
 		fclose(ifp[ifn]);
 		ifn--;
+		fn = ifiles[ifn];
 		
-		if (ifn >= 0) {
-            fn = ifiles[ifn];
-            ifl++;
-            strcpy(ifiles_list[ifl], fn);
-            tp->ttype = TT_FILE; tp->str = ifiles_list[ifl]; tp++;
-            //printf("FILE %s(%d)\n", fn, ifl);
-        }
+		ifl++;
+		strcpy(ifiles_list[ifl], fn);
+        tp->ttype = TT_FILE; tp->str = ifiles_list[ifl]; tp++;
+		//printf("FILE %s(%d)\n", fn, ifl);
 	}
 
 	fn = ifiles[0];
@@ -768,6 +663,15 @@ int main(int argc, char *argv[])
 			continue;
 		}
 
+		// concat to make numeric generated branch target: SYM # SYM -> SYM
+		if (tp->num == OPR_CONCAT && (tp-1)->ttype == TT_SYM && (tp+1)->ttype == TT_SYM) {
+			snprintf(sym, sizeof(sym), "%s%s", (tp-1)->str, (tp+1)->str);
+			if (debug) printf("%s # %s = %s\n", (tp-1)->str, (tp+1)->str, sym);
+			string_enter(sym, &(tp-1)->str, 0);
+			pullup(tp, tp+2, &ep3); tp--;
+			continue;
+		}
+
 		// concat to make numeric branch label: SYM # : -> LABEL
 		if (tp->num == OPR_CONCAT && (tp-1)->ttype == TT_SYM && (tp+1)->ttype == TT_OPR && (tp+1)->num == OPR_LABEL) {
 			tp--; if (debug) printf("%s # : = %s:\n", tp->str, tp->str); tp->ttype = TT_LABEL;
@@ -782,18 +686,13 @@ int main(int argc, char *argv[])
 
 
 	// pass 5: allocate space and resolve (possibly forward referenced) LABELs (done in-place)
-	u4_t a = 0;
+	u4_t a_ = 0, ta_ = 0;
 	curline = 1;
 
     tp_start = pass4; tp_end = ep4;
 	for (tp=pass4; tp != ep4; tp++) {
 		tokens_t *t, *tn = tp+1;
 		int op, oper = 0;
-		
-		if (a/2 >= CPU_RAM_SIZE) {
-		    printf("a/2=%d CPU_RAM_SIZE=%d\n", a/2, CPU_RAM_SIZE);
-		    assert(a/2 < CPU_RAM_SIZE);
-		}
 		
 		if (tp->ttype == TT_EOL) {
 			curline = tp->num;
@@ -802,84 +701,93 @@ int main(int argc, char *argv[])
 		// resolve label
 		if (tp->ttype == TT_LABEL) {
 			st = string_find(tp->str);
-			st->flags |= SF_LABEL | SF_DEFINED; st->val = a;
+			st->flags |= SF_LABEL | SF_DEFINED;
+			st->val = a_;
 			if (debug) printf("LABEL %s = %04x\n", tp->str, st->val);
 		} else
 
 		// pseudo-instruction calls		FIXME: using EOL to detect is a hack
 		if ((tp-1)->ttype == TT_EOL && tp->ttype == TT_SYM /*&& (st = string_find(tp->str)) && (st->flags & SF_DEFINED)*/ ) {
-			if (debug) printf("%04x pseudo-call %s\n", a, tp->str);
-			a += 2;
+			if (debug) printf("%04x pseudo-call %s\n", a_, tp->str);
+			a_ += 2;
 		} else
 		
-		// data decl
-		if (tp->ttype == TT_DATA && (tp+1)->ttype == TT_SYM) {
-			if (debug) printf("%04x u%d %s\n", a, tp->num*8, (tp+1)->str);
-			a += tp->num;
-		} else
-		
-		// data decl
-		if (tp->ttype == TT_DATA && (tp+1)->ttype == TT_NUM) {
-			if (debug) printf("%04x u%d 0x%x (%d)\n", a, tp->num*8, (tp+1)->num, (tp+1)->num);
-			a += tp->num;
+		// decl
+		if (tp->ttype == TT_DATA) {
+		    for (t = tp+1; t->ttype == TT_SYM || t->ttype == TT_NUM; t++) {
+			    if (debug) {
+			        if (t->ttype == TT_SYM)
+			            printf("%04x u%d %s\n", a_, tp->num*8, t->str);
+			        else
+		                printf("%04x u%d 0x%x (%d)\n", a_, tp->num*8, t->num, t->num);
+			    }
+			    a_ += tp->num;
+			}
 		} else
 		
 		// instruction
 		if (tp->ttype == TT_OPC) {
-			if (debug) printf("%04x %s\n", a, tp->str);
+			if (debug) printf("%04x %s\n", a_, tp->str);
 
-			// have to do this here, in a later pass, depending on when constant was resolved, use in macros etc.
-			if ((strcmp(tp->str, "push") == 0) && ((tn->ttype == TT_NUM) && (tn->num >= 0x8000))) {
+			// have to do this here, not in a later pass, depending on when constant was resolved, use in macros etc.
+			if (tp->num == OC_PUSH && tn->ttype == TT_NUM && tn->num >= 0x8000) {
 				#if 1
-				if (debug) printf("PUSH: @%04x push %04x -> push %04x; ", a, tn->num, tn->num>>1);
-				t = tn+1;
-				insert(2, t, &ep4); t->ttype = TT_EOL; t->num = curline+1; t++;
-				if ((tn->num & 1) == 0) {
-					tn->num = tn->num >> 1;
-					if (debug) printf("shl;\n");
-					t->ttype = TT_OPC; t->str = (char *) "shl"; t->num = OC_SHL;
-				} else {
-					tn->num = tn->num & 0x7fff;
-					if (debug) printf("or_0x8000_assist;\n");
-					t->ttype = TT_SYM; t->str = (char *) "or_0x8000_assist"; t->num = 0;
-				}
-				tp += 4; a += 2;
-				if (debug) printf("%04x %s\n", a, t->str);
+				    // using or_0x8000_assist
+				    int pdbg = debug;
+                    if (pdbg) printf("PUSH: @%04x push %04x -> push %04x; ", a_, tn->num, tn->num>>1);
+                    t = tn+1;
+                    insert(2, t, &ep4); t->ttype = TT_EOL; t->num = curline+1; t++;
+                    if ((tn->num & 1) == 0) {
+                        tn->num = tn->num >> 1;
+                        if (pdbg) printf("shl;\n");
+                        t->ttype = TT_OPC; t->str = (char *) "shl"; t->num = OC_SHL;
+                    } else {
+                        tn->num = tn->num & 0x7fff;
+                        if (pdbg) printf("or_0x8000_assist;\n");
+                        t->ttype = TT_SYM; t->str = (char *) "or_0x8000_assist"; t->num = 0;
+                    }
+                    tp += 4; a_ += 2;
+                    if (pdbg) printf("%04x %s\n", a_, t->str);
 				#else
-				// until we decide to add the not16 insn
-				if (debug) printf("PUSH: @%04x push %04x -> push %04x; shl; ", a, tn->num, tn->num>>1);
-				int odd = tn->num & 1; tn->num = tn->num >> 1;
-				t = tn+1; insert(1, t, &ep4); t->ttype = TT_EOL; t->num = curline+1;
-				t++; insert(1, t, &ep4); t->ttype = TT_OPC; t->str = "shl"; t->num = OC_SHL;
-				tp += 4; a += 2;
-				
-				if (odd) {
-					if (debug) printf("addi 1; ");
-					t++; insert(1, t, &ep4); t->ttype = TT_EOL; t->num = curline+1;
-					t++; insert(1, t, &ep4); t->ttype = TT_OPC; t->str = "addi"; t->num = OC_ADDI + 0;
-					t++; insert(1, t, &ep4); t->ttype = TT_NUM; t->num = 1;
-					tp += 3; a += 2;
-				}
-				if (debug) printf("\n");
+                    // until we decide to add the not16 insn
+                    if (debug) printf("PUSH: @%04x push %04x -> push %04x; shl; ", a_, tn->num, tn->num>>1);
+                    int odd = tn->num & 1; tn->num = tn->num >> 1;
+                    t = tn+1; insert(1, t, &ep4); t->ttype = TT_EOL; t->num = curline+1;
+                    t++; insert(1, t, &ep4); t->ttype = TT_OPC; t->str = "shl"; t->num = OC_SHL;
+                    tp += 4; a_ += 2;
+                    
+                    if (odd) {
+                        if (debug) printf("addi 1; ");
+                        t++; insert(1, t, &ep4); t->ttype = TT_EOL; t->num = curline+1;
+                        t++; insert(1, t, &ep4); t->ttype = TT_OPC; t->str = "addi"; t->num = OC_ADDI + 0;
+                        t++; insert(1, t, &ep4); t->ttype = TT_NUM; t->num = 1;
+                        tp += 3; a_ += 2;
+                    }
+                    if (debug) printf("\n");
 				#endif
-			}
+            }
 
-			a += 2;
+			a_ += 2;
 		} else
 		
-		// align pc to next 8 insn boundary
+		// align pc
 		if (tp->ttype == TT_ALIGN) {
-		    u4_t _a = a;
-		    a = (a & ~0x7) + ((a & 0x7)? 0x8 : 0);
-		    if (debug) printf("pass 5: _a=%04x a=%04x\n", _a, a);
+		    u4_t aa_ = a_;
+		    a_ = (a_ & ~LOOP_ALIGNMENT) + ((a_ & LOOP_ALIGNMENT)? (LOOP_ALIGNMENT+1) : 0);
+		    if (debug) printf("pass 5: aa_=%04x a_=%04x\n", aa_, a_);
 		} else
 		
 		// structure
 		if (tp->ttype == TT_STRUCT) {
-			if (debug) printf("%04x STRUCT %s size 0x%x\n", a, tp->str, tp->num);
-			a += tp->num;
+			if (debug) printf("%04x STRUCT %s size 0x%x\n", a_, tp->str, tp->num);
+			a_ += tp->num;
 		}
 	}
+		
+    if (a_/2 >= CPU_RAM_SIZE) {
+        printf("a_/2=%d CPU_RAM_SIZE=%d needed_insns=%d\n", a_/2, CPU_RAM_SIZE, a_/2 - CPU_RAM_SIZE);
+        assert(a_/2 < CPU_RAM_SIZE);
+    }
 	
 	
 	// pass 6: compile expressions involving newly resolved labels (done in-place)
@@ -928,6 +836,7 @@ int main(int argc, char *argv[])
                 const char *mode_id = "unknown";
                 if (p->val == 44) mode_id = "rx4.wf4"; else
                 if (p->val == 82) mode_id = "rx8.wf2"; else
+                if (p->val == 83) mode_id = "rx8.wf3"; else
                 if (p->val == 33) mode_id = "rx3.wf3"; else
                 if (p->val == 14) mode_id = "rx14.wf0"; else
                 if (p->val == 1) mode_id = "rx1.wf0";
@@ -936,6 +845,8 @@ int main(int argc, char *argv[])
                 // NB: These are needed here because they are equivalently generated by the
                 // make_proj.tcl batch script. There is no reasonable way to generate "`define"
                 // with any other mechanism.
+                if (p->val == 83)
+                    fprintf(cfp, "`define USE_CICF_83\n");
                 if (p->val != 14)
                     fprintf(cfp, "`define USE_WF\n");
             }
@@ -1059,10 +970,10 @@ int main(int argc, char *argv[])
 	// pass 7: emit code
 	int bad=0;
 	if (debug) dump_tokens("emit", pass4, ep4);
-	a = 0;
+	u4_t a = 0, ta = 0, last_ALIGN = 0;
 	curline=1;
 	bool error = FALSE;
-	char comma = ' ';
+	char code_comma = ' ', data_comma = ' ';
 	enum { OPT_NONE, OPT_NUM, OPT_SYM, OPT_EOL };
 
     tp_start = pass4; tp_end = ep4;
@@ -1076,6 +987,9 @@ int main(int argc, char *argv[])
 		
 		if (tp->ttype == TT_LABEL) {
 			if (debug || show_bin) printf("%s:\n", tp->str);
+			if (write_symtab_file) {
+                fprintf(sfp, "0x%04x, \"%s\",\n", a, tp->str);
+			}
 			continue;
 		}
 		
@@ -1086,59 +1000,65 @@ int main(int argc, char *argv[])
 
 		// data decl (fixme: no range checking of initializer)
 		if (tp->ttype == TT_DATA) {
-			t = tp+1;
-			if (t->ttype == TT_NUM) {
-				val = t->num, operand_type = OPT_NUM;
-			} else
-			if (t->ttype == TT_SYM) {
-			    st = string_find(t->str);
-			    if (st) {
-			        if (st->flags & SF_DEFINED) {
-				        val = st->val, operand_type = OPT_SYM;
-			        } else {
-                        syntax(0, t, "symbol not defined: %s", t->str);
+		    for (t = tp+1; t->ttype == TT_SYM || t->ttype == TT_NUM; t++) {
+                if (t->ttype == TT_NUM) {
+                    val = t->num, operand_type = OPT_NUM;
+                } else
+                if (t->ttype == TT_SYM) {
+                    st = string_find(t->str);
+                    if (st) {
+                        if (st->flags & SF_DEFINED) {
+                            val = st->val, operand_type = OPT_SYM;
+                        } else {
+                            syntax(0, t, "symbol not defined: %s", t->str);
+                        }
+                    } else {
+                        syntax(0, t, "symbol not found: %s", t->str);
                     }
-			    } else {
-                    syntax(0, t, "symbol not found: %s", t->str);
-			    }
-			}
-			if (debug || show_bin) printf("\t%04x u%d ", a, tp->num*8);
-			if ((debug || show_bin) && operand_type == OPT_SYM) printf("%s ", st->str);
-			if (tp->num==2) {
-				assert(val <= 0xffff);
-				val_2 = val & 0xffff;
-				if (debug || show_bin) printf("\t%04x (%d)", val_2, val_2);
-				write(bfd, &val_2, 2);
-				if (write_coe) {
-					fprintf(efp, "%c\n%04x", comma, val_2);
-				}
-				a += 2;
-			} else
-			if (tp->num==4) {
-				if (debug || show_bin) printf("\t%08x (%u)", val, val);
-				write(bfd, &val, 4);
-				if (write_coe) {
-					fprintf(efp, "%c\n%04x", comma, val >> 16);
-					fprintf(efp, "%c\n%04x", comma, val & 0xffff);
-				}
-				a += 4;
-			} else
-			if (tp->num==8) {
-				if (val) panic("u64 non-zero decl initializer not supported yet");
-				val = 0;
-				if (debug || show_bin) printf("\t%08x|%08x", /* val >> 32 */ 0, val & 0xffffffff);
-				write(bfd, &val, 4);
-				write(bfd, &val, 4);
-				if (write_coe) {
-					fprintf(efp, "%c\nno u64 yet!", comma);
-				}
-				a += 8;
-			} else
-				panic("illegal decl size");
-			if (debug || show_bin) { printf("\n"); comma = ','; }
-			tp++;
+                } else
+                    syntax(0, tp, "expecting initializer after data decl");
+                
+                if (debug || show_bin) printf("\t%04x u%d ", a, tp->num*8);
+                if ((debug || show_bin) && operand_type == OPT_SYM) printf("%s ", st->str);
+                
+                if (tp->num == 2) {
+                    assert(val <= 0xffff);
+                    val_2 = val & 0xffff;
+                    if (debug || show_bin) printf("%04x (%d)", val_2, val_2);
+                    write(bfd, &val_2, 2);
+                    if (write_code_coe) {
+                        fprintf(efp, "%c\n%s%04x", code_comma, write_incl_fmt? "0x":"", val_2);
+                        code_comma = ',';
+                    }
+                } else
+                if (tp->num == 4) {
+                    if (debug || show_bin) printf("%08x (%u)", val, val);
+                    write(bfd, &val, 4);
+                    if (write_code_coe) {
+                        fprintf(efp, "%c\n%s%04x", code_comma, write_incl_fmt? "0x":"", val >> 16);
+                        code_comma = ',';
+                        fprintf(efp, "%c\n%s%04x", code_comma, write_incl_fmt? "0x":"", val & 0xffff);
+                    }
+                } else
+                if (tp->num == 8) {
+                    if (val) panic("u64 non-zero decl initializer not supported yet");
+                    val = 0;
+                    if (debug || show_bin) printf("%08x|%08x", /* val >> 32 */ 0, val & 0xffffffff);
+                    write(bfd, &val, 4);
+                    write(bfd, &val, 4);
+                    if (write_code_coe) {
+                        fprintf(efp, "%c\nno u64 yet!", code_comma);
+                        code_comma = ',';
+                    }
+                } else {
+                    panic("illegal decl size");
+                }
+                a += tp->num;
+                if (debug || show_bin) printf("\n");
+            }
+            tp = t;
 		} else
-		
+
 		// emit instruction
 		if (tp->ttype == TT_OPC) {
 			int oper;
@@ -1154,6 +1074,8 @@ int main(int argc, char *argv[])
 			} else
 			if (t->ttype == TT_EOL) {
 				oper = 0; operand_type = OPT_EOL;
+			} else {
+			    syntax(0, tp, "unexpected opcode operand type");
 			}
 			
 			// check operand
@@ -1199,17 +1121,31 @@ int main(int argc, char *argv[])
 			if ((tp->flags & TF_CIN) && !(tp->d_flags & TF_CIN)) syntax(0, tp, "\".cin\" only valid for add instruction");
 			if ((tp->flags & TF_RET) && !(tp->d_flags & TF_RET)) syntax(0, tp, "\".r\" not valid for this instruction");
 			if ((tp->flags & TF_LOOP) && !(tp->d_flags & TF_LOOP)) syntax(0, tp, "\".loop\" not valid for this instruction");
+			if (tp->d_flags & TF_TRACE) note(BLUE, tp, "insn trace" NONL);
 			
-			op += oper;
+			op |= oper;
 			if (tp->flags & TF_RET)  op |= OPT_RET;
 			if (tp->flags & TF_CIN)  op |= OPT_CIN;
-			if (tp->flags & TF_LOOP) op |= OPT_LOOP;
-			
-			if (debug || show_bin) printf("\t%04x %04x %s%s ", a, op, tp->str,
-			    (tp->flags&TF_RET)? ".r" : ((tp->flags&TF_CIN)? ".cin" : ((tp->flags&TF_LOOP)? ".loop" : "")));
-			if (write_coe) {
-				fprintf(efp, "%c\n%04x", comma, op);
-				comma = ',';
+			if (tp->flags & TF_LOOP || oc == OC_WREVTL) {
+			    u4_t loop_back = a & ~LOOP_ALIGNMENT;
+                //printf(CYAN "CHECK .loop/wrEvtL: oc=%04x pc=%04x loop_back=%04x last_ALIGN=%04x" NONL, oc, a, loop_back, last_ALIGN);
+                bool align_ok = (loop_back == last_ALIGN);
+                //if (!align_ok) note(RED, t, "last ALIGN for .loop/wrEvtL is more than 4 instructions away");
+                syntax(align_ok, t, "last ALIGN for .loop/wrEvtL is more than 4 instructions away: oc=%04x pc=%04x loop_back=%04x last_ALIGN=%04x",
+                    oc, a, loop_back, last_ALIGN);
+			    if (tp->flags & TF_LOOP)  op |= OPT_LOOP;
+			    if (tp->flags & TF_LOOP2) op |= OPT_LOOP2;
+			}
+
+			if (debug || show_bin) {
+			    printf("\t");
+			    if (show_addr) printf("%04x ", a);
+			    printf("%04x %s%s ", op, tp->str,
+			        (tp->flags&TF_RET)? ".r" : ((tp->flags&TF_CIN)? ".cin" : ((tp->flags&TF_LOOP2)? ".loop2" : ((tp->flags&TF_LOOP)? ".loop" : ""))));
+			}
+			if (write_code_coe) {
+				fprintf(efp, "%c\n%s%04x", code_comma, write_incl_fmt? "0x":"", op);
+				code_comma = ',';
 			}
 			if (operand_type == OPT_NUM) {
 				if (debug || show_bin) printf("%04x", t->num);
@@ -1255,10 +1191,10 @@ int main(int argc, char *argv[])
 		// allocate space for struct
 		if (tp->ttype == TT_STRUCT) {
 			if (debug || show_bin) printf("\t%04x STRUCT %s size 0x%x(%d)\n", a, tp->str, tp->num, tp->num);
-			if (write_coe) {
+			if (write_code_coe) {
 				for (i=0; i<tp->num; i+=2) {
-					fprintf(efp, "%c\n%04x", comma, 0);
-					comma = ',';
+					fprintf(efp, "%c\n%s%04x", code_comma, write_incl_fmt? "0x":"", 0);
+					code_comma = ',';
 				}
 			}
 			a += tp->num;
@@ -1272,18 +1208,22 @@ int main(int argc, char *argv[])
 			continue;
 		} else
 		
-		// align pc to next 8 insn boundary
+		// align pc
 		if (tp->ttype == TT_ALIGN) {
 		    u4_t _a = a;
-		    a = (a & ~0x7) + ((a & 0x7)? 0x8 : 0);
+		    a = (a & ~LOOP_ALIGNMENT) + ((a & LOOP_ALIGNMENT)? (LOOP_ALIGNMENT+1) : 0);
 		    if (debug) printf("pass 7: _a=%04x a=%04x\n", _a, a);
 		    out = OC_NOP;
 		    u4_t pc;
-		    for (pc = _a; pc < a; pc += 2) {
-		        if (debug || show_bin) printf("\t%04x %04x nop (align)\n", pc, OC_NOP);
-			    if (write(bfd, &out, 2) != 2) sys_panic("wr");
-		    }
-			continue;
+            for (pc = _a; pc < a; pc += 2) {
+                if (debug || show_bin) printf("\t%04x %04x nop (align)\n", pc, OC_NOP);
+                if (write(bfd, &out, 2) != 2) sys_panic("wr");
+                if (write_code_coe) {
+                    fprintf(efp, "%c\n%s%04x", code_comma, write_incl_fmt? "0x":"", out);
+                    code_comma = ',';
+                }
+            }
+            last_ALIGN = pc;
 		} else
 		
 		{
@@ -1297,11 +1237,19 @@ int main(int argc, char *argv[])
 	fclose(ofp);
 	close(bfd);
 	
-	if (write_coe) {
-		fprintf(efp, ";\n");
+	if (write_code_coe) {
+		fprintf(efp, "%s\n", write_incl_fmt? "" : ";");
 		fclose(efp);
 	}
 	
+	if (write_data_coe) {
+	    if (data_comma == ' ') fprintf(tfp, "\n%s%08x", write_incl_fmt? "0x":"", 0);    // no data
+		fprintf(tfp, "%s\n", write_incl_fmt? "" : ";");
+		fclose(tfp);
+	}
+	
+	if (write_symtab_file) fclose(sfp);
+
 	if (error || global_error) panic("errors detected");
 
 	printf("used %d/%d CPU RAM (%d insns remaining)\n", a/2, CPU_RAM_SIZE, CPU_RAM_SIZE - a/2);

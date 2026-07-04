@@ -1,22 +1,23 @@
-// Copyright (c) 2013-2025 John Seamons, ZL4VO/KF6VO
+// Copyright (c) 2013-2026 John Seamons, ZL4VO/KF6VO
 
 #include "asm.h"
-#include "../bits.h"
+#include "bits.h"
 
 // debug
 
 int curline, debug;
-char *fn, *bfs, *cfs, *hfs, *vfs, *efs;
+char *fn, *bfs, *cfs, *hfs, *vfs, *efs, *dfs;
 
 static void remove_files()
 {
 	char rm[256];
-	if (bfs || hfs || vfs || efs) {
+	if (bfs || hfs || vfs || efs || dfs) {
         if (!bfs) bfs = (char *) "";
         if (!hfs) hfs = (char *) "";
         if (!vfs) vfs = (char *) "";
         if (!efs) efs = (char *) "";
-	    snprintf(rm, sizeof(rm), "rm -f %s %s %s %s", bfs, hfs, vfs, efs);
+        if (!dfs) dfs = (char *) "";
+	    snprintf(rm, sizeof(rm), "rm -f %s %s %s %s %s", bfs, hfs, vfs, efs, dfs);
 	    system(rm);
 	}
 }
@@ -39,7 +40,7 @@ void init_ASCII()
 
 char *token(tokens_t *tp);
 
-static void _errmsg(const char *color, char *str, tokens_t *t = NULL, char *prefix = NULL)
+static void _errmsg(const char *color, char *str, tokens_t *t = NULL, int adj = 0, char *prefix = NULL)
 {
     if (!prefix) prefix = (char *) "error";
     //if (t) dump_tokens_until_eol("_errmsg", t);
@@ -51,7 +52,7 @@ static void _errmsg(const char *color, char *str, tokens_t *t = NULL, char *pref
             ;
         }
         //printf("DBG %s %s ifl=%d %s:%d\n", ttype(t->ttype), token(t), t->ifl, ifiles_list[t->ifl], t->num-1);
-	    printf("%s%s:%d %s: %s" NONL, color, ifiles_list[t->ifl], t->num-2, prefix, str);
+	    printf("%s%s:%d %s: %s" NONL, color, ifiles_list[t->ifl], t->num-2 + adj, prefix, str);
 	}
 }
 
@@ -122,12 +123,11 @@ void _note(const char *color, tokens_t *tp, const char *fmt, ...)
     tokens_t *t;
 
     // find first token
-    for (t = tp; t->ttype != TT_EOL; t--)
-        ;
+    for (t = tp; t->ttype != TT_EOL; t--) ;
 
     // dump until EOL
-    for (t = t+1; t->ttype != TT_EOL; t++)
-        ;
+    dump_tokens_incl_eol("note", t+1);
+    for (t = t+1; t->ttype != TT_EOL; t++) ;
     
     va_list ap;
     va_start(ap, fmt);
@@ -135,7 +135,7 @@ void _note(const char *color, tokens_t *tp, const char *fmt, ...)
     vasprintf(&buf, fmt, ap);
     va_end(ap);
     
-    _errmsg(color, buf, t, (char *) "note");
+    _errmsg(color, buf, t, 1, (char *) "note");
 }
 
 void _assert(int cond, const char *str, const char *file, int line)
@@ -227,11 +227,11 @@ char *token(tokens_t *tp)
     
 	switch (tp->ttype) {
 	
-	case TT_EOL:	asprintf(&s, "\\n (%s:%d)", ifiles_list[tp->ifl], tp->num); break;
+	case TT_EOL:	asprintf(&s, "\\n (%s:%d)", ifiles_list[tp->ifl], tp->num-1); break;
 	case TT_LABEL:	asprintf(&s, "%s:", tp->str); break;
-	case TT_SYM:	asprintf(&s, "\"%s\"%s", tp->str, (tp->flags&TF_RET)? ".r": (tp->flags&TF_CIN)? ".cin":"");  break;
+	case TT_SYM:	asprintf(&s, "sym:\"%s\"%s", tp->str, (tp->flags&TF_RET)? ".r": (tp->flags&TF_CIN)? ".cin":"");  break;
 	case TT_NUM:	if (tp->flags & TF_HEX) asprintf(&s, "0x%x", tp->num); else if (tp->flags & TF_FIELD) asprintf(&s, "%d'd%d", tp->width, tp->num); else asprintf(&s, "%d", tp->num);  break;
-    case TT_STR:    asprintf(&s, "\"%s\"", tp->str); break;
+    case TT_STR:    asprintf(&s, "str:\"%s\"", tp->str); break;
 	case TT_OPC:	asprintf(&s, "[%s%s]", tp->str, (tp->flags&TF_RET)? ".r": (tp->flags&TF_CIN)? ".cin":"");  break;
 	case TT_PRE:	asprintf(&s, "<%s>", tp->str);  break;
 	case TT_OPR:	asprintf(&s, "%s", tp->str); break;
@@ -285,7 +285,7 @@ void dump_tokens_incl_eol(const char *id, tokens_t *f)
 	tokens_t *t = f;
 	do {
         token_dump(t);
-        if (t->ttype != TT_EOL) break;
+        if (t->ttype == TT_EOL) break;
         t++;
 	} while (1);
 	printf("\n");

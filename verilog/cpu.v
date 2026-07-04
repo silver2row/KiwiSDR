@@ -18,7 +18,7 @@
 // http://www.aholme.co.uk/GPS/Main.htm
 //////////////////////////////////////////////////////////////////////////
 
-// Copyright (c) 2014-2025 John Seamons, ZL4VO/KF6VO
+// Copyright (c) 2014-2026 John Seamons, ZL4VO/KF6VO
 
 `timescale 1ns / 100ps
 
@@ -152,8 +152,10 @@ module CPU (
     wire nz      = |tos[15:0];
     wire loop_nz = |loop_ctr[op0][15:0];
     
-    // There's a loop opcode, but also an implied loop-to-aligned-pc as part of the wrEvtL opcode
-    // and a op.loop modifier bit for certain opcodes.
+    // There's a loop/loop2 opcode that can loop to any pc (even unaligned).
+    // But also a loop-to-aligned-pc as part of the wrEvtL opcode
+    // and also an .loop/.loop2 modifier bit for certain opcodes.
+    // Up to 4 insns can be looped in this way.
     wire loop_opc = op4 == op_loop;
     wire loop_mod = wrEvtL || ((op8 == op_rdBit || op8 == op_shl64) && op[1]);
     wire loop = loop_opc || loop_mod;
@@ -321,10 +323,14 @@ module CPU (
         else if (op8 == op_to_loop) loop_ctr[op0] <= tos;
 
     //////////////////////////////////////////////////////////////////////////
-    // 2 x 256 x 32-bit data and return stacks and 512 x 32-bit data memory (1k x 32b total)
+    // 512 x 32-bit temp memory     10'b1a_aaaa_aaaa
+    // 256 x 32-bit data stack      10'b00_pppp_pppp
+    // 256 x 32-bit return stack    10'b01_pppp_pppp
+    // (1k x 32-bit total)
+    //
     // WRITE_MODE doesn't matter because address spaces don't overlap.
     // But on Artix/Vivado WRITE_MODE = WRITE_FIRST (both ports) is needed for correct functioning.
-    // On Artix 7 requires 36kb BRAM because true dual-port mode required (i.e. r/w on both ports)
+    // Artix 7 requires 36kb BRAM because true dual-port mode required (i.e. r/w on both ports)
     // Requires one 36kb BRAM.
 
     wire [9:0] dstk_addr = {stk_rw, (op8 == op_stk_rd)? tos[8:0] : {1'b0, next_sp}};
@@ -340,7 +346,8 @@ module CPU (
     );
 
     //////////////////////////////////////////////////////////////////////////
-    // 2048 x 16-bit code and data memory
+    // 2048 x 16-bit code and data memory (shared)
+    //
     // WRITE_MODE = WRITE_FIRST
     // BRAM init values and reset value set to = op_nop
     // NB: Unlike stack mem above, address space here is _not_ separate.

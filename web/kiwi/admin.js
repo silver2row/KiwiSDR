@@ -373,6 +373,7 @@ var mode_icon_snd12 = w3_icon('w3-text-blue', 'fa-volume-up', 28) +'&nbsp;';
 var mode_icon_snd20 = w3_icon('w3-text-red', 'fa-volume-up', 28) +'&nbsp;';
 var mode_icon_fft   = w3_icon('w3-text-green', 'fa-bar-chart', 28) +'&nbsp;';
 var mode_icon_wf    = w3_icon('w3-text-amber', 'fa-area-chart', 28) +'&nbsp;';
+var mode_icon_wfs   = w3_icon('', 'fa-area-chart fa-gradient', 28) +'&nbsp;';
 
 function mode_html()
 {
@@ -406,12 +407,14 @@ function mode_html()
          
          w3_div('',
             w3_sidenav('id-sidenav-fw|width:'+ bwpx +';border-collapse:collapse',
+               w3_nav(admin_colors[ci++] +' w3-border w3-padding-xxlarge w3-restart', 'Full 8 channel', 'id-sidenav-fw', kiwi.RX8_WF3, 'firmware_sel_cb', (adm.firmware_sel == kiwi.RX8_WF3)),
                w3_nav(admin_colors[ci++] +' w3-border w3-padding-xxlarge w3-restart', 'Kiwi classic', 'id-sidenav-fw', kiwi.RX4_WF4, 'firmware_sel_cb', (adm.firmware_sel == kiwi.RX4_WF4)),
                w3_nav(admin_colors[ci++] +' w3-border w3-padding-xxlarge w3-restart', 'More receivers', 'id-sidenav-fw', kiwi.RX8_WF2, 'firmware_sel_cb', (adm.firmware_sel == kiwi.RX8_WF2)),
                w3_nav(admin_colors[ci++] +' w3-border w3-padding-xxlarge w3-restart', 'More bandwidth', 'id-sidenav-fw', kiwi.RX3_WF3, 'firmware_sel_cb', (adm.firmware_sel == kiwi.RX3_WF3)),
                s1
             ),
             w3_div('w3-margin-left w3-left',
+               w3_div('id-fw-wfs w3-flex w3-padding-TB-6'),
                w3_div('id-fw-4ch w3-flex w3-padding-TB-6'),
                w3_div('id-fw-8ch w3-flex w3-padding-TB-6'),
                w3_div('id-fw-3ch w3-flex w3-padding-TB-6'),
@@ -428,6 +431,7 @@ function mode_html()
             w3_div('w3-flex w3-valign-center', w3_div('|width:40px', mode_icon_snd12), w3_div('', 'Audio output, 12 kHz max bandwidth')),
             w3_div('w3-flex w3-valign-center', w3_div('|width:40px', mode_icon_snd20), w3_div('', 'Audio output, 20 kHz max bandwidth')),
             w3_div('w3-flex w3-margin-B-8 w3-valign-center', w3_div('|width:40px', mode_icon_wf),  w3_div('', 'Tuneable waterfall/spectrum, 30 MHz bandwidth, 14-level zoom')),
+            w3_div('w3-flex w3-margin-B-8 w3-valign-center', w3_div('|width:40px', mode_icon_wfs), w3_div('', 'Tuneable waterfall/spectrum, 30 MHz bandwidth, 11-level zoom, shared hardware architecture')),
             w3_div('w3-flex w3-margin-B-8 w3-valign-center', w3_div('|width:40px', mode_icon_fft), w3_div('', 'Audio FFT display, 12/20 kHz max bandwidth'))
          ),
 		   w3_div('w3-margin-T-16', '<hr>'),
@@ -435,6 +439,14 @@ function mode_html()
          w3_div('w3-width-half w3-text-black',
             'Description of the different modes:' +
             '<ul>' +
+            
+            '<li><b>Full 8 channel</b><br>' +
+            'This is an 8 channel mode where three fully capable waterfall FPGA cores are shared across all ' +
+            'receiver channels. This shared scheme is quite workable, but has a moderate speed penalty when many channels are using high zoom levels. ' +
+            'Also, the maximum zoom level is limited to z11 (span 15 kHz) instead of the z14 (span 1.8 kHz) of other modes. ' +
+            'GPS channels are also reduced from 12 to 8 for this mode to fit in the FPGA.' +
+            '<br><yel>This mode is recommended for publicly listed Kiwi to maximize the number of channels available.</yel>' +
+            '<br><br></li>' +
             
             '<li><b>Kiwi classic</b><br>' +
             'The original Kiwi FPGA firmware, with its 4 tuneable audio/waterfall receiver channels and 12 GPS channels. ' +
@@ -449,6 +461,7 @@ function mode_html()
             'Leaving rx0 and rx1 available for normal browser connections where it is desirable to view the waterfall. ' +
             'However rx0 and rx1 will be used last if necessary. A user connection on rx2 - rx7 will show an audio-bandwidth FFT in place of ' +
             'the usual waterfall. This works because it requires no additional FPGA resources.' +
+            '<br><yel>This mode has been largely obsoleted by "Full 8 channel" mode above.</yel>' +
             '<br><br></li>' +
 
             '<li><b>More bandwidth</b><br>' +
@@ -505,6 +518,7 @@ function mode_focus()
 
    //var rx12wf = w3_div('w3-margin-left w3-border w3-border-light-blue w3-center|width:'+ iwpx, mode_icon_snd12, mode_icon_fft, '<br>', mode_icon_wf);
    var rx12_wf  = w3_div('w3-margin-left w3-border w3-border-light-blue w3-center|width:'+ iwpx, mode_icon_snd12, '<br>', mode_icon_wf);
+   var rx12_wfs = w3_div('w3-margin-left w3-border w3-border-light-blue w3-center|width:'+ iwpx, mode_icon_snd12, '<br>', mode_icon_wfs);
    var rx20_wf  = w3_div('w3-margin-left w3-border w3-border-light-blue w3-center|width:'+ iwpx, mode_icon_snd20, '<br>', mode_icon_wf);
    
    var rx12_afft = w3_div('w3-margin-left w3-border w3-border-light-blue w3-center|width:'+ iwpx, mode_icon_snd12, '<br>', mode_icon_fft);
@@ -518,6 +532,10 @@ function mode_focus()
    for (i = 0; i < 2; i++) s += rx12_wf;
    for (i = 2; i < 8; i++) s += rx12_afft;
    w3_innerHTML('id-fw-8ch', s);
+
+   s = '';
+   for (i = 0; i < 8; i++) s += rx12_wfs;
+   w3_innerHTML('id-fw-wfs', s);
 
    s = '';
    for (i = 0; i < 3; i++) s += rx20_wf;
@@ -3041,17 +3059,18 @@ var _gps = {
    
    SBAS_menu_s: [
       'all', 'none', 'log msgs', '<hr>',
-      '!N-Amer', 131, 133, 135,
+      '!N-Amer', 131, 133, 135, 138,
       '!UK', 158,
-      '!EU', 121, 123, 126, 136,
+      '!EU', 121, 123, 126, 136, 150,
       '!Rus', 125, 140, 141,
       '!Alger', 148,
       '!Africa', 120, 147,
       '!India', 127, 128, 132,
+      '!Pak', 145,
       '!China', 130, 143, 144,
-      '!S-Kor', 134,
+      '!S-Kor', 134, 142,
       '!Japan', 129, 137,
-      '!AU/NZ', 122
+      '!AU/NZ', 122, 124
       ],
    SBAS_menu: null,
    SBAS_selected: [],
@@ -3163,9 +3182,21 @@ function gps_SBAS_select_cb(path, cb_param, first, ev)
 
 function gps_html()
 {
-	var s =
+   _gps.button_section = 'w3-font-fixed w3-aqua w3-text-in-circle w3-wh-28px||title="show&slash;hide section"';
+	var s1 =
+      w3_div('id-gps-jam-container w3-container w3-hide w3-margin-top w3-margin-bottom w3-card-8 w3-round-xlarge w3-pale-blue',
+         '<b>GNSS Integrity Monitoring Project</b><br><br>' +
+         'TBD...'
+      );
+
+	var s2 =
 	w3_div('id-gps w3-hide|line-height:1.5',
 	   w3_inline('w3-valign w3-halign-space-between/',
+         w3_inline('w3-hide/w3-margin-between-16 w3-valign',
+            w3_button(_gps.button_section, '+', 'gps_expand_cb', 0),
+            w3_link('w3-link-darker-color w3-bold w3-font-13px||title="more information"', 'https://gnss-jam.kiwisdr.com/info', 'GNSS<br>Integrity<br>Monitoring<br>Project')
+         ),
+
          w3_div('w3-valign w3-text-teal',
             w3_text('w3-text-teal w3-bold w3-small', 'Acquire'),
             w3_div('w3-flex-col w3-valign-start w3-margin-L-4',
@@ -3229,6 +3260,8 @@ function gps_html()
             )
          )
       ) +
+      
+      s1 +
 
 	   w3_div('w3-valign',
          w3_div('id-gps-loading-maps w3-container w3-section w3-card-8 w3-round-xlarge w3-pale-blue|width:100%',
@@ -3253,7 +3286,18 @@ function gps_html()
 			w3_table('id-gps-info w3-table-6-8')
 		)
 	);
-	return s;
+	return s2;
+}
+
+function gps_expand_cb(path)
+{
+   //console.log('gps_expand_cb path='+ path);
+   var el = w3_el(path);
+   var hide = (el.innerText == '-');
+   w3_hide2('id-gps-jam-container', hide);
+   el.innerText = hide? '+' : '-';
+   
+   //if (which == 0 && !hide) dx_list_scroll();      // refresh if now visible
 }
 
 function gps_acq_cb(path, val, first)
@@ -3367,6 +3411,20 @@ function gps_focus2(id)
 	ext_send("SET gps_update");
 	gps_interval = setInterval(function() {ext_send("SET gps_update");}, 1000);
 	gps_graph_cb('adm.rssi_azel_iq', adm.rssi_azel_iq, true);
+
+   /*
+	if (!adm.seen_gnss_jam_alert && !w3_alert_active()) {
+      w3_alert('admin_gps_alert', '',
+         '<yel>NEW</yel> Please consider participating in the new GNSS Integrity Monitoring Project. ' +
+         'Click the circular icon and link at upper left of this page for more information.<br><br>' +
+         'If your Kiwi has good GPS reception you can anonymously contribute valuable GPS data ' +
+         'to the project. KiwiSDR\'s contributing from the world-wide public network ...' +
+         '<br><br>Thank you for your consideration. You will not see this message again.',
+         600
+      );
+      //ext_set_cfg_param('adm.seen_gnss_jam_alert', true, true);
+   }
+   */
 }
 
 function gps_blur(id)
@@ -5002,7 +5060,7 @@ function admin_navkey_cb(ev) {
    }
    if (k == 'escape') {
       confirmation.close_cb();
-      w3_alert_cancel();
+      w3_alert_close();
       return;
    }
    if (k == 'f') {
@@ -5177,7 +5235,8 @@ function admin_pwd_unsafe_alert()
 {
    //console.log('admin_pwd_unsafe_alert: adm.admin_password='+ adm.admin_password +' admin.serno='+ admin.serno +' '+ TF(adm.admin_password == admin.serno));   
    if (adm.admin_password == admin.serno) {
-      w3_alert('w3-font-15px',
+      w3_alert_cancel();
+      w3_alert('admin_pwd_unsafe', 'w3-font-15px',
          '<yel>WARNING: ADMIN PASSWORD SAME AS SERIAL NUMBER</yel><br><br>' +
          
          'Your admin password, as set on the <x1>security</x1> tab at the upper right of this page, ' +
@@ -5190,7 +5249,77 @@ function admin_pwd_unsafe_alert()
          '<br><br>' +
          
          '<yel>Please change your admin password as soon as possible.</yel>' +
-         '<br><br>Thank you.'
+         '<br><br>Thank you.',
+         
+         function() {
+            //console.log('$admin_pwd_unsafe_close');
+            admin_rx83_mode_alert();
+         },
+         650, 100, 35
+      );
+   }
+}
+
+function admin_donation_cb()
+{
+   console.log('admin_donation_cb');
+   kiwi_open_or_reload_page({ url:'https://kiwisdr.nz/products/proxy-forum-website-service', tab:1 });
+}
+
+function admin_set_8ch_mode_cb()
+{
+   console.log('admin_set_8ch_mode_cb');
+   w3_alert_close();
+	ext_set_cfg_param('adm.firmware_sel', kiwi.RX8_WF3, EXT_SAVE);
+	setTimeout(function() { admin_restart_now_cb(); }, 1000);
+}
+
+function admin_rx83_mode_alert()
+{
+   if (!adm.seen_rx83_mode_alert && !w3_alert_active()) {
+      w3_alert('admin_rx83_mode', 'w3-font-15px',
+         '<yel>NEW: 8 CHANNEL MODE -- ALL WITH WATERFALL</yel><br><br>' +
+         
+         'This new mode gives fully-featured waterfalls to all 8 receiver channels. ' +
+         'Previously only 4 channels maximum were possible. ' +
+         'This new mode essentially obsoletes the old "More receivers" mode (8 channels, but only 2 waterfalls). ' +
+         'Public Kiwi will especially benefit from the increase in channels. <br>' +
+
+         w3_text('w3-text-css-orange w3-wrap w3-margin-T-16',
+            'See the ' +
+            w3_link('w3-link-color', 'javascript:admin_nav_focus(\'mode\')', 'admin mode tab') +
+            ' and ' +
+            w3_link('w3-link-color', 'https://forum.kiwisdr.com/index.php?p=/', 'Kiwi forum') +
+            ' for more information.') +
+         '<br><br>' +
+         
+         'This was a major software project which took many hundreds of hours to develop. ' +
+         '<br>It works on all Kiwi including the original KiwiSDR 1.' +
+         '<br><br>' +
+
+         'This software upgrade is equivalent to buying a second KiwiSDR without the need for ' +
+         'shipping, taxes, antenna splitter or power supply and you get it instantly!' +
+         '<br><br>' +
+         
+         'We thought about charging $100 for this upgrade, but decided to make it free for everyone. ' +
+         'It takes a lot of work to keep adding new software features and there is a substantial cost every month to keep ' +
+         'the proxy and forum servers running. ' +
+         '<br><br>' +
+         
+         'If you appreciate our efforts, and want them to continue, please consider making a donation via our online store.' +
+         '<br><br>' +
+
+         w3_inline('',
+            w3_button('w3-orange w3-medium w3-padding-small',
+               'View donation options at kiwisdr.nz', 'admin_donation_cb'),
+            w3_button('w3-margin-left w3-aqua w3-medium w3-padding-small',
+               'Set 8 channel mode and restart Kiwi', 'admin_set_8ch_mode_cb')
+         ) +'<br>Thank you.',
+         
+         function() {
+            //console.log('$admin_rx83_mode_close');
+            ext_set_cfg_param('adm.seen_rx83_mode_alert', true, EXT_SAVE);
+         }
       );
    }
 }
@@ -5324,6 +5453,7 @@ function admin_recv(data)
             admin_draw(admin_sdr_mode);
             ext_send('SET extint_load_extension_configs');
             ant_switch_config_html();
+            admin_rx83_mode_alert();
 				break;
 
 			case "repo_dir":

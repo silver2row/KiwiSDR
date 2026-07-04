@@ -24,6 +24,7 @@ Boston, MA  02110-1301, USA.
 #include "clk.h"
 #include "misc.h"
 #include "str.h"
+#include "mem.h"
 #include "web.h"
 #include "peri.h"
 #include "eeprom.h"
@@ -42,6 +43,8 @@ Boston, MA  02110-1301, USA.
 #include "rx_util.h"
 #include "rx_waterfall_cmd.h"
 #include "net.h"
+#include "security.h"
+#include "ansi.h"
 
 #include "other.gen.h"
 
@@ -64,10 +67,10 @@ Boston, MA  02110-1301, USA.
 kiwi_t kiwi;
 
 int version_maj, version_min;
-int fpga_id, rx_chans, rx_wb_buf_chans, wf_chans, wb_chans, nrx_bufs,
-    nrx_samps, nrx_samps_total, nrx_samps_wb,
-    snd_rate, snd_rate_i, wb_rate, rx_decim, rx1_decim, rx2_decim,
-    nwf_nxfer, nwf_samps;
+int fpga_id, rx_chans, rx_wb_buf_chans, v_wb_buf_chans, wf_chans, wb_chans,
+    nrx_bufs, nrx_samps, nrx_samps_wb,
+    nwf_nxfer, nwf_samps, nwf_tsamps, nwf_nxferL, nwf_sampsL, nwf_tsampsL,
+    snd_rate, snd_rate_i, wb_rate, rx_decim, rx1_decim, rx2_decim;
 
 int p0=0, p1=0, p2=0, wf_sim, wf_real, wf_time, ev_dump=0, wf_flip, wf_start=1, down,
 	rx_yield=1000, gps_chans=GPS_MAX_CHANS, wf_max, cfg_no_wf, snr_meas=1,
@@ -84,7 +87,6 @@ bool need_hardware, kiwi_reg_debug, gps_e1b_only, ecpu_stack_check, spi_show_sta
 
 int main_argc;
 char **main_argv;
-char *fpga_file;
 static bool _kiwi_restart;
 
 void kiwi_restart()
@@ -112,7 +114,7 @@ void other_task(void *param)
 int main(int argc, char *argv[])
 {
 	int i;
-	int p_gps = 0, gpio_test_pin = 0;
+	int p_gps = 0, gpio_test_pin = 0, drop_root = 0;
 	eeprom_action_e eeprom_action = EE_NORM;
 
 	int fw_sel_override = FW_CONFIGURED;
@@ -204,6 +206,7 @@ int main(int argc, char *argv[])
 		if (ARG("-gps")) p_gps = -1; else
 		if (ARG("+sdr")) do_sdr = 1; else
 		if (ARG("-sdr")) do_sdr = 0; else
+		if (ARG("-root")) { ARGL(drop_root); drop_root = drop_root/10 - 1; printf("drop_root %d\n", drop_root); } else
 		if (ARG("-d")) gen_debug = true; else
 		if (ARG("-debug")) debug_printfs = true; else
 		if (ARG("-gps_debug")) { gps_debug = -1; ARGL(gps_debug); } else
@@ -374,7 +377,14 @@ int main(int argc, char *argv[])
         wb_sel = wb_bw[wb_sel];
     }
     
-    int v_wb_buf_chans;
+	// upgrade mode to RX8_WF3 for public kiwi
+	if ((kiwi.firmware_sel == FW_SEL_SDR_RX4_WF4 || kiwi.firmware_sel == FW_SEL_SDR_RX8_WF2) && !admcfg_true("onetime_rx83_switch") && admcfg_true("kiwisdr_com_register")) {
+	    kiwi.firmware_sel = FW_SEL_SDR_RX8_WF3_SHARE;
+	    admcfg_update_int("firmware_sel", kiwi.firmware_sel, &update_admcfg);
+	    lprintf("PUBLIC: switching operating mode to rx8.wf3 (see admin mode tab)\n");
+	    admcfg_set_bool("onetime_rx83_switch", true);
+	    printf(RED "switching operating mode to rx8.wf3" NONL);
+	}
 
     if (kiwi.firmware_sel == FW_SEL_SDR_RX4_WF4) {
         fpga_id = FPGA_ID_RX4_WF4;
@@ -397,6 +407,19 @@ int main(int argc, char *argv[])
         rx1_decim = RX1_STD_DECIM;
         rx2_decim = RX2_STD_DECIM;
         nrx_bufs = RXBUF_SIZE_82 / NRX_SPI;
+    } else
+    if (kiwi.firmware_sel == FW_SEL_SDR_RX8_WF3_SHARE) {
+        fpga_id = FPGA_ID_RX8_WF3;
+        rx_chans = 8;
+        wf_chans = 3;
+        gps_chans = GPS_RX83_CHANS;
+        kiwi.wf_share = true;
+        snd_rate = SND_RATE_8CH;
+        snd_rate_i = SND_RATE_8CH_I;
+        rx_decim = RX_DECIM_8CH;
+        rx1_decim = RX1_STD_DECIM;
+        rx2_decim = RX2_STD_DECIM;
+        nrx_bufs = RXBUF_SIZE_83 / NRX_SPI;
     } else
     if (kiwi.firmware_sel == FW_SEL_SDR_RX3_WF3) {
         fpga_id = FPGA_ID_RX3_WF3;
@@ -450,19 +473,15 @@ int main(int argc, char *argv[])
         lprintf("firmware: OTHER\n");
     }
     
-    if (kiwi.firmware_sel != FW_OTHER)
-        lprintf("firmware: %s\n", fw_sel_s[kiwi.firmware_sel]);
-    if (kiwi.firmware_sel == FW_SEL_SDR_WB)
-        lprintf("firmware: wb rate %dk\n", wb_rate/1000);
-    
     //          rx_chans
     //          |   rx_wb_buf_chans (USE_WB uses this many equivalent buffer channels)
     //          |   |   wb_chans
     //          |   |   |
-    // rx4      4   4   0
-    // rx3      3   3   0
-    // rx8      8   8   0
-    // rx14     14  14  0
+    // 44       4   4   0
+    // 33       3   3   0
+    // 82       8   8   0
+    // 83       8   
+    // 14       14  14  0
     // wb       1   6   1    72k
     // wb       1   16  1   192k
     // wb       1   17  1   204k
@@ -472,24 +491,28 @@ int main(int argc, char *argv[])
     rx_wb_buf_chans = kiwi.isWB? v_wb_buf_chans : rx_chans;
     
     if (fpga_id == FPGA_ID_OTHER) {
-        fpga_file = strdup((char *) "other");
+        kiwi.mode_id = strdup((char *) "other");
     } else {
-        if (kiwi.isWB)
-            asprintf(&fpga_file, "wb.%dk", wb_sel);
-        else
-            asprintf(&fpga_file, "rx%d.wf%d%s", rx_chans, wf_chans, fw_test? ".test" : "");
+        if (kiwi.isWB) {
+            asprintf(&kiwi.mode_id, "wb.%dk", wb_sel);
+            lprintf("firmware: wb rate %dk\n", wb_rate/1000);
+        } else {
+            asprintf(&kiwi.mode_id, "rx%d.wf%d%s", rx_chans, wf_chans, fw_test? ".test" : "");
+            lprintf("firmware: %s\n", kiwi.mode_id);
+        }
     
         cfg_no_wf = cfg_true("no_wf");
 
         lprintf("firmware: rx_chans=%d rx_wb_buf_chans=%d wb_chans=%d wf_chans=%d gps_chans=%d\n",
             rx_chans, rx_wb_buf_chans, wb_chans, wf_chans, gps_chans);
         nrx_samps = NRX_SAMPS_CHANS(rx_wb_buf_chans);
-        nrx_samps_total = nrx_samps * rx_wb_buf_chans;
+        int nrx_samps_max;
+        nrx_samps_max = nrx_samps;
         snd_intr_usec = 1e6 / ((float) snd_rate/nrx_samps);
         lprintf("firmware: RX rx_decim=%d RX1_DECIM=%d RX2_DECIM=%d USE_RX_CICF=%d\n",
             rx_decim, rx1_decim, rx2_decim, VAL_USE_RX_CICF);
-        lprintf("firmware: RX rx_srate=%.3f(%d,%d) wb_srate=%d bufs=%d samps=%d intr_usec=%d\n",
-            ext_update_get_sample_rateHz(ADC_CLK_SYS), snd_rate, snd_rate_i, wb_rate, nrx_bufs, nrx_samps, snd_intr_usec);
+        lprintf("firmware: RX rx_srate=%.3f(%d,%d) wb_srate=%d bufs=%d nsamps=%d nsamps_max=%d intr_usec=%d\n",
+            ext_update_get_sample_rateHz(ADC_CLK_SYS), snd_rate, snd_rate_i, wb_rate, nrx_bufs, nrx_samps, nrx_samps_max, snd_intr_usec);
 
         check(wf_chans <= MAX_WF_DDC);
         check(wb_chans <= MAX_WB_CHANS);
@@ -500,13 +523,24 @@ int main(int argc, char *argv[])
         nrx_samps_wb = kiwi.isWB? (nrx_samps * v_wb_buf_chans) : nrx_samps;
 
         check(nrx_bufs <= MAX_NRX_BUFS);
-        check(nrx_samps <= MAX_NRX_SAMPS);
-        check(nrx_samps < FASTFIR_OUTBUF_SIZE);    // see data_pump.h
-        check(nrx_samps_wb < MAX_WB_SAMPS);        // see data_pump.h
+        check(nrx_samps_max <= MAX_NRX_SAMPS);
+        check(nrx_samps_max < FASTFIR_OUTBUF_SIZE);     // see data_pump.h
+        check(nrx_samps_wb < MAX_WB_SAMPS);             // see data_pump.h
 
-        nwf_nxfer = (WF_NBUF * NIQ / SPIBUF_W) + 1;
-        nwf_samps = (WF_NBUF / nwf_nxfer) + 1;
-        lprintf("firmware: WF nbuf=%d nfft=%d xfer=%d samps=%d\n", WF_NBUF, WF_NFFT, nwf_nxfer, nwf_samps);
+        if (kiwi.wf_share) {
+            nwf_nxfer = (WF_NFFT * NIQ / SPIBUF_W);
+            nwf_samps = ((WF_NFFT-1) / nwf_nxfer);
+            nwf_tsamps = nwf_nxfer * nwf_samps;
+            lprintf("firmware: WF nfft=%d xfer=%d samps=%d tsamps=%d\n", WF_NFFT, nwf_nxfer, nwf_samps, nwf_tsamps);
+            
+            nwf_nxferL = (WF_NFFT_MAX * NIQ / SPIBUF_W);
+            nwf_sampsL = ((WF_NFFT_MAX-1) / nwf_nxferL);
+        } else {
+            nwf_nxferL = (WF_NFFT_MAX * NIQ / SPIBUF_W) + 1;
+            nwf_sampsL = (WF_NFFT_MAX / nwf_nxferL) + 1;
+        }
+        nwf_tsampsL = nwf_nxferL * nwf_sampsL;
+        lprintf("firmware: WF nfft=%d xfer=%d samps=%d tsamps=%d\n", WF_NFFT_MAX, nwf_nxferL, nwf_sampsL, nwf_tsampsL);
 
         monitors_max = (rx_chans * N_CAMP) + N_QUEUERS;
     }
@@ -594,6 +628,12 @@ int main(int argc, char *argv[])
 		TaskCheckStacks(false);
 
 		TaskSleepReasonSec("main loop", 10);
+		
+		if (drop_root) {
+            static u4_t dropped;
+            if (dropped == drop_root) drop_root_privileges();
+            dropped++;
+        }
 		
         if (_kiwi_restart) kiwi_exit(0);
 	}

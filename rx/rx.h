@@ -22,7 +22,6 @@ Boston, MA  02110-1301, USA.
 #include "types.h"
 #include "kiwi.gen.h"   // RXO_BITS
 #include "conn.h"       // conn_t
-#include "exp.h"
 
 #define	I	0
 #define	Q	1
@@ -52,8 +51,7 @@ typedef struct {
 	int n_camp;
 	conn_t *camp_conn[N_CAMP];
 	u4_t camp_id[N_CAMP];
-
-    rx_chan_exp_t exp;
+	ndesc_t rtn_snd_nd;
 } rx_chan_t;
 
 extern rx_chan_t rx_channels[];

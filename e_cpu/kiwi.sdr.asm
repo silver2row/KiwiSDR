@@ -19,7 +19,7 @@
 ; http://www.aholme.co.uk/GPS/Main.htm
 ; ============================================================================
 
-; Copyright (c) 2014-2025 John Seamons, ZL4VO/KF6VO
+; Copyright (c) 2014-2026 John Seamons, ZL4VO/KF6VO
 
 
 ; ============================================================================
@@ -51,7 +51,7 @@ RX_Buffer:
 not_init:		ret
 
 CmdGetRX:
-                rdReg	HOST_RX				; nrx_samps_total - 1
+                rdReg	HOST_RX				; nrx_loop
 				wrEvt	HOST_RST
 
 				push	CTRL_SND_INTR
@@ -64,14 +64,14 @@ CmdGetRX:
 				wrReg	HOST_TX
 				wrReg	HOST_TX
 #endif
-                                            ; cnt = nrx_samps_total - 1
+                                            ; nrx_loop
                 to_loop                     ;
                 ALIGN
 rx_loop:
                 wrEvt2	GET_RX_SAMP			; move i
 				wrEvt2	GET_RX_SAMP			; move q
 				wrEvtL	GET_RX_SAMP_LOOP    ; move iq3
-				// wrEvtL will automatically loop to rx_loop
+				// wrEvtL will automatically loop to rx_loop which must be aligned
 
                 // tail information: ticks, stored/current buffer counters
 				wrEvt2	GET_RX_SAMP			; move ticks[3]
@@ -157,6 +157,12 @@ CmdSetADCLvl:
 				wrReg	SET_ADC_LVL
                 ret
 
+CmdGetDebug:
+				wrEvt	HOST_RST
+                rdReg   GET_DEBUG
+                wrReg	HOST_TX
+                ret
+
 
 ; ============================================================================
 ; waterfall
@@ -170,9 +176,35 @@ CmdWFReset:
 				wrReg2	SET_REG | SET_WF_RST
                 ret
 
+CmdWFReset2:
+				rdReg	HOST_RX				; wf_chan
+				wrReg2	SET_REG | SET_WF_CHAN2
+				rdReg	HOST_RX             ; WF_SAMP_*
+				FreezeTOS
+				wrReg2	SET_REG | SET_WF_RST
+                ret
+
+				// this routine called from main loop when any WF buffer becomes full
+				// and polling with rdReg GET_WF_SRQ finds wf_srq asserted
+WF_Buffer:
+				push	CTRL_WF_INTR
+				call	ctrl_set			; signal the interrupt
+                ret
+
+CmdWFClrIntr:
+				call    CmdGetStatus        ; pass back status reg containing wf_full field
+				push	CTRL_WF_INTR        ; clear the interrupt
+				call	ctrl_clr
+                ret
+
 CmdGetWFSamples:
 				rdReg	HOST_RX				; wf_chan
+#if WF_CICF_83
+				wrReg2	SET_REG | SET_WF_CHAN2
+#else
 				wrReg2	SET_REG | SET_WF_CHAN
+#endif
+
 getWFSamples2:
 				wrEvt	HOST_RST
                 push    nwf_samps_m1        ; &nwf_samps_m1
@@ -183,7 +215,7 @@ getWFSamples2:
 wf_loop:
 				wrEvt2	GET_WF_SAMP_I
 				wrEvtL	GET_WF_SAMP_Q_LOOP
-				// wrEvtL will automatically loop to wf_loop
+				// wrEvtL will automatically loop to wf_loop which must be aligned
 				ret
 
 CmdGetWFContSamps:
@@ -223,4 +255,15 @@ CmdSetWFDecim:
                 RdReg32	HOST_RX				; lparam
 				FreezeTOS
 				wrReg2	SET_REG | SET_WF_DECIM
+				ret
+
+CmdSetWFTap:
+#if WF_CICF_83
+				rdReg	HOST_RX				; wf_chan
+				wrReg2	SET_REG | SET_WF_CHAN2
+                RdReg32	HOST_RX				; lparam
+				FreezeTOS
+				wrReg2	SET_REG | SET_WF_FIR_TAP
+#else
+#endif
 				ret

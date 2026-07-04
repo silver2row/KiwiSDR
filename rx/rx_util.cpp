@@ -248,7 +248,7 @@ void rx_loguser(conn_t *c, logtype_e type)
 int rx_chan_free_count(rx_free_count_e flags, int *idx, int *heavy, int *preempt, int *busy)
 {
 	int i, free_cnt = 0, free_idx = -1, heavy_cnt = 0, preempt_cnt = 0, busy_cnt = 0;
-	int wf_nch = wf_chans;
+	int wf_nch = kiwi.wf_share? rx_chans : wf_chans;
 	rx_chan_t *rx;
 
     // When configuration has a limited number of channels with waterfalls

@@ -307,6 +307,7 @@ void c2s_sound(void *param)
 	    // norm_nrx_samps typ: rx8:85 rx4:(170-85)=85 rx14:48 rx3:323.207
 	    case FW_SEL_SDR_RX4_WF4:
 	    case FW_SEL_SDR_WB:       norm_nrx_samps = nrx_samps - ref_nrx_samps; break;
+	    case FW_SEL_SDR_RX8_WF3_SHARE:
 	    case FW_SEL_SDR_RX8_WF2:  norm_nrx_samps = nrx_samps; break;
 	    case FW_SEL_SDR_RX14_WF0: norm_nrx_samps = nrx_samps; break;    // FIXME: this is now the smallest buffer size
 	    case FW_SEL_SDR_RX3_WF3:  const double target = 15960.828e-6;      // empirically measured using GPS 1 PPS input
@@ -1331,11 +1332,13 @@ void c2s_sound(void *param)
     
             if (s->change_LPF) {
                 *flags |= SND_FLAG_LPF;
+                s->change_LPF_latched = true;
                 s->change_LPF = false;
             }
     
             if (s->change_freq_mode) {
                 *flags |= SND_FLAG_NEW_FREQ;
+                s->change_freq_mode_latched = true;
                 s->change_freq_mode = false;
             }
     
@@ -1353,7 +1356,8 @@ void c2s_sound(void *param)
     
             int aud_bytes;
             int c2s_sound_camp(rx_chan_t *rxc, conn_t *conn, u1_t flags, char *bp, int bytes, int aud_bytes, bool masked_area);
-    
+            bool c2s_sound_mon(int rx_chan);
+            
             evSnd(EC_EVENT, EV_SND, -1, "rx_snd", "app_to_web..");
             if (isWB) {
                 // allow GPS timestamps to be seen by internal extensions
@@ -1388,7 +1392,7 @@ void c2s_sound(void *param)
                 aud_bytes = sizeof(s->out_pkt_real.h.smeter) + bc;
                 if (rxc->n_camp)
                     aud_bytes += c2s_sound_camp(rxc, conn, *flags, (char*) &s->out_pkt_real, bytes, aud_bytes, masked_area);
-                if (!c2s_sound_exp(rx_chan))
+                if (!c2s_sound_mon(rx_chan))
                     app_to_web(conn, (char*) &s->out_pkt_real, bytes);
             }
             evSnd(EC_EVENT, EV_SND, -1, "rx_snd", "..app_to_web");
@@ -1481,6 +1485,52 @@ int c2s_sound_camp(rx_chan_t *rxc, conn_t *conn, u1_t flags, char *bp, int bytes
     }
     
     return additional_bytes;
+}
+
+bool c2s_sound_mon(int rx_chan)
+{
+	snd_t *s = &snd_inst[rx_chan];
+	conn_t *c = s->conn;
+	if (c->internal_connection || c->stop_data) return false;
+	wf_inst_t *wf = &WF_SHMEM->wf_inst[rx_chan];
+	rx_chan_t *rxc = &rx_channels[rx_chan];
+
+    // Camper via c2s_sound_camp() above always gets received audio.
+    // But web UI might want externally processed audio by camper returning
+    // sound on a reverse netcat connection, e.g. audio returned from a
+    // decoder on an external server.
+    if (wf->have_rtn_snd) {
+        while (1) {
+            int qct = 0;
+            if (ndesc_valid(&rxc->rtn_snd_nd))
+                qct = nbuf_queued(&rxc->rtn_snd_nd);
+            //real_printf(GREEN "%d" NORM " ", qct); fflush(stdout);
+            if (qct == 0) {
+                //real_printf(YELLOW "0" NORM " "); fflush(stdout);
+                break;
+            }
+            nbuf_t *nb = nbuf_dequeue(&rxc->rtn_snd_nd);
+            //real_printf(GREEN "%d:%d" NORM " ", rx_chan, nb->len-12); fflush(stdout);
+            // "12" skips the "SET rev_bin=" header
+            if (s->change_LPF_latched) {
+                s->out_pkt_real.h.flags |= SND_FLAG_LPF;
+                s->change_LPF_latched = false;
+            }
+            if (s->change_freq_mode_latched) {
+                s->out_pkt_real.h.flags |= SND_FLAG_NEW_FREQ;
+                s->change_freq_mode_latched = false;
+            }
+            nbuf_allocq(&c->s2c, (char*) &s->out_pkt_real, sizeof(s->out_pkt_real.h), &nb->buf[12], nb->len - 12);
+            nb->done = TRUE;
+        }
+        if (!wf->want_rtn_snd) {
+            nbuf_cleanup(&rxc->rtn_snd_nd);
+            wf->have_rtn_snd = false;
+            //real_printf(YELLOW "STOP" NONL); fflush(stdout);
+        }
+        return true;
+    }
+    return false;
 }
 
 void c2s_sound_shutdown(void *param)

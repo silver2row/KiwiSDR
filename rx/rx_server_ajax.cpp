@@ -870,7 +870,7 @@ fail:
 
 			(s3 = cfg_string("admin_email", NULL, CFG_OPTIONAL)),
 			(float) kiwi_reg_lo_kHz * kHz, (float) kiwi_reg_hi_kHz * kHz, freq.offset_kHz,
-			fw_sel_s[kiwi.firmware_sel],
+			kiwi.mode_id,
 			users, users_max, ext_api_ch, preempt,
 			avatar_ctime,
 			loc, grid,

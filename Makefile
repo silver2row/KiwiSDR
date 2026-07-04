@@ -12,8 +12,10 @@ BINARY_DISTRO := true
 # Copyright (c) 2014-2026 John Seamons, ZL4VO/KF6VO
 #
 # This Makefile can be run on both a build machine (I use a MacBook Pro) and the
-# BeagleBone Black target (Debian release).
+# BeagleBone target (Debian release).
 #
+
+MODE_IDS = rx8.wf3 rx4.wf4 rx8.wf2 rx3.wf3 rx14.wf0
 
 
 ################################
@@ -490,11 +492,25 @@ INT_FLAGS += -DREPO_NAME=STRINGIFY\($(REPO_NAME)\) -DREPO_GIT=STRINGIFY\($(REPO_
 # dependencies
 ################################
 
-#SRC_DEPS = Makefile
-SRC_DEPS = 
-BIN_DEPS = KiwiSDR.rx4.wf4.bit KiwiSDR.rx8.wf2.bit KiwiSDR.rx3.wf3.bit KiwiSDR.rx14.wf0.bit KiwiSDR.rx1.wf1.bit
-BIN_DEPS += KiwiSDR_a50.rx4.wf4.bit KiwiSDR_a50.rx8.wf2.bit KiwiSDR_a50.rx3.wf3.bit
-#BIN_DEPS = 
+# don't use $(wildcard) in AOUT_FILES because they must all exist
+AOUT_FILES := $(addsuffix .aout,$(addprefix KiwiSDR.,$(MODE_IDS)))
+OTHER_AOUT_FILE := $(wildcard KiwiSDR.other.aout)
+ALL_AOUT_FILES := $(AOUT_FILES) $(OTHER_AOUT_FILE)
+
+BIT_FILES := $(addsuffix .bit,$(addprefix KiwiSDR.,$(MODE_IDS)))
+BIT_FILES += $(addsuffix .bit,$(addprefix KiwiSDR_a50.,$(MODE_IDS)))
+OTHER_BIT_FILE := $(wildcard KiwiSDR.other.bit)
+ALL_BIT_FILES := $(BIT_FILES) $(OTHER_BIT_FILE)
+
+# These will be re-evaluated by the $(GEN_ASM) target if kiwi.config is changed because a recursive
+# "make copy_aout" will be done and these assignments evaluated again after the
+# verilog/kiwi.cfg.vh file has been updated by the e_cpu asm.
+RX_CFG  := $(shell grep RX_CFG  verilog/kiwi.cfg.vh | cut -d\  -f 4 | tr -d ';')
+MODE_ID := $(shell grep MODE_ID verilog/kiwi.cfg.vh | cut -d\  -f 4 | tr -d ';')
+
+#SRC_DEPS := Makefile
+SRC_DEPS := 
+BIN_DEPS := $(BIT_FILES)
 DEVEL_DEPS = $(OBJ_DIR_DEFAULT)/web_devel.o $(KEEP_DIR)/edata_always.o $(KEEP_DIR)/edata_always2.o
 EMBED_DEPS = $(OBJ_DIR_DEFAULT)/web_embed.o $(OBJ_DIR)/edata_embed.o $(KEEP_DIR)/edata_always.o $(KEEP_DIR)/edata_always2.o
 EXTS_DEPS = $(OBJ_DIR)/ext_init.o
@@ -603,22 +619,23 @@ APPEND_MF_INC = | tee -a $(MF_INC) 2>&1
 build_makefile_inc:
 # consolidate flags into indirect Makefile since Make will be re-invoked
 	@echo "----------------"
-	@echo "building" $(MF_INC)
-	@echo $(VER)
+	@echo "building $(MF_INC)"
+	@echo "$(VER)"
     ifeq ($(DEBIAN_DEVSYS),$(DEBIAN))
 	    @echo "Debian $(DEBIAN_VERSION)"
     endif
-	@echo PROJECT = $(PROJECT)
-	@echo ARCH = $(ARCH)
-	@echo CPU = $(CPU)
-	@echo PLAT = $(PLAT)
-	@echo PLATFORMS = $(PLATFORMS)
-	@echo RX_CFG = $(shell grep RX_CFG verilog/kiwi.cfg.vh | cut -d\  -f 4 | tr -d ';')
-	@echo BINARY_DISTRO = $(BINARY_DISTRO)
-	@echo REBASE_DISTRO = $(REBASE_DISTRO)
-	@echo DEBUG = $(DEBUG)
-	@echo GDB = $(GDB)
-	@echo XC = $(XC)
+	@echo "PROJECT = $(PROJECT)"
+	@echo "ARCH = $(ARCH)"
+	@echo "CPU = $(CPU)"
+	@echo "PLAT = $(PLAT)"
+	@echo "PLATFORMS = $(PLATFORMS)"
+	@echo "RX_CFG = $(RX_CFG)"
+	@echo "MODE_ID = $(MODE_ID)"
+	@echo "BINARY_DISTRO = $(BINARY_DISTRO)"
+	@echo "REBASE_DISTRO = $(REBASE_DISTRO)"
+	@echo "DEBUG = $(DEBUG)"
+	@echo "GDB = $(GDB)"
+	@echo "XC = $(XC)"
 	@echo
 #
 	@echo $(I) $(START_MF_INC)
@@ -659,16 +676,34 @@ else
     OTHER_CONFIG = $(subst ../../,../,$(OTHER_DIR)/other.config)
 endif
 
+
+# NB: We tried a million different ways to re-evaluate the value of MODE_ID after
+# verilog/kiwi.inline.vh is changed by the e_cpu asm when kiwi.config RX_CFG changes,
+# without having to do a recursive invocation of make. Nothing worked. All suggestions of AI failed.
+copy_aout:
+	@echo "copy_aout: MODE_ID = $(MODE_ID)"
+	cp $(OUT_ASM) KiwiSDR.$(MODE_ID).aout
+	@echo
+
 $(GEN_ASM): kiwi.config verilog/kiwi.inline.vh $(wildcard e_cpu/asm/*)
 	(cd $(REPO_DIR)/e_cpu; make gen_includes OTHER_DIR="$(OTHER_DIR2)")
+	make copy_aout
+
 $(GEN_OTHER_ASM): $(OTHER_CONFIG) e_cpu/other.config $(wildcard e_cpu/asm/*)
 	(cd $(REPO_DIR)/e_cpu; make gen_other OTHER_DIR="$(OTHER_DIR2)")
+
+# NB: The RX_CFG / MODE_ID set at the beginning of the file are correct and are not changed by the
+# "make no_gen" invocation of the e_cpu asm since kiwi.config didn't change.
 $(OUT_ASM): $(wildcard e_cpu/*.asm)
 	(cd $(REPO_DIR)/e_cpu; make no_gen OTHER_DIR="$(OTHER_DIR2)")
+	cp $(OUT_ASM) KiwiSDR.$(MODE_ID).aout
+
 asm_binary:
 	(cd $(REPO_DIR)/e_cpu; make binary OTHER_DIR="$(OTHER_DIR2)")
+
 asm_debug:
 	(cd $(REPO_DIR)/e_cpu; make debug OTHER_DIR="$(OTHER_DIR2)")
+
 asm_stat:
 	(cd $(REPO_DIR)/e_cpu; make stat OTHER_DIR="$(OTHER_DIR2)")
 
@@ -840,6 +875,8 @@ make_vars: check_detect
 	@echo CPU = $(CPU)
 	@echo PLAT = $(PLAT)
 	@echo PLATFORMS = $(PLATFORMS)
+	@echo RX_CFG = $(RX_CFG)
+	@echo MODE_ID = $(MODE_ID)
 	@echo PLATS_BIN_RELEASE = $(PLATS_BIN_RELEASE)
 	@echo PLAT_BACKUP = $(PLAT_BACKUP)
 	@echo
@@ -979,65 +1016,6 @@ ALL_OBJECTS = $(OBJECTS) $(O3_OBJECTS) $(KEEP_OBJECTS)
 -include $(EMBED_DEPS:.o=.d)
 -include $(EXTS_DEPS:.o=.d)
 
-ifeq ($(DEBIAN_DEVSYS),$(DEBIAN))
-
-    # FIXME: isn't there a better way to do this in GNU make?
-
-    EXISTS_RX4_WF4 := $(shell test -f KiwiSDR.rx4.wf4.bit && echo true)
-    ifeq ($(EXISTS_RX4_WF4),true)
-    else
-        KiwiSDR.rx4.wf4.bit:
-    endif
-
-    EXISTS_A50_RX4_WF4 := $(shell test -f KiwiSDR_a50.rx4.wf4.bit && echo true)
-    ifeq ($(EXISTS_A50_RX4_WF4),true)
-    else
-        KiwiSDR_a50.rx4.wf4.bit:
-    endif
-
-    EXISTS_RX8_WF2 := $(shell test -f KiwiSDR.rx8.wf2.bit && echo true)
-    ifeq ($(EXISTS_RX8_WF2),true)
-    else
-        KiwiSDR.rx8.wf2.bit:
-    endif
-
-    EXISTS_A50_RX8_WF2 := $(shell test -f KiwiSDR_a50.rx8.wf2.bit && echo true)
-    ifeq ($(EXISTS_A50_RX8_WF2),true)
-    else
-        KiwiSDR_a50.rx8.wf2.bit:
-    endif
-
-    EXISTS_RX3_WF3 := $(shell test -f KiwiSDR.rx3.wf3.bit && echo true)
-    ifeq ($(EXISTS_RX3_WF3),true)
-    else
-        KiwiSDR.rx3.wf3.bit:
-    endif
-
-    EXISTS_A50_RX3_WF3 := $(shell test -f KiwiSDR_a50.rx3.wf3.bit && echo true)
-    ifeq ($(EXISTS_A50_RX3_WF3),true)
-    else
-        KiwiSDR_a50.rx3.wf3.bit:
-    endif
-
-    EXISTS_RX14_WF0 := $(shell test -f KiwiSDR.rx14.wf0.bit && echo true)
-    ifeq ($(EXISTS_RX14_WF0),true)
-    else
-        KiwiSDR.rx14.wf0.bit:
-    endif
-
-    EXISTS_RX1_WF1 := $(shell test -f KiwiSDR.rx1.wf1.bit && echo true)
-    ifeq ($(EXISTS_RX1_WF1),true)
-    else
-        KiwiSDR.rx1.wf1.bit:
-    endif
-
-    EXISTS_OTHER := $(shell test -f KiwiSDR.other.bit && echo true)
-    ifeq ($(EXISTS_OTHER),true)
-        OTHER_DEP = KiwiSDR.other.bit
-    else
-        OTHER_DEP =
-    endif
-endif
 
 #
 # IMPORTANT
@@ -1246,9 +1224,6 @@ DIR_DTB2 =
 ifeq ($(DEBIAN_DEVSYS),$(DEBIAN))
     DO_ONCE = $(DIR_CFG)/.do_once.dep
 
-    DTS_DEP_SRC  = $(addprefix $(DIR_DTS)/,$(DTS))
-    DTS_DEP_SRC2 = $(addprefix $(DIR_DTS)/,$(DTS2))
-
     $(DO_ONCE):
 	    @mkdir -p $(DIR_CFG)
 	    @touch $(DO_ONCE)
@@ -1268,6 +1243,8 @@ ifeq ($(DEBIAN_DEVSYS),$(DEBIAN))
             DEB := D12+
         endif
 
+        DTS_DEP_SRC  = $(addprefix $(DIR_DTS)/,$(DTS))
+        DTS_DEP_SRC2 = $(addprefix $(DIR_DTS)/,$(DTS2))
         DTS_DEP_DST  = $(addprefix $(DIR_DTB)/,$(DTS))
         DTS_DEP_DST2 = $(addprefix $(DIR_DTB)/,$(DTS2))
 
@@ -1308,6 +1285,8 @@ ifeq ($(DEBIAN_DEVSYS),$(DEBIAN))
             endif
         endif
 
+        DTS_DEP_SRC  = $(addprefix $(DIR_DTS)/,$(DTS))
+        DTS_DEP_SRC2 = $(addprefix $(DIR_DTS)/,$(DTS2))
         DTS_DEP_DST  = $(addprefix $(DIR_DTB)/,$(DTS))
         DTS_DEP_DST2 = $(addprefix $(DIR_DTB)/,$(DTS2))
 
@@ -1358,6 +1337,11 @@ ifeq ($(DEBIAN_DEVSYS),$(DEBIAN))
         DTB_DEB_NEW = am5729-beagleboneai-custom.dtb
         UENV_HAS_DTB_NEW := $(shell grep -qi '^dtb=$(DTB_DEB_NEW)' /boot/uEnv.txt && echo true)
 
+        DTS_DEP_SRC  = $(addprefix $(DIR_DTS)/,$(DTS))
+        DTS_DEP_SRC2 = $(addprefix $(DIR_DTS)/,$(DTS2))
+        DTS_DEP_DST  = $(addprefix $(DIR_DTB)/,$(DTS))
+        DTS_DEP_DST2 = $(addprefix $(DIR_DTB)/,$(DTS2))
+
         # re-install device tree if changes made to *.dts source file
 #        $(DTS_DEP_DST) $(DTS_DEP_DST2): $(DTS_DEP_SRC) $(DTS_DEP_SRC2)
 #	        @echo "BBAI: re-install Kiwi device tree to configure GPIO pins"
@@ -1398,9 +1382,13 @@ ifeq ($(DEBIAN_DEVSYS),$(DEBIAN))
             DIR_DTS = platform/beaglebone_black/D12
             DIR_DTB_BASE = $(wildcard /opt/source/dtb-$(SYS_MAJ).$(SYS_MIN)\.*)
             DIR_DTB = $(DIR_DTB_BASE)/src/arm/overlays
+            DTS_DEP_DST = $(addprefix $(DIR_DTB)/,$(DTS))
         else
             DIR_DTB = /lib/firmware
+            DTS_DEP_DST = 
         endif
+
+        DTS_DEP_SRC  = $(addprefix $(DIR_DTS)/,$(DTS))
 
         # re-install device tree if changes made to *.dts source file
         ifeq ($(DEBIAN_12_AND_LATER),true)
@@ -1412,18 +1400,17 @@ ifeq ($(DEBIAN_DEVSYS),$(DEBIAN))
 	            touch $(FORCE_REBOOT)
         endif
 
-        ifeq ($(DEBIAN_12_AND_LATER),true)
-            install_kiwi_device_tree: $(DTS_DEP_DST)
+        install_kiwi_device_tree: $(DTS_DEP_DST)
+            ifeq ($(DEBIAN_12_AND_LATER),true)
 	            @echo "BBG_BBB: D12+, SPI at boottime via uEnv.txt"
 #	            @echo "BBG_BBB: DTS=$(DTS) DTS_DEP_DST=$(DTS_DEP_DST) DTS_DEP_SRC=$(DTS_DEP_SRC)"
 #	            -@ls -la $(DTS_DEP_SRC) $(DTS_DEP_DST)
 #	            -@sum $(DTS_DEP_SRC) $(DTS_DEP_DST)
-                # load kiwi first because it disables uart2 which otherwise conflicts with spi0
+                # load kiwi first because it disables uart2 which otherwise conflichs with spi0
 	            -sed -i -e 's:^#uboot_overlay_addr4=<file4>.dtbo:uboot_overlay_addr4=cape-bone-kiwi-00A0.dtbo:' /boot/uEnv.txt
 	            -sed -i -e 's:^#uboot_overlay_addr5=<file5>.dtbo:uboot_overlay_addr5=BB-SPIDEV0-00A0.dtbo:' /boot/uEnv.txt
 	            grep -e uboot_overlay_addr4 -e uboot_overlay_addr5 /boot/uEnv.txt || true
-        else ifeq ($(DEBIAN_10_AND_LATER),true)
-            install_kiwi_device_tree:
+            else ifeq ($(DEBIAN_10_AND_LATER),true)
 	            @echo "BBG_BBB: D10-11, check uEnv.txt for BB-SPIDEV0 and cape-bone-kiwi"
                 # For SPI uEnv.txt needs added by hand: cape_enable=bone_capemgr.enable_partno=BB-SPIDEV0
 	            grep BB-SPIDEV0 /boot/uEnv.txt || true
@@ -1435,14 +1422,13 @@ ifeq ($(DEBIAN_DEVSYS),$(DEBIAN))
                 # Debian 11
 	            -sed -i -e 's:^#uboot_overlay_addr4=<file4>.dtbo:uboot_overlay_addr4=/lib/firmware/cape-bone-kiwi-00A0.dtbo:' /boot/uEnv.txt
 	            #@cp -v $(DTS_DEP_SRC) $(DIR_DTB)
-        else
-            install_kiwi_device_tree:
+            else
 	            @echo "BBG_BBB: D8, GPIO at runtime via capemgr, SPI at boottime via uEnv.txt"
                 # ./k and init:kiwid load cape-bone-kiwi-00A0 via capemgr and run dtc if necessary
                 # So we only have to place cape-bone-kiwi-00A0.dts in /lib/firmware
 	            @cp -v $(DTS_DEP_SRC) $(DIR_DTB)
                 # For SPI uEnv.txt needs added by hand: cape_enable=bone_capemgr.enable_partno=BB-SPIDEV0
-        endif
+            endif
     endif
 endif
 
@@ -1590,8 +1576,24 @@ make_install_binary:
 .PHONY: make_install
 make_install: $(DO_ONCE) $(DTS_DEP_DST) $(BUILD_DIR)/kiwid.bin
 
+define install_bin_file
+install_$(1):
+	install -D -o root -g root $(1) /usr/local/bin/$(1)
+endef
+
+# generate rules to install .bit and .aout files
+ifeq ($(DEBIAN_DEVSYS),$(DEBIAN))
+    $(foreach bit_file,$(ALL_BIT_FILES), \
+        $(eval $(call install_bin_file,$(bit_file))))
+    $(foreach aout_file,$(ALL_AOUT_FILES), \
+        $(eval $(call install_bin_file,$(aout_file))))
+    BIT_AOUT_FILES := $(addprefix install_,$(ALL_BIT_FILES)) $(addprefix install_,$(ALL_AOUT_FILES))
+else
+    BIT_AOUT_FILES := 
+endif
+
 .PHONY: make_install_files
-make_install_files: $(DO_ONCE) $(DTS_DEP_DST)
+make_install_files: $(DO_ONCE) $(DTS_DEP_DST) $(BIT_AOUT_FILES)
     ifeq ($(DEBIAN_DEVSYS),$(DEVSYS))
 	    @echo
 	    @echo "############################################"
@@ -1616,43 +1618,6 @@ make_install_files: $(DO_ONCE) $(DTS_DEP_DST)
 
         # don't strip symbol table while we're debugging server crashes
 	    install -D -o root -g root $(BUILD_DIR)/kiwid.bin /usr/local/bin/kiwid
-	    install -D -o root -g root $(GEN_DIR)/kiwi.aout /usr/local/bin/kiwid.aout
-
-        ifeq ($(EXISTS_RX4_WF4),true)
-	        install -D -o root -g root KiwiSDR.rx4.wf4.bit /usr/local/bin/KiwiSDR.rx4.wf4.bit
-        endif
-
-        ifeq ($(EXISTS_A50_RX4_WF4),true)
-	        install -D -o root -g root KiwiSDR_a50.rx4.wf4.bit /usr/local/bin/KiwiSDR_a50.rx4.wf4.bit
-        endif
-
-        ifeq ($(EXISTS_RX8_WF2),true)
-	        install -D -o root -g root KiwiSDR.rx8.wf2.bit /usr/local/bin/KiwiSDR.rx8.wf2.bit
-        endif
-
-        ifeq ($(EXISTS_A50_RX8_WF2),true)
-	        install -D -o root -g root KiwiSDR_a50.rx8.wf2.bit /usr/local/bin/KiwiSDR_a50.rx8.wf2.bit
-        endif
-
-        ifeq ($(EXISTS_RX3_WF3),true)
-	        install -D -o root -g root KiwiSDR.rx3.wf3.bit /usr/local/bin/KiwiSDR.rx3.wf3.bit
-        endif
-
-        ifeq ($(EXISTS_A50_RX3_WF3),true)
-	        install -D -o root -g root KiwiSDR_a50.rx3.wf3.bit /usr/local/bin/KiwiSDR_a50.rx3.wf3.bit
-        endif
-
-        ifeq ($(EXISTS_RX14_WF0),true)
-	        install -D -o root -g root KiwiSDR.rx14.wf0.bit /usr/local/bin/KiwiSDR.rx14.wf0.bit
-        endif
-
-        ifeq ($(EXISTS_RX1_WF1),true)
-	        install -D -o root -g root KiwiSDR.rx1.wf1.bit /usr/local/bin/KiwiSDR.rx1.wf1.bit
-        endif
-
-        ifeq ($(EXISTS_OTHER),true)
-	        install -D -o root -g root KiwiSDR.other.bit /usr/local/bin/KiwiSDR.other.bit
-        endif
 
 	    install -o root -g root unix_env/kiwid /etc/init.d
 	    install -o root -g root -m 0644 unix_env/kiwid.service /etc/systemd/system
@@ -1675,7 +1640,7 @@ make_install_files: $(DO_ONCE) $(DTS_DEP_DST)
 
         ifeq ($(REBASE_DISTRO),true)
 	        -lftp -e 'open http://distro.kiwisdr.com/ && mirror -c --delete --delete-first --verbose=1 . $(DIR_FILE_SRC) && exit'
-	        -chmod +x $(DIR_FILE_SRC)/bin/kiwi*
+	        -chmod +x $(DIR_FILE_SRC)/bin/*
 	        rsync -av --delete $(DIR_FILE_SRC)/samples/ $(DIR_CFG)/samples
 	        -sed -e 's/Beagle_SDR_GPS/KiwiSDR/' < /root/.bashrc.local >/tmp/bashrc.local
 	        -mv /tmp/bashrc.local /root/.bashrc.local
@@ -1931,7 +1896,7 @@ ifeq ($(DEBIAN_DEVSYS),$(DEVSYS))
     # selectively transfer files to the target so everything isn't compiled each time
     GET_TOOLS_EXCLUDE_RSYNC := true
     -include tools/Makefile
-    EXCLUDE_RSYNC = ".DS_Store" ".git" "obj" "/obj_O3" "/obj_keep" "*.dSYM" "*.bin.h" "*.aout" "e_cpu/a" "*.aout.h" "kiwi.gen.h" \
+    EXCLUDE_RSYNC = ".DS_Store" ".git" "obj" "/obj_O3" "/obj_keep" "*.dSYM" "*.bin.h" "kiwid.aout" "e_cpu/a" "*.aout.h" "kiwi.gen.h" \
         "verilog/kiwi.gen.vh" "web/edata*" "node_modules" "morse-pro-compiled.js" "Makefile.1"
     RSYNC_ARGS = -av --delete $(addprefix --exclude , $(EXCLUDE_RSYNC)) \
         $(addprefix --exclude , $(EXT_EXCLUDE_RSYNC)) $(addprefix --exclude , $(TOOLS_EXCLUDE_RSYNC)) \
@@ -1965,64 +1930,56 @@ endif
 
 -include verilog/Makefile
 
+bit:
+	@echo "BIT_FILES = $(BIT_FILES)"
+
+TOUCH_BIT_FILES := 
+
+# Add missing .bit files, both locally and on V_DIR
+define touch_bit_file
+touch_$(1):
+	@echo "checking $(1)"
+	@if [ ! -f $(V_DIR)/$(1) ]; then \
+        echo "TOUCH $(V_DIR)/$(1)"; \
+        touch $(V_DIR)/$(1); \
+    fi
+#   NB: touch -t 200001010000 <file> makes the mtime of the file really old
+	@if [ ! -f $(1) ]; then \
+        echo "TOUCH $(1)"; \
+        touch -t 200001010000 $(1); \
+    fi
+endef
+
+define copy_bit_file
+$(1): $(V_DIR)/$(1)
+	-ls -la $$< $$@
+#	cp $$< $$@
+	rsync -ah --progress $$< $$@
+endef
+
 ifeq ($(DEBIAN_DEVSYS),$(DEVSYS))
 
     ifeq ($(XC),) ## do not copy bit streams from $(V_DIR) when cross-compiling
         ifeq ($(DOWNLOAD_BIT),true)
-
-        # FIXME: isn't there a better way to do this in GNU make?
-
-        EXISTS_V_DIR_RX4_WF4 := $(shell test -f $(V_DIR)/KiwiSDR.rx4.wf4.bit && echo true)
-        ifeq ($(EXISTS_V_DIR_RX4_WF4),true)
-            KiwiSDR.rx4.wf4.bit: $(V_DIR)/KiwiSDR.rx4.wf4.bit
-	            rsync -av $(V_DIR)/KiwiSDR.rx4.wf4.bit .
-        else
-            KiwiSDR.rx4.wf4.bit:
-        endif
-
-        EXISTS_V_DIR_RX8_WF2 := $(shell test -f $(V_DIR)/KiwiSDR.rx8.wf2.bit && echo true)
-        ifeq ($(EXISTS_V_DIR_RX8_WF2),true)
-            KiwiSDR.rx8.wf2.bit: $(V_DIR)/KiwiSDR.rx8.wf2.bit
-	            rsync -av $(V_DIR)/KiwiSDR.rx8.wf2.bit .
-        else
-            KiwiSDR.rx8.wf2.bit:
-        endif
-
-        EXISTS_V_DIR_RX3_WF3 := $(shell test -f $(V_DIR)/KiwiSDR.rx3.wf3.bit && echo true)
-        ifeq ($(EXISTS_V_DIR_RX3_WF3),true)
-            KiwiSDR.rx3.wf3.bit: $(V_DIR)/KiwiSDR.rx3.wf3.bit
-	            rsync -av $(V_DIR)/KiwiSDR.rx3.wf3.bit .
-        else
-            KiwiSDR.rx3.wf3.bit:
-        endif
-
-        EXISTS_V_DIR_RX14_WF0 := $(shell test -f $(V_DIR)/KiwiSDR.rx14.wf0.bit && echo true)
-        ifeq ($(EXISTS_V_DIR_RX14_WF0),true)
-            KiwiSDR.rx14.wf0.bit: $(V_DIR)/KiwiSDR.rx14.wf0.bit
-	            rsync -av $(V_DIR)/KiwiSDR.rx14.wf0.bit .
-        else
-            KiwiSDR.rx14.wf0.bit:
-        endif
-
-        EXISTS_V_DIR_RX1_WF1 := $(shell test -f $(V_DIR)/KiwiSDR.rx1.wf1.bit && echo true)
-        ifeq ($(EXISTS_V_DIR_RX1_WF1),true)
-            KiwiSDR.rx1.wf1.bit: $(V_DIR)/KiwiSDR.rx1.wf1.bit
-	            rsync -av $(V_DIR)/KiwiSDR.rx1.wf1.bit .
-        else
-            KiwiSDR.rx1.wf1.bit:
-        endif
-
-        EXISTS_OTHER_BITFILE := $(shell test -f $(V_DIR)/KiwiSDR.other.bit && echo true)
-        ifeq ($(OTHER_DIR),)
-            KiwiSDR.other.bit:
-        else
-            ifeq ($(EXISTS_OTHER_BITFILE),true)
-                KiwiSDR.other.bit: $(V_DIR)/KiwiSDR.other.bit
-	                rsync -av $(V_DIR)/KiwiSDR.other.bit .
-            else
+            TOUCH_BIT_FILES := $(addprefix touch_,$(BIT_FILES))
+            
+            # generate rules to copy bit streams from V_DIR
+            $(foreach bit_file,$(BIT_FILES), $(eval $(call touch_bit_file,$(bit_file))))
+            $(foreach bit_file,$(BIT_FILES), $(eval $(call copy_bit_file,$(bit_file))))
+    
+            # FIXME: this can make the Makefile slow
+            #EXISTS_OTHER_BITFILE := $(shell test -f $(V_DIR)/KiwiSDR.other.bit && echo true)
+            EXISTS_OTHER_BITFILE := 
+            ifeq ($(OTHER_DIR),)
                 KiwiSDR.other.bit:
+            else
+                ifeq ($(EXISTS_OTHER_BITFILE),true)
+                    KiwiSDR.other.bit: $(V_DIR)/KiwiSDR.other.bit
+                        rsync -av $(V_DIR)/KiwiSDR.other.bit .
+                else
+                    KiwiSDR.other.bit:
+                endif
             endif
-        endif
         endif
     else
         KiwiSDR.other.bit:
@@ -2034,7 +1991,7 @@ ifeq ($(DEBIAN_DEVSYS),$(DEVSYS))
     # other_post_rsync is invoked after the rsync, e.g. for augmenting server sources
     other_post_rsync:
 
-    rsync_bit: $(BIN_DEPS) other_rsync
+    rsync_bit: $(TOUCH_BIT_FILES) $(BIT_FILES) $(BIN_DEPS) other_rsync
 	    $(RSYNC) $(RSYNC_ARGS)
         ifneq ($(OTHER_DIR),)
 	        make other_post_rsync
@@ -2052,7 +2009,7 @@ DEP_LFTP := $(if $(REBASE_DISTRO),/usr/bin/lftp,)
 lftp: $(DEP_LFTP)
     ifeq ($(REBASE_DISTRO),true)
 	    -lftp -e 'open http://distro.kiwisdr.com/ && mirror -c --delete --delete-first --verbose=1 . $(DIR_FILE_SRC) && exit'
-	    -chmod +x $(DIR_FILE_SRC)/bin/kiwi*
+	    -chmod +x $(DIR_FILE_SRC)/bin/*
 	    rsync -av --delete $(DIR_FILE_SRC)/samples/ $(DIR_CFG)/samples
     endif
 
@@ -2075,7 +2032,7 @@ clean: $(KEYRING) clean_ext clean_deprecated $(DEP_LFTP)
 	    @echo
 	    @echo "update $(DIR_FILE_SRC) for BINARY_INSTALL"
 	    -lftp -e 'open http://distro.kiwisdr.com/ && mirror -c --delete --delete-first --verbose=1 . $(DIR_FILE_SRC) && exit'
-	    -chmod +x $(DIR_FILE_SRC)/bin/kiwi*
+	    -chmod +x $(DIR_FILE_SRC)/bin/*
     endif
 
 clean_dist: clean

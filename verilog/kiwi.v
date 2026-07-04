@@ -18,7 +18,7 @@
 // http://www.aholme.co.uk/GPS/Main.htm
 //////////////////////////////////////////////////////////////////////////
 
-// Copyright (c) 2014-2025 John Seamons, ZL4VO/KF6VO
+// Copyright (c) 2014-2026 John Seamons, ZL4VO/KF6VO
 
 `timescale 1ns / 100ps
 
@@ -60,7 +60,7 @@ module KiwiSDR
         input  wire P915,       // P915, GPIO 1_0-2_0, unused debug in
         output wire CMD_READY,  // P923, GPIO 1_17, ctrl[CTRL_CMD_READY]
         output wire SND_INTR,   // P924, GPIO 0_15, ctrl[CTRL_SND_INTR]
-        output wire P926,		// P926, GPIO 0_14, unused debug out
+        output wire WF_INTR,    // P926, GPIO 0_14, ctrl[CTRL_WF_INTR]
 
     `ifdef P8_ARE_INPUTS
         input  wire P826,		// outside pin row
@@ -102,17 +102,16 @@ module KiwiSDR
     // P9: 26 24 22 20 18 16 14 12 10 08 06 04 02   pcb top, inside row
     //     b3
     
-    wire [2:0] P9;
+    wire [1:0] P9;
     
 `ifdef USE_WB
     wire awb_debug, rx_avail_wb_A, rx_avail_A;
     assign P911 = awb_debug;
     assign P913 = rx_avail_wb_A;
-    assign P926 = rx_avail_A;
+    //assign P926 = rx_avail_A;
 `else
     assign P911 = P9[0];    // P911
     assign P913 = P9[1];    // P913
-    assign P926 = P9[2];    // P926
 `endif
 
     // P8: 25 23 21 19 17 15 13 11 09 07 05 03 01   pcb top, inside row
@@ -235,11 +234,11 @@ module KiwiSDR
     wire dev_intr = 1'b0;
 `endif
 	assign SND_INTR = ctrl[CTRL_SND_INTR] | dev_intr;
+	assign WF_INTR  = ctrl[CTRL_WF_INTR];
     
 	// keep Vivado from complaining about unused inputs and outputs
 	assign P9[0] = ctrl[CTRL_UNUSED_OUT];
 	assign P9[1] = ctrl[CTRL_UNUSED_OUT];
-	assign P9[2] = ctrl[CTRL_UNUSED_OUT];
 
 `ifdef P8_ARE_INPUTS
 `else
@@ -301,16 +300,17 @@ module KiwiSDR
 
 	wire rx_rd, wf_rd;
 	wire [15:0] rx_dout, wf_dout;
+    wire [3:0] wf_full_4;
 	wire [47:0] ticks_A;
 	
 `ifdef USE_SDR
 	wire rx_ovfl_C;
     wire [31:0] adc_count;
     
-	wire use_gen_C = ctrl[CTRL_USE_GEN];
-	
 	wire self_test;
 	assign ADC_STSIG = self_test;
+
+    wire [15:0] debug;
 
 `ifdef USE_WB
     receiver_wb #(._ADC_BITS(ADC_BITS)) receiver_inst (
@@ -326,6 +326,7 @@ module KiwiSDR
 
         .wf_rd_C	    (wf_rd),
         .wf_dout_C	    (wf_dout),
+        .wf_full_C      (wf_full_4),
 
         .ticks_A	    (ticks_A),
         .adc_ovfl_C     (rx_ovfl_C),
@@ -333,6 +334,7 @@ module KiwiSDR
         
 		.cpu_clk	    (cpu_clk),
         .rx_ser		    (ser[1]),        
+        .wf_ser		    (ser[2]),        
         .tos		    (tos),
         .op_11          (op[10:0]),        
         .rdReg          (rdReg),
@@ -341,7 +343,7 @@ module KiwiSDR
         .wrEvt2         (wrEvt2),
         .wrEvtL         (wrEvtL),
         
-        .use_gen_C      (use_gen_C),
+        .use_gen_C      (ctrl[CTRL_USE_GEN]),
         
 `ifdef USE_WB
         // debug
@@ -351,7 +353,8 @@ module KiwiSDR
 `endif
 
         .self_test_en_C (ctrl[CTRL_STEN]),
-        .self_test      (self_test)
+        .self_test      (self_test),
+        .debug          (debug)
     	);
 
 	wire rx_orst;
@@ -387,7 +390,7 @@ module KiwiSDR
     wire [9:0] other_flags;
     wire [9:0] stat_10 = other_flags;
 `else
-    wire [9:0] stat_10 = 10'b0;
+    wire [9:0] stat_10 = { 6'b0, wf_full_4 };
 `endif
 
     wire [2:0] fpga_id_3 = { FPGA_ID };
@@ -422,6 +425,7 @@ module KiwiSDR
 `endif
 
 		if (get_reg_misc && reg_no == 0 /* GET_STATUS   */) par = status; else
+		if (get_reg_misc && reg_no == 2 /* GET_DEBUG    */) par = debug; else
 		par = host_dout;
 	end
 	
@@ -592,7 +596,6 @@ module KiwiSDR
         .unused_inputs  (unused_inputs_other)
         );
 `else
-	assign ser[2] = 1'b0;
     assign ext_rd = 0;
     assign ext_dout = 0;
 `endif

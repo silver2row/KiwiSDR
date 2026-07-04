@@ -212,8 +212,7 @@ var w3 = {
 
 var w3int = {
    btn_grp_uniq: 0,
-   alert_uniq: 0,
-   alert_active: false,
+   alert: {},
    
    menu_cur_id: null,
    menu_active: false,
@@ -3226,16 +3225,16 @@ function w3_textarea_get_param(psa, label, path, rows, cols, cb, init_val)
 // alert
 ////////////////////////////////
 
-function w3_alert(psa, msg, width, top) {
-   var path = 'id-alert-'+ w3int.alert_uniq.toString();
-   w3int.alert_uniq++;
+function w3_alert(id, psa, msg, close, width, top, left) {
+   path = 'id-alert-'+ id;
    width = width || 650;
+   left = left || 50;
    top = top || 100;
    var css = sprintf(
-      'position: fixed; top: %s; left: 50%%; transform: translateX(-50%%); width: %s; ' +
+      'position: fixed; top: %s; left: %s; transform: translateX(-50%%); width: %s; ' +
       'background: #444; color: white; padding: 15px 25px; border-radius: 8px; ' +
       'box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 9999; font-family: sans-serif;',
-      px(top), px(width));
+      px(top), pct(left), px(width));
    var psa3 = w3_psa3(psa);
    var psa_outer = w3_psa(psa3.middle, path, css);
    var psa_inner = w3_psa(psa3.right);
@@ -3247,25 +3246,34 @@ function w3_alert(psa, msg, width, top) {
          w3_button('w3-margin-T-16 w3-green', 'Close', 'w3int_alert_ok', path)
       );
    var alert = w3_create_appendElement('id-kiwi-body', 'div', html, path);
-   w3int.alert_cur = path;
-   w3int.alert_active = true;
+   w3int.alert = { path:path, active:true, close:close };
 }
 
 function w3int_alert_ok(path, cb_param) {
-   //console.log('w3int_alert_ok: path='+ path +' cb_param='+ cb_param);
+   //console.log('w3int_alert_ok: path_id='+ w3int.alert.path +' path='+ path +' cb_param='+ cb_param);
+   if (!w3_alert_active()) return;
    var alert = w3_el(cb_param);
    alert.style.transition = 'opacity 0.5s';
    alert.style.opacity = '0';
    setTimeout(function() { alert.remove(); }, 500);
-   w3int.alert_cur = null;
-   w3int.alert_active = false;
+   var close = w3int.alert.close;
+   w3int.alert = {};    // in case close routine does another alert
+   w3_call(close);
 }
 
-function w3_alert_active() { return w3int.alert_active; }
+function w3_alert_active() { return (w3int.alert.active == true); }
 
 function w3_alert_cancel() {
-   if (w3_alert_active()) 
-      w3int_alert_ok(null, w3int.alert_cur);
+   if (w3_alert_active()) {
+      w3int.alert.close = null;
+      w3int_alert_ok(null, w3int.alert.path);
+   }
+}
+
+function w3_alert_close() {
+   if (w3_alert_active()) {
+      w3int_alert_ok(null, w3int.alert.path);
+   }
 }
 
 

@@ -1,6 +1,7 @@
-// Copyright (c) 2013-2025 John Seamons, ZL4VO/KF6VO
+// Copyright (c) 2013-2026 John Seamons, ZL4VO/KF6VO
 
 #define	CPU_RAM_SIZE	2048
+#define LOOP_ALIGNMENT  7
 
 #define OCM_NONE        0x0000
 
@@ -9,6 +10,7 @@
 #define	OPT_ROT			0x0020
 #define	OPT_UNS			0x0010
 #define	OPT_LOOP        0x0002
+#define	OPT_LOOP2       0x0003
 
 #define OCM_CONST       0x7fff
 #define	OC_PUSH			0x0000

@@ -14,6 +14,8 @@ module WF_SAMPLER_8K_32B
         input  wire wr,
         input  wire [15:0] wr_i,
         input  wire [15:0] wr_q,
+        output reg  wr_full,
+        output reg  wr_full_pulse,
     
         input  wire rd_clk,
         input  wire rd_rst,
@@ -26,14 +28,19 @@ module WF_SAMPLER_8K_32B
         
 	// wr_clk side
     reg [A_MSB:0] wr_addr;
-    reg           wr_full;
     wire	      wr_en = wr_continuous? wr : (wr && ~wr_full);
+    
+    localparam RISE = 2'b10;
+    reg wr_full_prev;
     
     always @ (posedge wr_clk)
     begin
-        if (wr_rst) {wr_addr, wr_full} <= 0;
+        if (wr_rst) {wr_addr, wr_full, wr_full_prev} <= 0;
         else
         if (wr_en) {wr_full, wr_addr} <= wr_addr + 1;
+        
+        wr_full_pulse <= {wr_full, wr_full_prev} == RISE;
+        wr_full_prev  <= wr_full;
     end
 	
     wire [31:0] wr_diq = { wr_i[15 -:16], wr_q[15 -:16] };

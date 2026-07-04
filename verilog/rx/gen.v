@@ -15,11 +15,12 @@ Boston, MA  02110-1301, USA.
 --------------------------------------------------------------------------------
 */
 
-// Copyright (c) 2014 John Seamons, ZL4VO/KF6VO
+// Copyright (c) 2014-2026 John Seamons, ZL4VO/KF6VO
 
 module GEN (
-	input wire		   			adc_clk,
+	input  wire		   			adc_clk,
     output wire signed [17:0]	gen_data,
+    output wire                 self_test,
 
 	input wire		   			cpu_clk,
     input wire [31:0]        	freeze_tos_A,
@@ -47,7 +48,7 @@ module GEN (
 	wire set_gen_freqH_A, set_gen_freqL_A, set_gen_attn_A;
 	SYNC_PULSE gen_phaseH_inst (.in_clk(cpu_clk), .in(set_gen_freqH_C), .out_clk(adc_clk), .out(set_gen_freqH_A));
 	SYNC_PULSE gen_phaseL_inst (.in_clk(cpu_clk), .in(set_gen_freqL_C), .out_clk(adc_clk), .out(set_gen_freqL_A));
-	SYNC_PULSE gen_attn_inst (.in_clk(cpu_clk), .in(set_gen_attn_C), .out_clk(adc_clk), .out(set_gen_attn_A));
+	SYNC_PULSE gen_attn_inst   (.in_clk(cpu_clk), .in(set_gen_attn_C),  .out_clk(adc_clk), .out(set_gen_attn_A));
 
     wire signed [17:0] sine;
     reg signed [17:0] sine_L, gen_rnd;
@@ -68,6 +69,7 @@ module GEN (
 
 	wire signed [14:0] dds_sin;
 	assign sine = {dds_sin, 3'b0};
+	assign self_test = sine_L[17];
 
     ip_dds_sin_cos_13b_15b_48b sin_cos_osc (
 		.clk		(adc_clk),
