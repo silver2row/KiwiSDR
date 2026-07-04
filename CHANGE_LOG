@@ -3,6 +3,29 @@ CHANGE_LOG
 For the Github commit log see here: github.com/jks-prv/KiwiSDR/commits/master
     Older commits: github.com/jks-prv/Beagle_SDR_GPS/commits/master
 
+v1.900  July 4, 2026
+    New Kiwi operating mode: "Full 8 channel". See admin mode tab for complete description.
+    8 simultaneous channels except all of them get a fully functional waterfall.
+    This new mode effectively replaces the previous "More receivers" mode (rx8/wf2).
+    A few limitations, for example the highest zoom factor is z11 vs the z14 of 4 channel mode,
+    and the number of GPS channels is reduced from 12 to 8 due to FPGA capacity limits.
+    Works on both Kiwi-1 and Kiwi-2.  See the Kiwi forum for further discussion.
+    
+    My sincere thanks to Christoph Mayer, DL1CH, for providing the CIC compensation filter
+    design and FPGA implementation code on which this new feature is based.
+    
+    Important: If your Kiwi is publicly listed, and is configured for rx4/wf4 or rx8/wf2 modes
+    (but not the wideband rx3/wf3 mode), it will be automatically switched to the new rx8/wf8 mode.
+    This is done in the interest of maximizing the number of publicly available channels.
+    The change will only be done once -- the first time the update to v1.900 occurs.
+    You may of course revert the mode as you wish.
+    
+    Apologies in advance for making a configuration change like this to your Kiwi. But many public
+    Kiwi are not actively managed and it was judged that increasing the number of public channels,
+    especially on public Kiwi with good reception, was highly desirable.
+
+    Update admin GPS tab SBAS menu. (thanks F4FPR)
+
 v1.843  June 30, 2026
     WSPR "clear" button now simply clears the spot log without stopping the signal processing.
     
