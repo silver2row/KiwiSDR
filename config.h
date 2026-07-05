@@ -60,7 +60,7 @@ typedef enum { ESPEED_AUTO = 0, ESPEED_10M = 1, ESPEED_100M = 2 } espeed_e;
 extern int fpga_id, rx_chans, rx_wb_buf_chans, wf_chans, wb_chans,
     nrx_bufs, nrx_samps_wb, nrx_samps, nrx_samps_rem,
     snd_rate, snd_rate_i, wb_rate, rx_decim, nwf_nxfer, nwf_samps,
-    nrx_samps_total, nrx_samps_loop;
+    v_wb_buf_chans, nwf_tsamps, nwf_nxferL, nwf_sampsL, nwf_tsampsL;
 
 // INET6_ADDRSTRLEN (46) plus some extra in case ipv6 scope/zone is an issue
 // can't be in net.h due to #include recursion problems

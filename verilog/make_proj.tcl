@@ -10,7 +10,7 @@
 #
 
 # Copyright (c) 2019-2025 Christoph Mayer, DL1CH
-# Copyright (c) 2019-2025 John Seamons, ZL4VO/KF6VO
+# Copyright (c) 2019-2026 John Seamons, ZL4VO/KF6VO
 
 # NB: See verilog/Makefile for how this script is invoked using terminal-based Vivado batch mode.
 
@@ -46,6 +46,7 @@ if { [info exists ::user_project_name] } {
 
 variable script_file
 set script_file "make_proj.tcl"
+set rx8_wf3 "no"
 set rx4_wf4 "no"
 set rx8_wf2 "no"
 set rx3_wf3 "no"
@@ -65,7 +66,8 @@ proc help {} {
   puts "$script_file -tclargs \[--origin_dir <path>\]"
   puts "$script_file -tclargs \[--result_dir <path>\]"
   puts "$script_file -tclargs \[--project_name <name>\]"
-  puts "$script_file -tclargs \[--rx4_wf4\] \[--rx8_wf2\] \[--rx3_wf3\] \[--rx14_wf0\]"
+  puts "$script_file -tclargs \[--part <name>\]"
+  puts "$script_file -tclargs \[--rx8_wf3\] \[--rx4_wf4\] \[--rx8_wf2\] \[--rx3_wf3\] \[--rx14_wf0\]"
   puts "$script_file -tclargs \[--regen_ip\]"
   puts "$script_file -tclargs \[--help\]\n"
   puts "Usage:"
@@ -75,9 +77,11 @@ proc help {} {
   puts "                       origin_dir path value is \".\", otherwise, the value"
   puts "                       that was set with the \"-paths_relative_to\" switch"
   puts "                       when this script was generated.\n"
+  puts "\[--result_dir <path>\]  Determine ..."
   puts "\[--project_name <name>\] Create project with the specified name. Default"
   puts "                       name is the name of the project from where this"
   puts "                       script was generated.\n"
+  puts "\[--part <name>\]      Set FPGA part. Default xc7a35tftg256-1\n"
   puts "\[--rx4_wf4\] Build only rx4_wf4 of the multiple configurations.\n"
   puts "                       All configurations built if none are selected.\n"
   puts "\[--regen_ip\] Regenerate all of the IP blocks.\n"
@@ -93,6 +97,8 @@ if { $::argc > 0 } {
       "--origin_dir"   { incr i; set origin_dir [lindex $::argv $i] }
       "--result_dir"   { incr i; set result_dir [lindex $::argv $i] }
       "--project_name" { incr i; set project_name [lindex $::argv $i] }
+      "--part"         { incr i; set part [lindex $::argv $i] }
+      "--rx8_wf3"      {         set rx8_wf3  "yes" }
       "--rx4_wf4"      {         set rx4_wf4  "yes" }
       "--rx8_wf2"      {         set rx8_wf2  "yes" }
       "--rx3_wf3"      {         set rx3_wf3  "yes" }
@@ -108,12 +114,12 @@ if { $::argc > 0 } {
     }
   }
 }
-puts "==================== NAME: ${project_name} ===================="
+puts "==================== ${project_name} ${part} ===================="
 
 # Create project (if doesn't exist)
-if {[string equal [open_project -quiet "KiwiSDR/KiwiSDR.xpr"] ""]} {
+if {[string equal [open_project -quiet "${project_name}/${project_name}.xpr"] ""]} {
     set proj_create "yes"
-    create_project ${project_name} ./${project_name} -part $part
+    create_project ${project_name} ./${project_name} -part ${part}
 } else {
     set proj_create "no"
 }
@@ -132,7 +138,7 @@ set_property \
                dsa.num_compute_units {60} \
                ip_cache_permissions {read write} \
                ip_output_repo "$proj_dir/${project_name}.cache/ip" \
-               part {xc7a35tftg256-1} \
+               part ${part} \
                sim.ip.auto_export_scripts {1} \
                xpm_libraries {XPM_MEMORY} ] \
     [current_project]
@@ -174,6 +180,7 @@ set files [ list \
                 "[file normalize ${origin_dir}/rx/cic_wf1.vh]" \
                 "[file normalize ${origin_dir}/rx/cic_wf2.vh]" \
                 "[file normalize ${origin_dir}/rx/fir_iq_snd.sv]" \
+                "[file normalize ${origin_dir}/rx/fir_iq_wf.sv]" \
                 "[file normalize ${origin_dir}/rx/gen.v]" \
                 "[file normalize ${origin_dir}/rx/iq_mixer.v]" \
                 "[file normalize ${origin_dir}/rx/receiver_wb.v]" \
@@ -184,6 +191,7 @@ set files [ list \
                 "[file normalize ${origin_dir}/rx/rx_wb.v]" \
                 "[file normalize ${origin_dir}/rx/rx.v]" \
                 "[file normalize ${origin_dir}/rx/waterfall_1cic.v]" \
+                "[file normalize ${origin_dir}/rx/wf_cicf_mem.v]" \
                 "[file normalize ${origin_dir}/rx/wf_sampler_8k_32b.v]" \
                 "[file normalize ${origin_dir}/gps/gps.v]" \
                 "[file normalize ${origin_dir}/gps/sampler.v]" \
@@ -249,7 +257,7 @@ if {[string equal [get_filesets -quiet constrs_1] ""]} {
 }
 
 # Add/Import constrs file and set constrs file properties
-set file "[file normalize ${origin_dir}/KiwiSDR.xdc]"
+set file "[file normalize ${origin_dir}/${project_name}.xdc]"
 if {[string equal $proj_create "yes"]} {
     set file_added [add_files -norecurse -fileset \
                         [get_filesets constrs_1] \
@@ -305,7 +313,7 @@ proc gen_report {name type steps runs} {
 gen_report synth_1_synth_report_utilization_0 report_utilization:1.0 synth_design synth_1
 
 set obj [get_runs synth_1]
-set_property -dict [ list part {xc7a35tftg256-1} \
+set_property -dict [ list part ${part} \
                          strategy {Vivado Synthesis Defaults} ] $obj
 
 # set the current synth run
@@ -361,23 +369,30 @@ set_property \
 # set the current impl run
 current_run -implementation [get_runs impl_1]
 
-puts "INFO: Project created:$project_name"
+puts "INFO: Project created: ${project_name} ${part}"
 
-proc set_rx_cfg rx_cfg {
+proc set_rx_cfg {proj rx_cfg} {
     # the following doesn't seem to work, so do it via kiwi.cfg.vh file included by kiwi.gen.vh
     #set_property generic {RX_CFG=4} [current_fileset]
-    set fdw [open "KiwiSDR/import_srcs/kiwi.cfg.vh" "w"]
+    set fdw [open "${proj}/import_srcs/kiwi.cfg.vh" "w"]
     puts $fdw "localparam RX_CFG = ${rx_cfg};"
+    # NB: These are needed here because they are equivalently generated in the
+    # e_cpu assembler (asm.cpp). There is no reasonable way to generate "`define"
+    # with any other mechanism.
+    if { ${rx_cfg} == 83 } {
+        puts $fdw "`define USE_CICF_83"
+    }
     if { ${rx_cfg} != 14 } {
         puts $fdw "`define USE_WF"
     }
     close $fdw
 }
 
-set impl_dir "KiwiSDR/KiwiSDR.runs/impl_1"
+set impl_dir "${project_name}/${project_name}.runs/impl_1"
 
-proc build_rx4_wf4 {s_dir d_dir} {
-    set_rx_cfg 44
+proc build_rx8_wf3 {proj s_dir d_dir} {
+    puts "================ ${proj} rx83 ================"
+    set_rx_cfg $proj 83
     update_compile_order -fileset sources_1
     reset_run -quiet synth_1
     reset_run -quiet impl_1
@@ -385,12 +400,13 @@ proc build_rx4_wf4 {s_dir d_dir} {
     #launch_runs impl_1 -jobs 6
     launch_runs impl_1 -to_step write_bitstream -jobs 6
     wait_on_run impl_1
-    file copy -force $s_dir/KiwiSDR.bit $d_dir/KiwiSDR.rx4.wf4.bit
-    #file copy -force $s_dir/KiwiSDR_utilization_placed.rpt $d_dir/KiwiSDR.rx4.wf4.rpt
+    file copy -force $s_dir/KiwiSDR.bit $d_dir/${proj}.rx8.wf3.bit
+    #file copy -force $s_dir/KiwiSDR_utilization_placed.rpt $d_dir/${proj}.rx8.wf3.rpt
 }
 
-proc build_rx8_wf2 {s_dir d_dir} {
-    set_rx_cfg 82
+proc build_rx4_wf4 {proj s_dir d_dir} {
+    puts "================ ${proj} rx44 ================"
+    set_rx_cfg $proj 44
     update_compile_order -fileset sources_1
     reset_run -quiet synth_1
     reset_run -quiet impl_1
@@ -398,12 +414,13 @@ proc build_rx8_wf2 {s_dir d_dir} {
     #launch_runs impl_1 -jobs 6
     launch_runs impl_1 -to_step write_bitstream -jobs 6
     wait_on_run impl_1
-    file copy -force $s_dir/KiwiSDR.bit $d_dir/KiwiSDR.rx8.wf2.bit
-    #file copy -force $s_dir/KiwiSDR_utilization_placed.rpt $d_dir/KiwiSDR.rx8.wf2.rpt
+    file copy -force $s_dir/KiwiSDR.bit $d_dir/${proj}.rx4.wf4.bit
+    #file copy -force $s_dir/KiwiSDR_utilization_placed.rpt $d_dir/${proj}.rx4.wf4.rpt
 }
 
-proc build_rx3_wf3 {s_dir d_dir} {
-    set_rx_cfg 33
+proc build_rx8_wf2 {proj s_dir d_dir} {
+    puts "================ ${proj} rx82 ================"
+    set_rx_cfg $proj 82
     update_compile_order -fileset sources_1
     reset_run -quiet synth_1
     reset_run -quiet impl_1
@@ -411,48 +428,69 @@ proc build_rx3_wf3 {s_dir d_dir} {
     #launch_runs impl_1 -jobs 6
     launch_runs impl_1 -to_step write_bitstream -jobs 6
     wait_on_run impl_1
-    file copy -force $s_dir/KiwiSDR.bit $d_dir/KiwiSDR.rx3.wf3.bit
-    #file copy -force $s_dir/KiwiSDR_utilization_placed.rpt $d_dir/KiwiSDR.rx3.wf3.rpt
+    file copy -force $s_dir/KiwiSDR.bit $d_dir/${proj}.rx8.wf2.bit
+    #file copy -force $s_dir/KiwiSDR_utilization_placed.rpt $d_dir/${proj}.rx8.wf2.rpt
 }
 
-proc build_rx14_wf0 {s_dir d_dir} {
-    set_rx_cfg 14
+proc build_rx3_wf3 {proj s_dir d_dir} {
+    puts "================ ${proj} rx33 ================"
+    set_rx_cfg $proj 33
+    update_compile_order -fileset sources_1
+    reset_run -quiet synth_1
+    reset_run -quiet impl_1
+    #launch_runs synth_1 -jobs 6
+    #launch_runs impl_1 -jobs 6
+    launch_runs impl_1 -to_step write_bitstream -jobs 6
+    wait_on_run impl_1
+    file copy -force $s_dir/KiwiSDR.bit $d_dir/${proj}.rx3.wf3.bit
+    #file copy -force $s_dir/KiwiSDR_utilization_placed.rpt $d_dir/${proj}.rx3.wf3.rpt
+}
+
+proc build_rx14_wf0 {proj s_dir d_dir} {
+    puts "================ ${proj} rx14 ================"
+    set_rx_cfg $proj 14
     update_compile_order -fileset sources_1
     reset_run -quiet synth_1
     reset_run -quiet impl_1
     launch_runs impl_1 -to_step write_bitstream -jobs 6
     wait_on_run impl_1
-    file copy -force $s_dir/KiwiSDR.bit $d_dir/KiwiSDR.rx14.wf0.bit
-    #file copy -force $s_dir/KiwiSDR_utilization_placed.rpt $d_dir/KiwiSDR.rx14.wf0.rpt
+    file copy -force $s_dir/KiwiSDR.bit $d_dir/${proj}.rx14.wf0.bit
+    #file copy -force $s_dir/KiwiSDR_utilization_placed.rpt $d_dir/${proj}.rx14.wf0.rpt
 }
 
 set last_run "no"
 
+if {[string equal $rx8_wf3 "yes"]} {
+    build_rx8_wf3 $project_name $impl_dir $result_dir
+    set last_run "rx83"
+}
+
 if {[string equal $rx4_wf4 "yes"]} {
-    build_rx4_wf4 $impl_dir $result_dir
+    build_rx4_wf4 $project_name $impl_dir $result_dir
     set last_run "rx44"
 }
 
 if {[string equal $rx8_wf2 "yes"]} {
-    build_rx8_wf2 $impl_dir $result_dir
+    build_rx8_wf2 $project_name $impl_dir $result_dir
     set last_run "rx82"
 }
 
 if {[string equal $rx3_wf3 "yes"]} {
-    build_rx3_wf3 $impl_dir $result_dir
+    build_rx3_wf3 $project_name $impl_dir $result_dir
     set last_run "rx33"
 }
 
 if {[string equal $rx14_wf0 "yes"]} {
-    build_rx14_wf0 $impl_dir $result_dir
+    build_rx14_wf0 $project_name $impl_dir $result_dir
     set last_run "rx14"
 }
 
 if {[string equal $last_run "no"]} {
-    build_rx4_wf4  $impl_dir $result_dir
-    build_rx8_wf2  $impl_dir $result_dir
-    build_rx3_wf3  $impl_dir $result_dir
-    build_rx14_wf0 $impl_dir $result_dir
+    build_rx8_wf3  $project_name $impl_dir $result_dir
+    build_rx4_wf4  $project_name $impl_dir $result_dir
+    build_rx8_wf2  $project_name $impl_dir $result_dir
+    build_rx3_wf3  $project_name $impl_dir $result_dir
+    build_rx14_wf0 $project_name $impl_dir $result_dir
 }
 
-puts "INFO: Build complete:$project_name"
+puts "INFO: Build complete: ${project_name} ${part}"

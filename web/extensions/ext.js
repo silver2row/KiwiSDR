@@ -47,7 +47,7 @@ var extint = {
    // FIXME: allow C-side API to specify
    no_lockout: [ 'noise_blank', 'noise_filter', 'ant_switch', 'iframe', 'colormap', 'devl', 'prefs' ],
    former_exts: ['ant_switch', 'waterfall', 'noise_blank', 'noise_filter'],
-   excl_devl: [ 'devl', 'digi_modes', 's4285', 'prefs' ],
+   excl_devl: [ 'devl', 'FreeDV', 'digi_modes', 's4285', 'prefs' ],
    
    OPT_NOLOCAL: 1,
 };
@@ -447,19 +447,31 @@ function ext_set_passband(low_cut, high_cut, set_mode_pb, freq_dial_Hz)		// spec
 {
 	var demod = demodulators[0];
 	var filter = demod.filter;
+	var isLSB = ext_mode(cur_mode).LSB;
 	
 	if (low_cut  == undefined) low_cut  = demod.low_cut;
 	if (high_cut == undefined) high_cut = demod.high_cut;
 	
+	if (isLSB && low_cut > 0 && high_cut > 0) {
+	   var t;
+	   if (low_cut <= high_cut) {
+	      // e.g. lsb stated as usb values: 300,5000 => -5000,-300
+	      t = low_cut; low_cut = -high_cut; high_cut = -t;
+	   } else {
+         // e.g. lsb missing neg pb values: 5000,300 => -5000,-300
+	      low_cut = -low_cut; high_cut = -high_cut;
+	   }
+	}
+	
 	var bw = Math.abs(high_cut - low_cut);
-	//console.log('SET_PB bw='+ bw +' lo='+ low_cut +' hi='+ high_cut +' set_mode_pb='+ set_mode_pb);
-	//console.log('SET_PB Lbw='+ filter.min_passband +' Llo='+ filter.low_cut_limit +' Lhi='+ filter.high_cut_limit);
-	//console.log('SET_PB freq_car_Hz='+ freq_car_Hz +' center_freq='+ center_freq +' off='+ (freq_car_Hz - center_freq));
+	console.log('SET_PB bw='+ bw +' lo='+ low_cut +' hi='+ high_cut +' set_mode_pb='+ set_mode_pb);
+	console.log('SET_PB Lbw='+ filter.min_passband +' Llo='+ filter.low_cut_limit +' Lhi='+ filter.high_cut_limit);
+	console.log('SET_PB freq_car_Hz='+ freq_car_Hz +' center_freq='+ center_freq +' off='+ (freq_car_Hz - center_freq));
 	
 	low_cut = (low_cut < filter.low_cut_limit)? filter.low_cut_limit : low_cut;
 	high_cut = (high_cut > filter.high_cut_limit)? filter.high_cut_limit : high_cut;
 	bw = Math.abs(high_cut - low_cut);
-	//console.log('SET_PB_CLIP bw='+ bw +' lo='+ low_cut +' hi='+ high_cut);
+	console.log('SET_PB_CLIP bw='+ bw +' lo='+ low_cut +' hi='+ high_cut);
 	
 	var okay = false;
 	if (bw >= filter.min_passband && low_cut < high_cut) {
@@ -467,7 +479,7 @@ function ext_set_passband(low_cut, high_cut, set_mode_pb, freq_dial_Hz)		// spec
 		demod.high_cut = high_cut;
 		okay = true;
 	}
-	//console.log('SET_PB okay='+ okay);
+	console.log('SET_PB okay='+ okay);
 	
 	// set the passband for the current mode as well (sticky)
 	if (isArg(set_mode_pb) && set_mode_pb && okay) {

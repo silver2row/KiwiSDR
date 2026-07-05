@@ -157,7 +157,7 @@ void rx_server_init()
 		c++;
 	}
 	
-	rx_server_init_exp();
+	c2s_mon_init();
 	debug_init();
 	rx_modes_init();
 	
@@ -289,7 +289,9 @@ conn_t *rx_server_websocket(websocket_mode_e mode, struct mg_connection *mc, u4_
         }
         
         if (mode == WS_MODE_CLOSE) {
-            //cprintf(c, "WS_MODE_CLOSE %s KICK KA=%02d/60 KC=%05d\n", rx_conn_type(c), c->keep_alive, c->keepalive_count);
+            #ifdef CONN_PRINTF
+                cprintf(c, "WS_MODE_CLOSE %s KICK KA=%02d/60 KC=%05d internal=%d\n", rx_conn_type(c), c->keep_alive, c->keepalive_count, internal);
+            #endif
             if (!c->internal_connection) {
                 mg_ws_send(mc, "", 0, WEBSOCKET_OP_CLOSE);
             }
@@ -314,7 +316,8 @@ conn_t *rx_server_websocket(websocket_mode_e mode, struct mg_connection *mc, u4_
 	u64_t tstamp;
 	char *type_m = NULL, *uri_m = NULL;
 	int n = 0;
-    int _wf_chans = (cfg_no_wf && !internal)? 0 : wf_chans;
+	int wf_nch = kiwi.wf_share? rx_chans : wf_chans;
+    int _wf_chans = (cfg_no_wf && !internal)? 0 : wf_nch;
 	conn_printf("rx_server_websocket _wf_chans=%d cfg_no_wf=%d internal=%d %s\n", _wf_chans, cfg_no_wf, internal, uri_ts);
 
 

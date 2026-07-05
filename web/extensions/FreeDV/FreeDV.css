@@ -1,0 +1,87 @@
+/* Copyright (c) 2017-2026 John Seamons, ZL4VO/KF6VO */
+
+#id-freedv-map-kiwi {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+}
+
+#id-freedv-map-result {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+}
+
+.cl-freedv-host-label {
+    color: white;
+    background-color: blue;
+    font-family: "Lucida Grande", "Arial", sans-serif;
+    font-size: 12px;
+    /*font-weight: bold;*/
+    text-align: center;
+    border: 1px solid black;
+    white-space: nowrap;
+}
+
+.cl-freedv-selected-label {
+    color: black;
+    background-color: yellow;
+    font-family: "Lucida Grande", "Arial", sans-serif;
+    font-size: 12px;
+    /*font-weight: bold;*/
+    text-align: center;
+    border: 1px solid black;
+    white-space: nowrap;
+}
+
+.cl-freedv-spot-label {
+    color: black;
+    background-color: white;
+    font-family: "Lucida Grande", "Arial", sans-serif;
+    font-size: 12px;
+    /*font-weight: bold;*/
+    text-align: center;
+    border: 1px solid black;
+    white-space: nowrap;
+}
+
+.id-freedv-marker-cluster-spots div {
+	background-color: rgba(181, 226, 140, 0.8);
+}
+
+/*
+    Qualified with .leaflet-tooltip because with dynload FreeDV.css is now loaded
+    before Leaflet/MarkerCluster css. So needed for proper override.
+    
+    z-index:
+    9000    spot
+    9001    spot tx
+    9002    host
+    9003    mouseenter
+*/
+
+.leaflet-tooltip.id-freedv-spot {
+    background-color: black;
+    color: black;
+    padding: 0 2px;
+    cursor: pointer;
+    pointer-events: auto;
+    z-index: 9000;
+}
+
+.id-freedv-marker-cluster-hosts div {
+	background-color: hsla(220, 85%, 80%, 0.8);
+}
+
+.leaflet-tooltip.id-freedv-host {
+    background-color: blue;
+    color: white;
+    padding: 0 2px;
+    cursor: pointer;
+    pointer-events: auto;
+    z-index: 9002;
+}

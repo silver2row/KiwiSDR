@@ -132,7 +132,9 @@ typedef struct {
 	bool spectral_inversion;
     u4_t cmd_recv;
 	int tr_cmds;
-	bool change_LPF, change_freq_mode, restart;
+	bool change_LPF, change_LPF_latched;
+	bool change_freq_mode, change_freq_mode_latched;
+	bool restart;
 	bool check_masked;
 	int compression;
 	bool little_endian;

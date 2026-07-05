@@ -72,6 +72,8 @@ Boston, MA  02110-1301, USA.
 
 #include <algorithm>
 
+#define WF_APER_INFO
+
 // if entries here are ordered by wf_cmd_key_e then the reverse lookup (str_hash_t *)->hashes[key].name
 // will work as a debugging aid
 str_hashes_t wf_cmd_hashes[] = {
@@ -98,7 +100,6 @@ void rx_waterfall_cmd(conn_t *conn, int n, char *cmd)
 	int rx_chan = conn->rx_channel;
 
 	wf_inst_t *wf = &WF_SHMEM->wf_inst[rx_chan];
-    int n_chunks = WF_SHMEM->n_chunks;
 
     cmd[n] = 0;		// okay to do this -- see nbuf.c:nbuf_allocq()
 
@@ -140,13 +141,13 @@ void rx_waterfall_cmd(conn_t *conn, int n, char *cmd)
         if (kiwi_str_begins_with(cmd, "SET zoom=")) {
             did_cmd = true;
             if (sscanf(cmd, "SET zoom=%d start=%f", &_zoom, &_start) == 2) {
-                //cprintf(conn, "WF: zoom=%d/%d start=%.3f(%.1f)\n", _zoom, wf->zoom, _start, _start * wf->HZperStart / kHz);
                 _zoom = CLAMP(_zoom, 0, ZOOM_CAP);
                 float halfSpan_Hz = (ui_srate_Hz / (1 << _zoom)) / 2;
                 wf->cf = (_start * wf->HZperStart) + halfSpan_Hz;
                 #ifdef OPTION_HONEY_POT
                     cprintf(conn, "HONEY_POT W/F cf=%.3f\n", wf->cf / kHz);
                 #endif
+                cprintf(conn, "WF: zoom=%d/%d start=%.0f(%.1f) => cf=%.1f\n", _zoom, wf->zoom, _start, _start * wf->HZperStart / kHz, wf->cf / kHz);
                 zoom_start_chg = true;
             } else
             if (sscanf(cmd, "SET zoom=%d cf=%f", &_zoom, &wf->cf) == 2) {
@@ -154,7 +155,7 @@ void rx_waterfall_cmd(conn_t *conn, int n, char *cmd)
                 float halfSpan_Hz = (ui_srate_Hz / (1 << _zoom)) / 2;
                 wf->cf *= kHz;
                 _start = (wf->cf - halfSpan_Hz) / wf->HZperStart;
-                //cprintf(conn, "WF: zoom=%d cf=%.3f start=%.3f halfSpan=%.3f\n", _zoom, wf->cf/kHz, _start * wf->HZperStart / kHz, halfSpan_Hz/kHz);
+                cprintf(conn, "WF: zoom=%d cf=%.3f => start=%.0f halfSpan=%.3f\n", _zoom, wf->cf/kHz, _start * wf->HZperStart / kHz, halfSpan_Hz/kHz);
                 zoom_start_chg = true;
             }
         }
@@ -173,43 +174,105 @@ void rx_waterfall_cmd(conn_t *conn, int n, char *cmd)
             zoom_chg = true;
             
             #define CIC1_DECIM 0x0001
-            #define CIC2_DECIM 0x0100
             u2_t decim, r;
+            int z = wf->zoom, zm1;
             
-            // NB: because we only use half of the FFT with CIC can zoom one level less
-            int zm1 = (WF_USING_HALF_CIC == 2)? (wf->zoom? (wf->zoom-1) : 0) : wf->zoom;
-            wf->nfft = WF_NFFT;
-
-            // currently 15-levels of zoom: z0-z14, MAX_ZOOM == 14
-            if (zm1 == 0) {
-                // z0-1: R = 1,1
-                r = 0;
-            } else {
-                // z2-14: R = 2,4,8,16,32,64,128,256,512,1k,2k,4k,8k for MAX_ZOOM = 14
+            if (kiwi.wf_share) {    // NB: fir_iq_wf.sv does a decim-by-2
+            
+                // z    total   DDC     CICF    zm1 decim   bw kHz  ~bw/bin
+                //      decim   decim   decim   r   1<<r
+                // ---------------------------------------------------------
+                // 0    0       0       bypass  0   0       30000   29.3 kHz
+                // 1    0       0       bypass  0   0       15000   14.6
+                // 2    4       2       2       1   2       7500    7.3
+                // 3    8       4       2       2   4       3750    3.7
+                // 4    16      8       2       3   8       1875    1.8 kHz
+                // 5    32      16      2       4   16      937.5   916 Hz
+                // 6    64      32      2       5   32      468.8   458
+                // 7    128     64      2       6   64      234.4   229
+                // 8    256     128     2       7   128     117.2   114
+                // 9    512     256     2       8   256     58.6    57
+                // 10   1024    512     2       9   512     29.3    29
+                // 11   2048    1024    2       10  1024    14.6    14 Hz
+                
+                zm1 = z? (z-1) : 0;
                 r = zm1;
+                decim = (z <= 1)? 0 : CIC1_DECIM << r;
+                wf_printf(CYAN "share: z%d r=%d|%d decim=%d Tdecim=%d" NONL, z, r, 1<<r, decim, decim*2);
+                
+                wf->nfft = (z <= 1)? WF_NFFT_MAX : WF_NFFT;
+                wf->nxfer = (z <= 1)? nwf_nxferL : nwf_nxfer;
+                wf->samps = (z <= 1)? nwf_sampsL : nwf_samps;
+                wf->tsamps = (z <= 1)? nwf_tsampsL : nwf_tsamps;
+            } else {
+            
+                // z    zm1,r   decim   bw kHz  ~bw/bin
+                //              1<<r
+                // -------------------------------------
+                // 0    0       1       30000   29.3 kHz
+                // 1    0       1       15000   14.6
+                // 2    1       2       7500    7.3
+                // 3    2       4       3750    3.7
+                // 4    3       8       1875    1.8 kHz
+                // 5    4       16      937.5   916 Hz
+                // 6    5       32      468.8   458
+                // 7    6       64      234.4   229
+                // 8    7       128     117.2   114
+                // 9    8       256     58.6    57
+                // 10   9       512     29.3    29
+                // 11   10      1024    14.6    14
+                // 12   11      2048    7.3     7
+                // 13   12      4096    3.7     4
+                // 14   13      8192    1.8     2 Hz
+
+                // NB: because we only use half of the FFT with CIC can zoom one level less
+                zm1 = (WF_USING_HALF_CIC == 2)? (z? (z-1) : 0) : z;
+    
+                // currently 15-levels of zoom: z0-z14, MAX_ZOOM == 14
+                // z0-14: 1<<r = 1,1,2,4,8,16,32,64,128,256,512,1k,2k,4k,8k for MAX_ZOOM = 14
+                r = zm1;
+                decim = CIC1_DECIM << r;
+                wf_printf(CYAN "non-share: z%d r=%d|%d decim=%d" NONL, z, r, 1<<r, decim);
+
+                wf->nfft = WF_NFFT_MAX;
+                wf->nxfer = nwf_nxferL;
+                wf->samps = nwf_sampsL;
+                wf->tsamps = nwf_tsampsL;
             }
     
             // hardware limitation
             assert(r >= 0 && r <= 15);
             assert(WF_1CIC_MAXD <= 16384);
-            decim = CIC1_DECIM << r;
             
             #define WF_CHUNK_WAIT_ADJ           3       // i.e. make the adjustment proportional to the samp_wait_us used
             #define WF_CHUNK_WAIT_ADJ_Z         7       // only applies at higher zoom levels
+
+            #if WF_NTAPS == 17
+                #define _1K_ADC_CLK_USEC 32
+            #elif WF_NTAPS == 65
+                #define _1K_ADC_CLK_USEC 28
+            #endif
+            int chunk_wait_scale, _1k_adc_clk_usec;
+            #define CICF_WAIT_USEC(usec) ((WF_NTAPS + 5) * (usec))
             
-            //#define WF_DDC_CHANGE_DELAY_MEAS
-            #ifdef WF_DDC_CHANGE_DELAY_MEAS
-                WF_SHMEM->chunk_wait_scale = shmem->debug_v_set? shmem->debug_v : ((wf->zoom >= WF_CHUNK_WAIT_ADJ_Z)? WF_CHUNK_WAIT_ADJ : 0);
+            //#define WF_DELAY_CONST_MEAS
+            #ifdef WF_DELAY_CONST_MEAS
+                chunk_wait_scale = shmem->debug_v_set? shmem->debug_v : ((z >= WF_CHUNK_WAIT_ADJ_Z)? WF_CHUNK_WAIT_ADJ : 0);
+                _1k_adc_clk_usec = _1K_ADC_CLK_USEC;
+                wf->cicf_wait_usec = shmem->debug_v2_set? shmem->debug_v2 : CICF_WAIT_USEC(_1k_adc_clk_usec);
             #else
-                WF_SHMEM->chunk_wait_scale = ((wf->zoom >= WF_CHUNK_WAIT_ADJ_Z)? WF_CHUNK_WAIT_ADJ : 0);
+                chunk_wait_scale = ((z >= WF_CHUNK_WAIT_ADJ_Z)? WF_CHUNK_WAIT_ADJ : 0);
+                _1k_adc_clk_usec = _1K_ADC_CLK_USEC;
+                wf->cicf_wait_usec = CICF_WAIT_USEC(_1k_adc_clk_usec);
             #endif
 
+            int n_chunks = wf->nxfer;
             float samp_wait_us = wf->nfft * (1 << zm1) / conn->adc_clock_corrected * 1000000.0;
-            wf->chunk_wait_us = (int) ceilf(samp_wait_us / (n_chunks - WF_SHMEM->chunk_wait_scale));
+            wf->chunk_wait_us = (int) ceilf(samp_wait_us / (n_chunks - chunk_wait_scale));
             wf->samp_wait_ms = (int) ceilf(samp_wait_us / 1000);
-            wf_printf("---- WF z%d|%d r=%d|%d decim=%d n_chunks=%d samp_wait_us=%.1f samp_wait_ms=%d chunk_wait_us=%d(%d)\n",
-                wf->zoom, zm1, r, 1 << r, decim, n_chunks,
-                samp_wait_us, wf->samp_wait_ms, wf->chunk_wait_us, WF_SHMEM->chunk_wait_scale);
+            wf_printf("---- WF z%d|%d r=%d|%d decim=%d n_chunks=%d samp_wait_us=%.1f samp_wait_ms=%d chunk_wait_us=%d(%d) cicf_wait_usec=%d(%d)\n",
+                z, zm1, r, 1 << r, decim, n_chunks,
+                samp_wait_us, wf->samp_wait_ms, wf->chunk_wait_us, chunk_wait_scale, wf->cicf_wait_usec, _1k_adc_clk_usec);
         
             wf->new_map = wf->new_map2 = wf->new_map3 = TRUE;
         
@@ -220,17 +283,20 @@ void rx_waterfall_cmd(conn_t *conn, int n, char *cmd)
         
             if (wf->isWF) {
                 wf->decim = decim;
-                spi_set(CmdSetWFDecim, rx_chan, decim);
-                spi_set4_noduplex(CmdSetWFOffset, rx_chan, wf_rd_offset, nwf_samps - 1);    // -1 is important!
+                if (!kiwi.wf_share) {
+			        c2s_wf_ddc_setup(rx_chan, wf, WF_SETUP_REM);
+                } else {
+                    wf->dirty++;
+                }
             }
         
             // We've seen cases where the wf connects, but the sound never does.
             // So have to check for conn->other being valid.
             conn_t *csnd = conn_other(conn, STREAM_SOUND);
             if (csnd) {
-                csnd->zoom = wf->zoom;		// set in the AUDIO conn
+                csnd->zoom = z;     // set in the AUDIO conn
             }
-            conn->zoom = wf->zoom;      // for logging purposes
+            conn->zoom = z;         // for logging purposes
         
             wf->cmd_recv |= CMD_ZOOM;
         }
@@ -246,10 +312,13 @@ void rx_waterfall_cmd(conn_t *conn, int n, char *cmd)
         wf->i_offset = (u64_t) (s64_t) ((wf->spectral_inversion? wf->off_freq_inv : wf->off_freq) / conn->adc_clock_corrected * pow(2,48));
         wf->i_offset = -wf->i_offset;
 
-        wf_printf("WF z%d OFFSET %.3f kHz i_offset 0x%012llx\n", wf->zoom, wf->off_freq/kHz, wf->i_offset);
+        //wf_printf("WF z%d OFFSET %.3f kHz i_offset 0x%012llx\n", wf->zoom, wf->off_freq/kHz, wf->i_offset);
     
-        if (wf->isWF)
-            spi_set3(CmdSetWFFreq, rx_chan, (wf->i_offset >> 16) & 0xffffffff, wf->i_offset & 0xffff);
+        if (wf->isWF && !kiwi.wf_share) {
+            c2s_wf_ddc_setup(rx_chan, wf, WF_SETUP_FREQ);
+        } else {
+            wf->dirty++;
+        }
 
         wf->start = wf->start_f;
         wf->new_scale_mask = true;
@@ -314,21 +383,22 @@ void rx_waterfall_cmd(conn_t *conn, int n, char *cmd)
     
     case CMD_INTERPOLATE:
         if (sscanf(cmd, "SET interp=%d", &wf->interp) == 1) {
-            if ((int) wf->interp >= WF_CIC_COMP) {
+            if (!kiwi.wf_share && (int) wf->interp >= WF_CIC_COMP) {
                 wf->cic_comp = true;
                 wf->interp = (wf_interp_t) ((int) wf->interp - WF_CIC_COMP);
             } else {
                 wf->cic_comp = false;
             }
             if (wf->interp < 0 || wf->interp > WF_CMA) wf->interp = WF_MAX;
-            cprintf(conn, "WF interp=%d(%s) cic_comp=%d\n", wf->interp, interp_s[wf->interp], wf->cic_comp);
+            cprintf(conn, "WF interp=%d(%s) wf_share=%d cic_comp=%d\n",
+                wf->interp, interp_s[wf->interp], kiwi.wf_share, wf->cic_comp);
             did_cmd = true;                
         }
         break;
 
     case CMD_WF_WINDOW_FUNC:
         if (sscanf(cmd, "SET window_func=%d", &i) == 1) {
-            if (i < 0 || i >= N_WF_WINF) i = 0;
+            if (i < 0 || i >= WF_N_WINF) i = 0;
             wf->window_func = i;
             cprintf(conn, "WF window_func=%d\n", wf->window_func);
             did_cmd = true;                

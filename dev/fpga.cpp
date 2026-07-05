@@ -196,106 +196,126 @@ int fpga_init(int check, int fpga_sim_fail) {
         return 0;
     }
 
-#ifdef TEST_FLAG_SPI_RFI
-	if (spi_test)
-		real_printf("TEST_FLAG_SPI_RFI..\n");
-	else
-#endif
-	{
-		// Reset FPGA
-		GPIO_WRITE_BIT(FPGA_PGM, 0);	// assert FPGA_PGM LOW
-		for (i=0; i < 1*M && GPIO_READ_BIT(FPGA_INIT) == 1; i++)	// wait for FPGA_INIT to acknowledge init process
-			;
-		if (i == 1*M) { fpga_panic(1, "FPGA_INIT never went LOW"); return 0; }
-		spin_us(100);
-		GPIO_WRITE_BIT(FPGA_PGM, 1);	// de-assert FPGA_PGM
-		for (i=0; i < 1*M && GPIO_READ_BIT(FPGA_INIT) == 0; i++)	// wait for FPGA_INIT to complete
-			;
-		if (i == 1*M) { fpga_panic(2, "FPGA_INIT never went HIGH"); return 0; }
-	}
-
-	// FPGA configuration bitstream
-	char *file;
-	asprintf(&file, "%sKiwiSDR%s.%s.bit", background_mode? "/usr/local/bin/":"", kiwi.pcb_fpga_a50? "_a50" : "", fpga_file);
-    char *sum = non_blocking_cmd_fmt(NULL, "sum %s", file);
-    lprintf("FPGA firmware: %s %.5s\n", file, kstr_sp(sum));
-    fp = fopen(file, "rb");
-    if (!fp) { fpga_panic(3, "fopen config"); return 0; }
-    kstr_free(sum);
-    kiwi_asfree(file);
-    kiwi_asfree(fpga_file);
-
-	// byte-swap config data to match ended-ness of SPI
-    while (1) {
-
-    #ifdef SPI_8
-        n = fread(code.bytes, 1, 2048, fp);
-    #endif
-    #ifdef SPI_16
-        n = fread(bbuf, 1, 2048, fp);
-    	for (i=0; i < 2048; i += 2) {
-    		code.bytes[i+0] = bbuf[i+1];
-    		code.bytes[i+1] = bbuf[i+0];
-    	}
-    #endif
-    #ifdef SPI_32
-        n = fread(bbuf, 1, 2048, fp);
-    	for (i=0; i < 2048; i += 4) {
-    		code.bytes[i+0] = bbuf[i+3];
-    		code.bytes[i+1] = bbuf[i+2];
-    		code.bytes[i+2] = bbuf[i+1];
-    		code.bytes[i+3] = bbuf[i+0];
-    	}
-    #endif
+    #define N_FPGA_RETRY 6
+    int retry;
+    char *sum;
+    bool a50 = (kiwi.a50 == -1)? false : kiwi.a50;
     
-    #ifdef TEST_FLAG_SPI_RFI
-    	if (spi_test) {
-            //real_printf("."); fflush(stdout);
-            kiwi_usleep(3000);
-    		if (n <= 0) {
-				rewind(fp);
-                #ifdef CPU_AM5729
-                    //real_printf("later SPI2_CH0CONF=0x%08x\n", SPI0_CONF);
-                #endif
-				continue;
-			}
-    	} else
+    for (retry = 0; retry < N_FPGA_RETRY || spi_test; retry++) {
+
+    //#define TEST_FPGA_RETRY
+    #ifdef TEST_FPGA_RETRY
+        a50 = (retry < (N_FPGA_RETRY-1))? true:false;
     #endif
-    	{
-        	if (n <= 0) break;
+
+    #ifdef TEST_FLAG_SPI_RFI
+        if (spi_test) {
+            if (retry == 0) real_printf("TEST_FLAG_SPI_RFI..\n");
+        } else
+    #endif
+        {
+            // Reset FPGA
+            GPIO_WRITE_BIT(FPGA_PGM, 0);	// assert FPGA_PGM LOW
+            for (i=0; i < 1*M && GPIO_READ_BIT(FPGA_INIT) == 1; i++)	// wait for FPGA_INIT to acknowledge init process
+                ;
+            if (i == 1*M) { fpga_panic(1, "FPGA_INIT never went LOW"); return 0; }
+            spin_us(100);
+            GPIO_WRITE_BIT(FPGA_PGM, 1);	// de-assert FPGA_PGM
+            for (i=0; i < 1*M && GPIO_READ_BIT(FPGA_INIT) == 0; i++)	// wait for FPGA_INIT to complete
+                ;
+            if (i == 1*M) { fpga_panic(2, "FPGA_INIT never went HIGH"); return 0; }
+        }
+
+        // FPGA configuration bitstream
+        char *file;
+        asprintf(&file, "%sKiwiSDR%s.%s.bit", background_mode? "/usr/local/bin/":"", a50? "_a50" : "", kiwi.mode_id);
+        sum = non_blocking_cmd_fmt(NULL, "sum %s", file);
+        lprintf("FPGA firmware: %s %.5s%s\n", file, kstr_sp(sum), retry? stprintf(" (retry %d)", retry) : "");
+        fp = fopen(file, "rb");
+        if (!fp) { fpga_panic(3, "fopen config"); return 0; }
+        kstr_free(sum);
+        kiwi_asfree(file);
+    
+        // byte-swap config data to match ended-ness of SPI
+        while (1) {
+    
+        #ifdef SPI_8
+            n = fread(code.bytes, 1, 2048, fp);
+        #endif
+        #ifdef SPI_16
+            n = fread(bbuf, 1, 2048, fp);
+            for (i=0; i < 2048; i += 2) {
+                code.bytes[i+0] = bbuf[i+1];
+                code.bytes[i+1] = bbuf[i+0];
+            }
+        #endif
+        #ifdef SPI_32
+            n = fread(bbuf, 1, 2048, fp);
+            for (i=0; i < 2048; i += 4) {
+                code.bytes[i+0] = bbuf[i+3];
+                code.bytes[i+1] = bbuf[i+2];
+                code.bytes[i+2] = bbuf[i+1];
+                code.bytes[i+3] = bbuf[i+0];
+            }
+        #endif
+        
+        #ifdef TEST_FLAG_SPI_RFI
+            if (spi_test) {
+                //real_printf("."); fflush(stdout);
+                kiwi_usleep(3000);
+                if (n <= 0) {
+                    rewind(fp);
+                    #ifdef CPU_AM5729
+                        //real_printf("later SPI2_CH0CONF=0x%08x\n", SPI0_CONF);
+                    #endif
+                    continue;
+                }
+            } else
+        #endif
+            {
+                if (n <= 0) break;
+            }
+            
+            #if 0
+                static int first;
+                if (!first) real_printf("before spi_dev SPI2_CH0CONF=0x%08x SPI2_CH0CTRL=0x%08x\n", SPI0_CONF, SPI0_CTRL);
+            #endif
+                spi_dev(SPI_FPGA, &code, SPI_B2X(n), &readback, SPI_B2X(n));
+            #if 0
+                if (!first) real_printf("after spi_dev SPI2_CH0CONF=0x%08x SPI2_CH0CTRL=0x%08x\n", SPI0_CONF, SPI0_CTRL);
+                first = 1;
+            #endif
+    
+            #if 0 && defined(TEST_FLAG_SPI_RFI)
+                kiwi_exit(0);
+            #endif
         }
         
-        #if 0
-            static int first;
-            if (!first) real_printf("before spi_dev SPI2_CH0CONF=0x%08x SPI2_CH0CTRL=0x%08x\n", SPI0_CONF, SPI0_CTRL);
-        #endif
-            spi_dev(SPI_FPGA, &code, SPI_B2X(n), &readback, SPI_B2X(n));
-        #if 0
-            if (!first) real_printf("after spi_dev SPI2_CH0CONF=0x%08x SPI2_CH0CTRL=0x%08x\n", SPI0_CONF, SPI0_CTRL);
-            first = 1;
-        #endif
-
-        #if 0 && defined(TEST_FLAG_SPI_RFI)
-            kiwi_exit(0);
-        #endif
+        // keep clocking until config/startup finishes
+        spi_dev(SPI_FPGA, &zeros, SPI_B2X(n), &readback, SPI_B2X(n));
+    
+        fclose(fp);
+    
+        spin_ms(100);
+        if (GPIO_READ_BIT(FPGA_INIT) != 0) {
+            break;
+        }
+    
+        a50 = !a50;
     }
     
-	// keep clocking until config/startup finishes
-    spi_dev(SPI_FPGA, &zeros, SPI_B2X(n), &readback, SPI_B2X(n));
-
-    fclose(fp);
-
-	if (GPIO_READ_BIT(FPGA_INIT) == 0) {
-		fpga_panic(4, "FPGA config CRC error");
-		return 0;
-	}
-
-	spin_ms(100);
+    if (retry >= N_FPGA_RETRY) {
+        kiwi.pcb_fpga_a50 = false;
+        fpga_panic(4, "FPGA config CRC error");
+        return 0;
+    }
+    kiwi.pcb_fpga_a50 = a50;
 
 	// download embedded CPU program binary
-	const char *aout = background_mode? "/usr/local/bin/kiwid.aout" : (BUILD_DIR "/gen/kiwi.aout");
+	char *aout;
+	asprintf(&aout, "%sKiwiSDR.%s.aout", background_mode? "/usr/local/bin/":"", kiwi.mode_id);
     sum = non_blocking_cmd_fmt(NULL, "sum %s", aout);
-	printf("e_cpu firmware: %s %.5s\n", aout, kstr_sp(sum));
+	lprintf("e_cpu firmware: %s %.5s\n", aout, kstr_sp(sum));
     fp = fopen(aout, "rb");
     if (!fp) { fpga_panic(5, "fopen aout"); return 0; }
     kstr_free(sum);

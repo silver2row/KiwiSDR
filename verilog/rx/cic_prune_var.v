@@ -65,21 +65,22 @@ module cic_prune_var
     endgenerate
     
     always @(posedge clock)
-      if (in_strobe)
-        begin
-        if (sample_no == (decim-1))
-          begin
-          sample_no <= 0;
-          out_strobe <= 1;
-          end
+        if (in_strobe)
+            if (decim == 0) begin       // decim == 0 is bypass mode
+                out_strobe <= 1;
+            end
+            else begin
+                if (sample_no == (decim-1)) begin
+                    sample_no <= 0;
+                    out_strobe <= 1;
+                end
+                else begin
+                    sample_no <= sample_no + 1'b1;
+                    out_strobe <= 0;
+                end
+            end
         else
-          begin
-          sample_no <= sample_no + 1'b1;
-          out_strobe <= 0;
-          end
-        end
-      else
-        out_strobe <= 0;
+            out_strobe <= 0;
     
     reg signed [ACC_WIDTH-1:0] in;
     wire signed [OUT_WIDTH-1:0] out;
@@ -308,7 +309,7 @@ module cic_prune_var
         begin
             always @(posedge clock)
                 if (out_strobe)
-                    if (decim == 1)
+                    if (decim <= 1)
                         out_data <= in[IN_WIDTH-1 -:OUT_WIDTH];
                     else
                         out_data <= out;

@@ -15,7 +15,7 @@ Boston, MA  02110-1301, USA.
 --------------------------------------------------------------------------------
 */
 
-// Copyright (c) 2014-2025 John Seamons, ZL4VO/KF6VO
+// Copyright (c) 2014-2026 John Seamons, ZL4VO/KF6VO
 
 #ifndef _DEBUG_H_
 #define _DEBUG_H_
@@ -36,7 +36,8 @@ Boston, MA  02110-1301, USA.
 #define	EC_TRIG_REALTIME    10
 #define	EC_TRIG_ACCUM_ON    11
 #define	EC_TRIG_ACCUM_OFF   12
-#define NECMD               13
+#define	EC_SNAPSHOT         13
+#define NECMD               14
 
 #define	EV_NEXTTASK		0
 #define	EV_SPILOOP		1
@@ -49,6 +50,9 @@ Boston, MA  02110-1301, USA.
 #define	EV_RX           8
 #define	EV_WS           9
 #define NEVT			10
+
+//#define EV_SNAPSHOT
+extern bool ev_snapshot;
 
 
 // special profile to find performance problems
@@ -73,6 +77,14 @@ Boston, MA  02110-1301, USA.
 	#define EV_MEAS
     #define EV_MEAS_NEXTTASK
     #define EV_MEAS_SND
+#endif
+
+// measure waterfall share timing
+#if 0
+	#define EV_MEAS
+    #define EV_MEAS_NEXTTASK
+    #define EV_MEAS_WF_SHARE
+    #define EV_SNAPSHOT
 #endif
 
 // FAX extension latency
@@ -226,6 +238,13 @@ Boston, MA  02110-1301, USA.
 	#define evSnd(c, e, p, s, s2) ev(c, e, p, s, s2)
 #else
 	#define evSnd(c, e, p, s, s2)
+#endif
+
+//#define EV_MEAS_WF_SHARE
+#if defined(EV_MEAS) && defined(EV_MEAS_WF_SHARE)
+	#define evShare(c, e, p, s, s2) ev(c, e, p, s, s2)
+#else
+	#define evShare(c, e, p, s, s2)
 #endif
 
 //#define EV_MEAS_DPUMP

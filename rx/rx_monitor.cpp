@@ -26,12 +26,23 @@ Boston, MA  02110-1301, USA.
 #include "gps.h"
 #include "rx.h"
 #include "rx_util.h"
+#include "shmem.h"
+#include "rx_waterfall.h"
+#include "ansi.h"
 
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdarg.h>
+
+void c2s_mon_init()
+{
+	for (int i=0; i < rx_chans; i++) {
+        rx_chan_t *rxc = &rx_channels[i];
+		ndesc_register(&rxc->rtn_snd_nd);
+	}
+}
 
 void c2s_mon_setup(void *param)
 {
@@ -45,10 +56,10 @@ void c2s_mon(void *param)
 	bool init = false;
 	conn_mon->camped_rx = -1;
 	rx_common_init(conn_mon);
-	
 	nbuf_t *nb = NULL;
+
 	while (TRUE) {
-	
+        int camped_rx = conn_mon->camped_rx;
         if (nb) web_to_app_done(conn_mon, nb);
         n = web_to_app(conn_mon, &nb);
             
@@ -179,8 +190,63 @@ void c2s_mon(void *param)
                 continue;
             }
             
-            if (c2s_mon_exp(conn_mon))
+            if (strncmp(cmd, "SET rev_bin=", 12) == 0) {
+                //cprintf(conn_mon, "MON %d<%s>\n", nb->len, kiwi_str_ASCII_static(nb->buf, 0, nb->len));
+                if (camped_rx == -1) {
+                    cprintf(conn_mon, "MON no camped chan yet? size=%d\n", nb->len);
+                    continue;
+                }
+        
+                // forward to camped channel's audio stream if requested
+	            wf_inst_t *wf = &WF_SHMEM->wf_inst[camped_rx];
+	            if (!wf) {
+                    cprintf(conn_mon, "MON no wf? rx=%d\n", camped_rx);
+	                continue;
+	            }
+                rx_chan_t *rxc = &rx_channels[camped_rx];
+                if (wf->want_rtn_snd) {
+                    if (!wf->have_rtn_snd) {
+                        // first time have returned sound
+                        ndesc_init(&rxc->rtn_snd_nd, NULL);
+                        ndesc_t *nd = &rxc->rtn_snd_nd;
+                        if (nd->magic_b != NDESC_MAGIC_B) {
+                            printf("camped_rx=%d\n", camped_rx);
+                            panic("mon ndesc");
+                        }
+                        wf->have_rtn_snd = true;
+                        ext_send_msg(camped_rx, false, "EXT have_rtn_snd");
+                    }
+                    if (rxc == NULL || nb == NULL) continue;   // gone away
+                    if (ndesc_valid(&rxc->rtn_snd_nd))
+                        nbuf_allocq(&rxc->rtn_snd_nd, nb->buf, nb->len);
+                    //real_printf(GREEN "%d:%d" NORM " ", camped_rx, nb->len); fflush(stdout);
+                } else {
+                    //real_printf(RED "%d:no-want" NORM " ", camped_rx); fflush(stdout);
+                }
                 continue;
+            }
+        
+            if (strncmp(cmd, "SET rev_txt=", 12) == 0) {
+                //kiwi_str_decode_inplace(cmd);
+                //cprintf(conn_mon, "MON %d \"%s\"\n", strlen(cmd)-12, cmd);
+                //real_printf(CYAN "%d:%d" NORM " ", camped_rx, nb->len-12); fflush(stdout);
+                if (camped_rx == -1) {
+                    //cprintf(conn_mon, "MON no camped chan yet? %d \"%s\"\n", strlen(cmd)-12, cmd);
+                    cprintf(conn_mon, "MON no camped chan yet? size=%d\n", strlen(cmd)-12);
+                    continue;
+                }
+                
+                // NB: conn of the camped channel
+                conn_t *conn = rx_channels[camped_rx].conn;
+                if (conn && conn->ext_cmd != NULL) {
+                    conn->ext_cmd(CMD_NO_KEY, cmd, camped_rx);
+                } else {
+                    // no one registered to receive rev_txt as a cmd
+                    //cprintf(conn_mon, "MON no receiver for: %d \"%s\"\n", strlen(cmd)-12, cmd);
+                    cprintf(conn_mon, "MON no receiver size=%d\n", strlen(cmd)-12);
+                }
+                continue;
+            }
 
             //cprintf(conn_mon, "c2s_mon: unknown command: sl=%d %d|%d|%d [%s] ip=%s ==================================\n",
             //    strlen(cmd), cmd[0], cmd[1], cmd[2], cmd, conn_mon->remote_ip);

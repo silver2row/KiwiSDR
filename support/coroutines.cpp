@@ -199,7 +199,7 @@ struct TASK {
 
 static bool task_package_init;
 static int max_task;
-static TASK Tasks[MAX_TASKS], *cur_task, *last_task_run, *busy_helper_task, *snd_itask;
+static TASK Tasks[MAX_TASKS], *cur_task, *last_task_run, *busy_helper_task, *snd_itask, *wf_itask;
 static ctx_t ctx[MAX_TASKS]; 
 static TaskQ_t TaskQ[NUM_PRIORITY];
 static u64_t last_dump;
@@ -207,7 +207,7 @@ static u4_t idle_us;
 static u4_t task_all_hist[N_HIST];
 static u4_t previous_prio_inversion;
 
-static int snd_itask_tid;
+static int snd_itask_tid, wf_itask_tid;
 static u64_t snd_itask_last_tstart;
 
 
@@ -590,6 +590,12 @@ static void task_init(TASK *t, int id, funcP_t funcP, void *param, const char *n
 		snd_itask_tid = id;
 	}
 
+	if (flags & CTF_POLL_WF_INTR) {
+		assert(!wf_itask);
+		wf_itask = t;
+		wf_itask_tid = id;
+	}
+
 	TenQ(t, priority);
 	
 	run[id].t = id;
@@ -879,6 +885,15 @@ void TaskPollForInterrupt(ipoll_from_e from)
             }
         }
     #endif
+
+	if (wf_itask && GPIO_READ_BIT(WF_INTR) && wf_itask->sleeping) {
+		if (from == CALLED_WITHIN_NEXTTASK) {
+			wf_itask->wu_count++;
+			RUNNABLE_YES(wf_itask);
+		} else {
+			TaskWakeup(wf_itask_tid);
+		}
+	}
 }
 
 void TaskRemove(int id)
@@ -1190,6 +1205,7 @@ void _NextTask(const char *where, u4_t param, u_int64_t pc)
 					if (!t->stopped && t->long_run) {
 						u4_t last_time_run = now_us - snd_itask_last_tstart;
 						
+						// don't need to consider wf_itask here since it's lowest priority
 						if (!snd_itask || !snd_itask_run || (snd_itask_run && last_time_run < 4000)) {
 							evNT(EC_EVENT, EV_NEXTTASK, -1, "NextTask", evprintf("OKAY for LONG RUN %s, interrupt last ran @%.6f, %d us ago",
 								task_s(t), (float) snd_itask_last_tstart / 1000000, last_time_run));

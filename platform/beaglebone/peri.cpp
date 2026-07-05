@@ -131,7 +131,7 @@ gpio_t GPIO_NONE	= { 0xff, 0xff, 0xff, 0xff };
     gpio_t P915 		= { GPIO1, 16, PIN(P9, 15), 152 };
     gpio_t CMD_READY    = { GPIO1, 17, PIN(P9, 23), 154 };
     gpio_t SND_INTR		= { GPIO0, 15, PIN(P9, 24), 112 };
-    gpio_t P926 		= { GPIO0, 14, PIN(P9, 26), 110 };
+    gpio_t WF_INTR 		= { GPIO0, 14, PIN(P9, 26), 110 };
 #endif
 
 #ifdef CPU_AM5729
@@ -150,7 +150,7 @@ gpio_t GPIO_NONE	= { 0xff, 0xff, 0xff, 0xff };
     gpio_t P915 		= { GPIO3, 12, PIN(P9, 15), 152 };
     gpio_t CMD_READY    = { GPIO7, 11, PIN(P9, 23), 154 };
     gpio_t SND_INTR		= { GPIO6, 15, PIN(P9, 24), 112 };
-    gpio_t P926 		= { GPIO6, 14, PIN(P9, 26), 110 };
+    gpio_t WF_INTR 		= { GPIO6, 14, PIN(P9, 26), 110 };
 #endif
 
 #ifdef CPU_TDA4VM
@@ -169,7 +169,7 @@ gpio_t GPIO_NONE	= { 0xff, 0xff, 0xff, 0xff };
     gpio_t P915 		= { GPIO0,  47, PIN(P9, 15), 152 };
     gpio_t CMD_READY    = { GPIO0,  10, PIN(P9, 23), 154 };
     gpio_t SND_INTR		= { GPIO0, 119, PIN(P9, 24), 112 };
-    gpio_t P926 		= { GPIO0, 118, PIN(P9, 26), 110 };
+    gpio_t WF_INTR 		= { GPIO0, 118, PIN(P9, 26), 110 };
 #endif
 
 
@@ -247,6 +247,7 @@ gpio_t GPIO_NONE	= { 0xff, 0xff, 0xff, 0xff };
 
     gpio_t CMD_READY    = { GPIO0,  41, PIN(HAT, 15), 154 };
     gpio_t SND_INTR		= { GPIO0,  42, PIN(HAT, 22), 112 };
+    #error missing WF_INTR definition
 
     gpio_t G5	        = { GPIO1,  15, PIN(HAT, 29), 170 };
     gpio_t G6	        = { GPIO1,  17, PIN(HAT, 31), 176 };
@@ -631,6 +632,7 @@ void peri_init()
     FPGA_INIT.init();
     CMD_READY.init();
     SND_INTR.init();
+    WF_INTR.init();
 
     #ifdef GPIO_HAT
         G5.init();
@@ -652,7 +654,6 @@ void peri_init()
         P911.init();
         P913.init();
         P915.init();
-        P926.init();
     
         JTAG_TCK.init();
         JTAG_TMS.init();
@@ -713,6 +714,7 @@ void peri_init()
 	gpio_setup(FPGA_INIT, GPIO_DIR_BIDIR, GPIO_HIZ, PMUX_IO_PU, 0);
 	gpio_setup(CMD_READY, GPIO_DIR_BIDIR, GPIO_HIZ, PMUX_IO, PMUX_IO_PU);
 	gpio_setup(SND_INTR,  GPIO_DIR_BIDIR, GPIO_HIZ, PMUX_IO, PMUX_IO_PU);
+	gpio_setup(WF_INTR,   GPIO_DIR_BIDIR, GPIO_HIZ, PMUX_IO, PMUX_IO_PU);
 
 #ifdef GPIO_HAT
     gpio_setup(G5 , GPIO_DIR_BIDIR, GPIO_HIZ, PMUX_IO_PU, PMUX_IO);
@@ -734,7 +736,6 @@ void peri_init()
 	gpio_setup(P911, GPIO_DIR_BIDIR, GPIO_HIZ, PMUX_IO, PMUX_IO_PD);
 	gpio_setup(P913, GPIO_DIR_BIDIR, GPIO_HIZ, PMUX_IO, PMUX_IO_PD);
 	gpio_setup(P915, GPIO_DIR_BIDIR, GPIO_HIZ, PMUX_IO, PMUX_IO_PU);
-	gpio_setup(P926, GPIO_DIR_BIDIR, GPIO_HIZ, PMUX_IO, PMUX_IO_PU);
 	
 	// P8 connector
 	gpio_setup(JTAG_TDI, GPIO_DIR_BIDIR, GPIO_HIZ, PMUX_IO_PU, PMUX_IO);
@@ -796,7 +797,7 @@ void gpio_setup_ant_switch()
 
     static gpio_t *idx_P9_2_gpio[] = {
         &P911,      &FPGA_PGM,  &P913,      &FPGA_INIT, &P915,      &SPIn_CS1,  NULL,       NULL,
-        NULL,       NULL,       NULL,       NULL,       &CMD_READY, &SND_INTR,  NULL,       &P926
+        NULL,       NULL,       NULL,       NULL,       &CMD_READY, &SND_INTR,  NULL,       &WF_INTR
     };
 #endif
 

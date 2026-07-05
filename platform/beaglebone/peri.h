@@ -52,12 +52,12 @@ extern volatile u4_t *spi_m, *gpio_m[];
 extern gpio_t GPIO_NONE;
 extern gpio_t FPGA_INIT, FPGA_PGM;
 extern gpio_t SPIn_SCLK, SPIn_MISO, SPIn_MOSI, SPIn_CS0, SPIn_CS1;
-extern gpio_t CMD_READY, SND_INTR;
+extern gpio_t CMD_READY, SND_INTR, WF_INTR;
 
 #ifdef GPIO_HAT
     extern gpio_t G5, G6, G7, G8, G9, G10, G11, G12, G13, G18, G19, G20, G21, G23, G24;
 #else
-    extern gpio_t P911, P913, P915, P926;
+    extern gpio_t P911, P913, P915;
     extern gpio_t P811, P812, P813, P814, P815, P816, P817, P818, P819, P826;
     extern gpio_t BOOT_BTN;
 #endif

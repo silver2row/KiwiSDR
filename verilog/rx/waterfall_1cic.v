@@ -15,17 +15,19 @@ Boston, MA  02110-1301, USA.
 --------------------------------------------------------------------------------
 */
 
-// Copyright (c) 2014-2025 John Seamons, ZL4VO/KF6VO
+// Copyright (c) 2014-2026 John Seamons, ZL4VO/KF6VO
 
 `timescale 1ns / 100ps
 
 module WATERFALL_1CIC
-    #(parameter WHICH = "required", parameter IN_WIDTH = "required")
+    #(parameter IN_WIDTH = "required")
     (
         input  wire		   adc_clk,
         input  wire signed [IN_WIDTH-1:0] adc_data,
         
         input  wire		   wf_sel_C,
+        output wire		   wf_full_C,
+        output wire		   wf_full_pulse_C,
         output wire [15:0] wf_dout_C,
 
         input  wire        cpu_clk,
@@ -83,7 +85,6 @@ module WATERFALL_1CIC
         );
 	
 	wire set_wf_decim_A;
-
 	SYNC_PULSE set_decim_inst (.in_clk(cpu_clk), .in(wf_sel_C && set_wf_decim_C), .out_clk(adc_clk), .out(set_wf_decim_A));
 
 	localparam MD = max(1, clog2(WF_1CIC_MAXD + 1));    // +1 because need to represent WF_1CIC_MAXD, not WF_1CIC_MAXD-1
@@ -133,8 +134,9 @@ module WATERFALL_1CIC
         .out_data		(wf_cic_out_q)
     );
     
-    wire [WFO_BITS-1:0] wf_samps_in_i, wf_samps_in_q;
+    wire wf_full_A, wf_full_pulse_A;
 
+    wire [WFO_BITS-1:0] wf_samps_in_i, wf_samps_in_q;
     assign wf_samps_in_i = wf_cic_out_i;
     assign wf_samps_in_q = wf_cic_out_q;
 
@@ -145,6 +147,9 @@ module WATERFALL_1CIC
 		.wr				(wf_cic_avail),
 		.wr_i			(wf_samps_in_i),
 		.wr_q			(wf_samps_in_q),
+		// o
+        .wr_full        (wf_full_A),
+        .wr_full_pulse  (wf_full_pulse_A),
 		
 		.rd_clk			(cpu_clk),
 		.rd_rst			(wf_sel_C && rst_wf_samp_rd_C),
@@ -155,5 +160,8 @@ module WATERFALL_1CIC
 		// o
 		.rd_iq			(wf_dout_C)
 	);
+
+    SYNC_WIRE  sync_wf_full  (.in(wf_full_A), .out_clk(cpu_clk), .out(wf_full_C));
+    SYNC_PULSE sync_wf_pulse (.in_clk(adc_clk), .in(wf_full_pulse_A), .out_clk(cpu_clk), .out(wf_full_pulse_C));
 
 endmodule

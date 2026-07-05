@@ -41,15 +41,15 @@ typedef enum { DAILY_RESTART_NO = 0, DAILY_RESTART = 1, DAILY_REBOOT = 2} daily_
 #define FW_SEL_SDR_RX3_WF3          2
 #define FW_SEL_SDR_RX14_WF0         3
 #define FW_SEL_SDR_WB               4
-#define N_FW_SEL                    5
+#define FW_SEL_SDR_RX8_WF3_SHARE    5
+#define N_FW_SEL                    6
 #define N_FW_MAX                    (N_FW_SEL-1)
-
-const char * const fw_sel_s[] = { "rx4_wf4", "rx8_wf2", "rx3_wf3", "rx14_wf0", "wb" };
 
 typedef struct {
     model_e model;
     platform_e platform;
     int firmware_sel;
+    char *mode_id;
     int serno;
     bool admin_advisory;
     bool pcb_has_beads, pcb_has_attn, pcb_ths_4509, pcb_fpga_a50;
@@ -103,6 +103,8 @@ typedef struct {
 	int lowres_lat, lowres_lon;
 	
 	daily_restart_e daily_restart;
+
+    bool wf_share;
 } kiwi_t;
 
 extern kiwi_t kiwi;
@@ -171,12 +173,12 @@ void c2s_sound_shutdown(void *param);
 void c2s_waterfall_once();
 void c2s_waterfall_init();
 void c2s_waterfall_compression(int rx_chan, bool compression);
-void c2s_waterfall_no_sync(int rx_chan, bool no_sync);
 void c2s_waterfall_setup(void *param);
 void c2s_waterfall(void *param);
 void c2s_waterfall_shutdown(void *param);
 void c2s_waterfall_stop_data(int rx_chan);
 
+void c2s_mon_init();
 void c2s_mon_setup(void *param);
 void c2s_mon(void *param);
 

@@ -49,6 +49,7 @@ typedef enum { // Embedded CPU commands, order must match 'Commands:' table in .
     CmdTestRead,
     CmdUploadStackCheck,
     CmdGetSPRP,
+	CmdGetDebug,
 
 	// SDR
 #ifdef USE_SDR
@@ -58,10 +59,13 @@ typedef enum { // Embedded CPU commands, order must match 'Commands:' table in .
     CmdSetGenAttn,
     CmdGetRX,
     CmdClrRXOvfl,
+    CmdWFReset,
+    CmdWFReset2,
+    CmdWFClrIntr,
+    CmdSetWFTap,
     CmdSetWFFreq,
 	CmdSetWFDecim,
 	CmdSetWFOffset,
-    CmdWFReset,
     CmdGetWFSamples,
     CmdGetWFContSamps,
 	CmdSetOVMask,
@@ -106,10 +110,13 @@ typedef enum { // Embedded CPU commands, order must match 'Commands:' table in .
     CmdSetGenAttn = 0,
     CmdGetRX = 0,
     CmdClrRXOvfl = 0,
+    CmdWFReset = 0,
+    CmdWFReset2 = 0,
+    CmdWFClrIntr = 0,
+    CmdSetWFTap = 0,
     CmdSetWFFreq = 0,
 	CmdSetWFDecim = 0,
 	CmdSetWFOffset = 0,
-    CmdWFReset = 0,
     CmdGetWFSamples = 0,
     CmdGetWFContSamps = 0,
 	CmdSetOVMask = 0,
@@ -155,6 +162,7 @@ static const char *cmds[] = {
     "CmdTestRead",
     "CmdUploadStackCheck",
     "CmdGetSPRP",
+    "CmdGetDebug",
 
 	// SDR
 #ifdef USE_SDR
@@ -164,10 +172,13 @@ static const char *cmds[] = {
     "CmdSetGenAttn",
     "CmdGetRX",
     "CmdClrRXOvfl",
+    "CmdWFReset",
+    "CmdWFReset2",
+    "CmdWFClrIntr",
+    "CmdSetWFTap",
     "CmdSetWFFreq",
     "CmdSetWFDecim",
     "CmdSetWFOffset",
-    "CmdWFReset",
     "CmdGetWFSamples",
     "CmdGetWFContSamps",
     "CmdSetOVMask",
@@ -217,9 +228,7 @@ typedef struct {
 
 extern spi_t spi;
 
-#define DMA_ALIGNMENT __attribute__ ((aligned(256)))
-#define	PAD_FRONT u4_t pad_front[256/4]
-#define	PAD_BACK u4_t pad_back[256/4]
+#define DMA_ALIGNMENT __attribute__ ((aligned(8)))
 #define N_SPI_TX 8
 
 #ifdef SPI_8
@@ -272,7 +281,6 @@ typedef struct {
 } spi_mosi_data3_t;
 
 typedef struct {
-	PAD_FRONT;
 	union {
 		SPI_T msg[1];
 		u1_t bytes[SPIBUF_B];		// because tx/rx DMA sizes equal
@@ -281,11 +289,9 @@ typedef struct {
 		spi_mosi_data2_t data2;
 		spi_mosi_data3_t data3;
 	};
-	PAD_BACK;
 } DMA_ALIGNMENT SPI_MOSI;
 
 typedef struct {
-	PAD_FRONT;
 #ifdef SPI_8
     u1_t _align_;
 #endif
@@ -306,7 +312,6 @@ typedef struct {
 			};
 		} __attribute__((packed));
 	};
-	PAD_BACK;
 	u2_t len_xfers, len_bytes;
 	uint16_t cmd;
 	u2_t tid;

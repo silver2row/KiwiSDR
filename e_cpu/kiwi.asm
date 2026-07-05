@@ -19,7 +19,7 @@
 ; http://www.aholme.co.uk/GPS/Main.htm
 ; ============================================================================
 
-; Copyright (c) 2014-2025 John Seamons, ZL4VO/KF6VO
+; Copyright (c) 2014-2026 John Seamons, ZL4VO/KF6VO
 
 #include ../kiwi.config
                 #display RX_CFG
@@ -138,10 +138,24 @@ gps_svc_loop:                                       ; gps_srq
 no_gps_svc:     loop2   gps_svc_loop                ; NB: loop2 because GPS_Method() calls shl64_n (which uses loop)
 
 #endif
-				
+
+				rdReg	GET_WF_SRQ					; 0
+				rdBit2								; wf_srq
+
+				brZ		no_wf_svc
+			wrEvt2	CPU_CTR_ENA
+				call	WF_Buffer
+			wrEvt2	CPU_CTR_DIS
+
+no_wf_svc:											;
+
 				brZ		NoCmd                       ; no host_srq pending
 
 			wrEvt2	CPU_CTR_ENA
+			    // This looks wrong, because normally HOST_RX always precedes the HOST_RST.
+			    // But for some reason it is required to be in the opposite order here.
+			    // Maybe it has something to do with the HOST_RDY above.
+			    
 				wrEvt	HOST_RST
 				rdReg	HOST_RX						; cmd
 				dup
@@ -167,7 +181,7 @@ cmd_ok:
 
 ; ============================================================================
 
-// CmdPing and CmdSetMem must be in first 1K of CPU RAM (i.e. loaded by boot)
+// CmdPing and CmdSetMem must be in first 2K of CPU RAM (i.e. loaded by boot)
 CmdPing:
 				wrEvt	HOST_RST
                 push	0xcafe
@@ -299,6 +313,7 @@ Commands:
 				u16		CmdTestRead
 				u16		CmdUploadStackCheck
 				u16     CmdGetSPRP
+				u16     CmdGetDebug
 
                 // SDR
 #if USE_SDR
@@ -308,10 +323,13 @@ Commands:
 				u16		CmdSetGenAttn
 				u16		CmdGetRX
 				u16		CmdClrRXOvfl
+				u16		CmdWFReset
+				u16		CmdWFReset2
+				u16     CmdWFClrIntr
+				u16     CmdSetWFTap
 				u16		CmdSetWFFreq
 				u16		CmdSetWFDecim
 				u16     CmdSetWFOffset
-				u16		CmdWFReset
 				u16		CmdGetWFSamples
 				u16		CmdGetWFContSamps
 				u16     CmdSetOVMask
@@ -580,6 +598,8 @@ incr16:										; addr
 				drop.r						; data+1
 
 // decrement a u16 memory location and keep updated value on stack
+// not used currently
+#if 0
 decr16:										; addr
 				dup							; addr addr
 				fetch16						; addr data
@@ -588,7 +608,9 @@ decr16:										; addr
 				rot							; data-1 data-1 addr
 				store16						; data-1 addr
 				drop.r						; data-1
+#endif
 
+#if USE_SBAS
 // xor bit-0 a u16 memory location and keep updated value on stack
 xor16:										; addr
 				dup							; addr addr
@@ -599,12 +621,16 @@ xor16:										; addr
 				rot							; data^1 data^1 addr
 				store16						; data^1 addr
 				drop.r						; data^1
+#endif
 
+// not used currently
+#if 0
 clr16:                                      ; addr
                 push    0                   ; addr 0
                 swap                        ; 0 addr
                 store16                     ; addr
                 drop.r                      ;
+#endif
 
 ; ============================================================================
 ; support

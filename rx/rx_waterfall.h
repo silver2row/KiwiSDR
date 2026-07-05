@@ -55,27 +55,109 @@ Boston, MA  02110-1301, USA.
 	#define wf_printf(fmt, ...)
 #endif
 
+//#define WF_DEBUG
+#ifdef WF_DEBUG
+    #define wfd(x) x
+    
+    //#define WFP
+    #ifdef WFP
+        #define wfp(fmt, ...) \
+            real_printf(fmt, ## __VA_ARGS__); fflush(stdout)
+    #else
+        #define wfp(fmt, ...)
+    #endif
+    
+    //#if 1       // WF_INTR detail
+    #if 0
+        #define wfp2(fmt, ...) \
+            real_printf(fmt, ## __VA_ARGS__); fflush(stdout)
+    #else
+        #define wfp2(fmt, ...)
+    #endif
+    
+    //#if 1       // channel interleaving
+    #if 0
+        #define wfp3(fmt, ...) \
+            real_printf(fmt, ## __VA_ARGS__); fflush(stdout)
+    #else
+        #define wfp3(fmt, ...)
+    #endif
+    
+    //#if 1       // sleep/intr seq
+    #if 0
+        #define wfp4(fmt, ...) \
+            real_printf(fmt, ## __VA_ARGS__); fflush(stdout)
+    #else
+        #define wfp4(fmt, ...)
+    #endif
+    
+    //#if 1       // SPI
+    #if 0
+        #define wfp5(fmt, ...) \
+            printf(fmt "\n", ## __VA_ARGS__);
+            //real_printf(fmt, ## __VA_ARGS__); fflush(stdout)
+    #else
+        #define wfp5(fmt, ...)
+    #endif
+    
+    //#if 1       // size checks
+    #if 0
+        #define wfp6(fmt, ...) \
+            printf(fmt "\n", ## __VA_ARGS__);
+            //real_printf(fmt, ## __VA_ARGS__); fflush(stdout)
+    #else
+        #define wfp6(fmt, ...)
+    #endif
+    
+    //#if 1       // buffer selection debugging
+    #if 0
+        #define wfp7(fmt, ...) \
+            real_printf(fmt, ## __VA_ARGS__); fflush(stdout)
+            //printf(fmt "\n", ## __VA_ARGS__);
+    #else
+        #define wfp7(fmt, ...)
+    #endif
+#else
+    #define wfd(x)
+    #define wfp(fmt, ...)
+    #define wfp2(fmt, ...)
+    #define wfp3(fmt, ...)
+    #define wfp4(fmt, ...)
+    #define wfp5(fmt, ...)
+    #define wfp6(fmt, ...)
+    #define wfp7(fmt, ...)
+#endif
+
+
 #define TR_WF_CMDS      0
 #define SM_WF_DEBUG		false
 
-#define	WF_USING_HALF_FFT	2	// the result is contained in the first half of the complex FFT
-#define	WF_USING_HALF_CIC	2	// only use half of the remaining FFT after a CIC
-#define	WF_BETTER_LOOKING	2	// increase in FFT size for better looking display
+//#define WF_SHMEM_DISABLE
 
-#define WF_OUTPUT	    1024	// conceptually same as WF_WIDTH although not required
-#define WF_NFFT	        (WF_OUTPUT * WF_USING_HALF_FFT * WF_USING_HALF_CIC * WF_BETTER_LOOKING)	// worst case FFT size needed
-#define MAX_FFT_USED	(WF_NFFT / WF_USING_HALF_FFT)
-#define WF_NBUF         8192    // max hardware sample buffer length
+#define	WF_FIRST_HALF_FFT	2	    // the result is contained in the first half of the complex FFT
+#define	WF_BETTER_LOOKING	2	    // increase in FFT size for better looking display
+#define	WF_USING_HALF_CIC	2       // only half of FFT to avoid CIC droop
 
-#define	WF_WIDTH        1024	// width of waterfall display
+#define WF_OUTPUT	        1024	// conceptually same as WF_WIDTH although not required
+#define WF_NFFT             (WF_OUTPUT * WF_FIRST_HALF_FFT * WF_BETTER_LOOKING)
+#define WF_NFFT_MAX         (WF_OUTPUT * WF_FIRST_HALF_FFT * WF_BETTER_LOOKING * WF_USING_HALF_CIC)
+#define WF_NFFT_USED_MAX    (WF_NFFT_MAX / WF_FIRST_HALF_FFT)
+
+#define WF_NSAMP            WF_NFFT // max hardware sample buffer length
+#define WF_NSAMP_MAX        WF_NFFT_MAX // max hardware sample buffer length
+
+#define	WF_WIDTH            1024	// width of waterfall display
 
 #define MAX_ZOOM        14
-#define ZOOM_CAP        14
+#define ZOOM_CAP        (kiwi.wf_share ? 11 : 14)
 #define	MAX_START(z)	((WF_WIDTH << MAX_ZOOM) - (WF_WIDTH << (MAX_ZOOM - z)))
 
 struct fft_t {
-	fftwf_complex hw_c_samps[WF_NBUF];
+	fftwf_complex hw_c_samps[WF_NSAMP];
 	fftwf_complex hw_fft[WF_NFFT];
+
+	fftwf_complex hw_c_sampsL[WF_NSAMP_MAX];
+	fftwf_complex hw_fftL[WF_NFFT_MAX];
 };
 
 struct wf_pkt_t {
@@ -85,6 +167,7 @@ struct wf_pkt_t {
 	#define WF_FLAGS                0xffff0000
 	#define WF_FLAGS_COMPRESSION    0x00010000
 	#define WF_FLAGS_NO_SYNC        0x00020000
+	#define WF_FLAGS_DEBUG          0x00040000
 	u4_t flags_x_zoom_server;
 	u4_t seq;
 	union {
@@ -115,9 +198,6 @@ static const int wf_fps[] = { WF_SPEED_OFF, WF_SPEED_1FPS, WF_SPEED_SLOW, WF_SPE
 
 enum { WF_SELECT_OFF = 0, WF_SELECT_1FPS = 1, WF_SELECT_SLOW = 2, WF_SELECT_MED = 3, WF_SELECT_FAST = 4 };
 
-#define WF_ZOOM_MIN     0
-#define WF_ZOOM_MAX     15
-
 #define WF_COMP_OFF     0
 #define WF_COMP_ON      1
 
@@ -128,26 +208,44 @@ enum aper_algo_t { IIR=0, MMA, EMA, OFF };
 enum wf_interp_t { WF_MAX=0, WF_MIN, WF_LAST, WF_DROP, WF_CMA };
 static const char *interp_s[] = { "max", "min", "last", "drop", "cma" };
 
+enum { WF_WAIT_DDC, WF_RESET, WF_WAIT_BUF_FULL, WF_WAIT_FRAME };
+
 struct wf_inst_t {
 	conn_t *conn;
 	int rx_chan;
+	int ddc_chan, last_ddc;
 	int nfft, fft_used, plot_width, plot_width_clamped;
+    int nxfer, samps, tsamps;
 	int maxdb, mindb, send_dB;
 	float fft_scale[WF_WIDTH], fft_scale_div2[WF_WIDTH], fft_offset;
-	u2_t fft2wf_map[WF_NFFT / WF_USING_HALF_FFT];		// map is 1:1 with fft
-	u2_t wf2fft_map[WF_WIDTH];							// map is 1:1 with plot
+	u2_t fft2wf_map[WF_NFFT_MAX];		// map is 1:1 with fft
+	u2_t wf2fft_map[WF_WIDTH];          // map is 1:1 with plot
 	u2_t drop_sample[WF_WIDTH];
 	int start, prev_start, zoom, prev_zoom;
 	float start_f;
 	u4_t mark;
 	int speed, fft_used_limit;
-	bool new_map, new_map2, new_map3, compression, no_sync, isWF, isFFT;
+	bool new_map, new_map2, new_map3, compression, isWF, isFFT;
 	bool cic_comp;
 	wf_interp_t interp;
 	int window_func;
 	u4_t zoom_all_seq;
 	
 	tid_t tid;
+	
+    // wf_share
+	volatile u4_t wake_buf_full;
+	u4_t lock_seq;
+	bool lock_wait;
+	volatile u4_t lock_wakeup;
+	u4_t num_wakeups;
+	u4_t dirty;
+    u1_t ddc_dirty[MAX_WF_DDC];
+    u4_t wf_seq;
+    int cicf_wait_usec;
+    wfd(u1_t wf_state;)
+    wfd(u4_t wf_sleep_seq;)
+    wfd(u4_t wf_intr_seq;)
 	
 	int tr_cmds;
 	u4_t cmd_recv;
@@ -186,23 +284,41 @@ struct wf_inst_t {
     u4_t report_sec;
     int last_noise, last_signal;
     
-    wf_inst_exp_t exp;
+	bool want_rtn_snd, have_rtn_snd;
+};
+
+struct ddc_inst_t {
+    bool lock;
+    int lock_rx;        // which rx has the lock 
+    u1_t last_user;
+    u4_t use;
+    u4_t wf_seq;
 };
 
 #define WINF_WF_HANNING         0
 #define WINF_WF_HAMMING         1
 #define WINF_WF_BLACKMAN_HARRIS 2
 #define WINF_WF_NONE            3
-#define N_WF_WINF               4
+#define WF_N_WINF               4
+
+#define WF_WIN_4K               0
+#define WF_WIN_8K               1
+#define WF_N_WINSZ              2
 
 struct wf_shmem_t {
-    wf_inst_t wf_inst[MAX_RX_CHANS];        // NB: MAX_RX_CHANS even though there may be fewer MAX_WF_DDC
+    wf_inst_t wf_inst[MAX_RX_CHANS];    // NB: MAX_RX_CHANS even though there may be fewer MAX_WF_DDC
     fft_t fft_inst[MAX_RX_CHANS];
-	fftwf_plan hw_dft_plan;
-    float window_function[N_WF_WINF][WF_NBUF];
-    float CIC_comp[WF_NFFT];
-    int n_chunks;
-    int chunk_wait_scale;
+	fftwf_plan hw_dft_plan_8k;
+	fftwf_plan hw_dft_plan_4k;
+    float window_function[WF_N_WINF][WF_N_WINSZ][WF_NSAMP_MAX];
+    float CIC_comp[WF_NFFT_MAX];
+    
+    // wf_share
+    ddc_inst_t ddc[MAX_WF_DDC];
+    u4_t wf_seq_global;
+	u4_t lock_seq_global;
+	#define CICF_BUSY WF_SHMEM->cicf_busy
+	volatile u4_t cicf_busy;
 };     
 
 #include "shmem_config.h"
@@ -233,3 +349,9 @@ enum wf_cmd_key_e {
     CMD_SET_ZOOM=1, CMD_SET_MAX_MIN_DB, CMD_SET_CMAP, CMD_SET_APER, CMD_SET_BAND,
     CMD_SET_SCALE, CMD_SET_WF_SPEED, CMD_SEND_DB, CMD_EXT_BLUR, CMD_INTERPOLATE, CMD_WF_WINDOW_FUNC
 };
+
+
+#define WF_SETUP_FREQ   0x1
+#define WF_SETUP_REM    0x2
+
+void c2s_wf_ddc_setup(int chan_or_ddc, wf_inst_t *wf, u4_t flags);

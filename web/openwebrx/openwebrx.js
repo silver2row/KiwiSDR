@@ -4377,7 +4377,7 @@ function spectrum_init()
 
    spec.spectrum_image = spec.ctx.createImageData(spec.canvas.width, spec.canvas.height);
    
-   if (!wf.audioFFT_active && rx_chan >= wf_chans) {
+   if (!wf.audioFFT_active && rx_chan >= wf_chans && !kiwi.wf_share) {
 		// clear entire spectrum canvas to black
 		var sw = spec.canvas.width;
 		var sh = spec.canvas.height;
@@ -4848,7 +4848,7 @@ function wf_init_ready()
 {
 	init_wf_container();
 
-   wf.audioFFT_active = (rx_chan >= wf_chans);
+   wf.audioFFT_active = (rx_chan >= wf_chans && !kiwi.wf_share);
 	resize_waterfall_container(false);
 	resize_wf_canvases();
 	bands_init();
@@ -5156,6 +5156,10 @@ function waterfall_add(data_raw, audioFFT)
       x_zoom_server = u32 & 0xffff;
       var flags = (u32 >> 16) & 0xffff;
       
+      // debug: make WF tab "spec color" button flash when a different WF DDC is being used
+      if (dbgUs && kiwi.wf_share)
+         w3_el('id-button-spec-color').style.background = (flags & wf.DEBUG)? 'cyan':'';
+   
       data_arr_u8 = new Uint8Array(data_raw, 16);	// unsigned dBm values, converted to signed later on
       var bytes = data_arr_u8.length;
    

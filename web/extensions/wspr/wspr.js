@@ -271,17 +271,6 @@ function wspr_recv(data)
 				break;
 
 			case "WSPR_DECODED":
-				//jksx
-				//s = decodeURIComponent(param[1]);
-				//console.log('WSPR: '+ s);
-				//el = w3_el('id-wspr-decode');
-				//var wasScrolledDown = w3_isScrolledDown(el);
-				//w3_create_appendElement(el, 'div', s);
-				//w3_trim_childElements(el, 500);
-				
-				// only jump to bottom of updated list if it was already sitting at the bottom
-				//if (wasScrolledDown) w3_scrollDown(el);
-
 	         wspr_output_chars(param[1] +'\n');
 				break;
 			
@@ -476,7 +465,6 @@ function wspr_controls_setup()
          )
       ),
       
-		//w3_div('id-wspr-decode|white-space:pre; background-color:white; overflow:scroll; height:100px; width:100%; margin-top:0px; font-family:monospace; font-size:100%')
       w3_div('id-wspr-console-msg w3-text-output w3-padding-0 w3-scroll-down w3-text-black w3-font-12_75px' +
          '|height:100px; width:100%; position:absolute; font-family:monospace; font-size:100%; overflow-x:hidden;',
          w3_code('id-wspr-console-msgs w3-text-output-striped/')
@@ -965,10 +953,6 @@ function wspr_reset()
 
 function wspr_clear_cb(path, idx, first)
 {
-   //jksx
-	//wspr_reset();
-   //wspr_test_cb('', 0);
-	//w3_el('id-wspr-decode').innerHTML = '';
 	wspr_output_chars('\f');
 	w3_el('id-wspr-peaks-labels').innerHTML = '';
 }

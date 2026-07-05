@@ -45,6 +45,17 @@ Boston, MA  02110-1301, USA.
 #include <time.h>
 #include <sched.h>
 
+void drop_root_privileges()
+{
+    // setgid must come before setuid
+    // FIXME jksx create & use kiwisdr account instead of debian?
+    printf("SECURITY: drop root privileges..\n");
+    gid_t gid = 1000;
+    scall("setgid", setgid(gid));
+    uid_t uid = 1000;
+    scall("setuid", setuid(uid));
+}
+
 char *current_authkey;
 
 char *kiwi_authkey()

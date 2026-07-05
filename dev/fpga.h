@@ -35,8 +35,6 @@ typedef union {
 } stat_reg_t;
 stat_reg_t stat_get(int which = -1);
 
-extern char *fpga_file;
-
 int fpga_init(int check, int fpga_sim_fail);
 u64_t fpga_dna();
 u2_t getmem(u2_t addr);
