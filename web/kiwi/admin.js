@@ -5289,7 +5289,7 @@ function admin_rx83_mode_alert()
             'See the ' +
             w3_link('w3-link-color', 'javascript:admin_nav_focus(\'mode\')', 'admin mode tab') +
             ' and ' +
-            w3_link('w3-link-color', 'https://forum.kiwisdr.com/index.php?p=/', 'Kiwi forum') +
+            w3_link('w3-link-color', 'https://forum.kiwisdr.com/index.php?p=/discussion/3833/v1-900-new-8-channel-mode-all-with-waterfall/p1', 'Kiwi forum') +
             ' for more information.') +
          '<br><br>' +
          
