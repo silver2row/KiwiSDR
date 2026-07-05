@@ -147,7 +147,7 @@ void rx_waterfall_cmd(conn_t *conn, int n, char *cmd)
                 #ifdef OPTION_HONEY_POT
                     cprintf(conn, "HONEY_POT W/F cf=%.3f\n", wf->cf / kHz);
                 #endif
-                cprintf(conn, "WF: zoom=%d/%d start=%.0f(%.1f) => cf=%.1f\n", _zoom, wf->zoom, _start, _start * wf->HZperStart / kHz, wf->cf / kHz);
+                //cprintf(conn, "WF: zoom=%d/%d start=%.0f(%.1f) => cf=%.1f\n", _zoom, wf->zoom, _start, _start * wf->HZperStart / kHz, wf->cf / kHz);
                 zoom_start_chg = true;
             } else
             if (sscanf(cmd, "SET zoom=%d cf=%f", &_zoom, &wf->cf) == 2) {
@@ -155,7 +155,7 @@ void rx_waterfall_cmd(conn_t *conn, int n, char *cmd)
                 float halfSpan_Hz = (ui_srate_Hz / (1 << _zoom)) / 2;
                 wf->cf *= kHz;
                 _start = (wf->cf - halfSpan_Hz) / wf->HZperStart;
-                cprintf(conn, "WF: zoom=%d cf=%.3f => start=%.0f halfSpan=%.3f\n", _zoom, wf->cf/kHz, _start * wf->HZperStart / kHz, halfSpan_Hz/kHz);
+                //cprintf(conn, "WF: zoom=%d cf=%.3f => start=%.0f halfSpan=%.3f\n", _zoom, wf->cf/kHz, _start * wf->HZperStart / kHz, halfSpan_Hz/kHz);
                 zoom_start_chg = true;
             }
         }
