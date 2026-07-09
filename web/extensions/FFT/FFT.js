@@ -15,8 +15,51 @@ var fft = {
    //func_s: [ 'waterfall', 'spectrum', 'integrate' ],
    func: 0,
    func_e: { OFF:-1, WF:0, SPEC:999, INTEG:1 },
-   run: [ -1, 0, 2 ],
+   // NB: waterfall (WF) is now computed client-side from the audio/IQ sample stream,
+   // so the server FFT tap runs only for integrate (run = -1 keeps it off otherwise)
+   run: [ -1, -1, 2 ],
    func_s: [ 'waterfall', 'integrate' ],
+
+   // high-resolution client-side FFT waterfall
+   hrw_size_s: [ '1k', '2k', '4k', '8k', '16k' ],
+   hrw_size_v: [ 1024, 2048, 4096, 8192, 16384 ],
+   hrw_size_i: 2,       // 4096 default
+
+   hrw_zoom_s: [ 'x1', 'x2', 'x4', 'x8', 'x16' ],
+   hrw_zoom_i: 0,       // display (CSS) zoom, centered
+
+   hrw_overlap_s: [ 'none', '2x', '4x', '8x' ],
+   hrw_overlap_v: [ 1, 2, 4, 8 ],
+   hrw_overlap_i: 1,    // 2x = 50% overlap default
+
+   hrw: {
+      init: false,
+      dynload: {},
+
+      iq: false,        // stream format at last setup
+      comp: false,
+      lsb: false,
+
+      fft_size: 0,      // number of input samples (complex pairs when iq) per FFT frame
+      hop: 0,           // fft_size / overlap
+      nbins: 0,         // displayed bins: fft_size (iq) or fft_size/2 (real)
+      scale: 0,         // power normalization (window-sum based, independent of fft_size)
+
+      offt: null,
+      win: null,
+      i_re: null, i_im: null,
+      o_re: null, o_im: null,
+
+      ring_re: null,    // ring buffer of the most recent fft_size samples
+      ring_im: null,
+      ring_w: 0,
+      ring_filled: 0,
+      nnew: 0,          // samples since last frame, compared against hop
+
+      dB: null,         // last line, byte-encoded dB (255 + dB, clamped 0..255)
+
+      MAX_VAL: 32767,
+   },
 
    pre: -1,
    pre_none: 0,
@@ -101,11 +144,12 @@ function fft_clear()
 	fft.wf_canvas = fft.wf1_canvas;
 	var top = -h+1 + fft.integ_hdr;
 
-   fft.wf1_canvas.ctx.clearRect(0, 0, w, h);
+   // NB: canvas backing width may exceed integ_w in the high-res waterfall mode
+   fft.wf1_canvas.ctx.clearRect(0, 0, fft.wf1_canvas.width, h);
 	fft.wf1_canvas.top = top;
 	fft.wf1_canvas.style.top = px(top);
 
-   fft.wf2_canvas.ctx.clearRect(0, 0, w, h);
+   fft.wf2_canvas.ctx.clearRect(0, 0, fft.wf2_canvas.width, h);
 	fft.wf2_canvas.top = top;
 	fft.wf2_canvas.style.top = px(top);
 
@@ -113,9 +157,10 @@ function fft_clear()
 	if (fft.func == fft.func_e.WF) {
       c.clearRect(0, 0, w, th);
 	   th = fft.integ_hdr;
+	} else {
+      c.fillStyle = 'mediumBlue';
+      c.fillRect(0, 0, w, th);
 	}
-   c.fillStyle = 'mediumBlue';
-   c.fillRect(0, 0, w, th);
    
 	if (fft.func == fft.func_e.SPEC) {
       spec.clear_avg = true;
@@ -137,10 +182,15 @@ function fft_clear()
 		ext_set_controls_width_height(275, 275);
 		w3_inline_percent_set(left, 0);
 		w3_inline_percent_set(right, 100);
-		var f = ext_get_freq();
-		fft_marker((f/1e3).toFixed(2), false, f);
+		if (fft.func == fft.func_e.WF) {
+		   fft_hrw_scale();     // draws its own header incl. frequency ticks
+		} else {
+		   var f = ext_get_freq();
+		   fft_marker((f/1e3).toFixed(2), false, f);
+		}
 	}
 
+	fft_hrw_reset();
    ext_send('SET run='+ fft.run[fft.func+1]);
 }
 
@@ -185,6 +235,366 @@ function fft_mousedown(evt)
 	if (bin < 0 || bin > fft.integ_bins) return;
 	fft.integ_bino = Math.round((fft.integ_bino + bin) % fft.integ_bins);
 	//console.log('FFT y='+ y +' bino='+ fft.integ_bino +'/'+ fft.integ_bins);
+}
+
+////////////////////////////////
+// high-resolution client-side FFT waterfall
+//
+// Unlike the integrate function (which displays the server's fixed 1024-bin FFT tap)
+// the waterfall is computed here in the browser directly from the audio/IQ sample
+// stream delivered on the SND websocket. This allows an arbitrary, user-selectable
+// FFT resolution and overlapping FFTs. Pipeline modeled on wf_audio_FFT() in
+// openwebrx.js which uses the same Ooura FFT package.
+////////////////////////////////
+
+function fft_hrw_reset()
+{
+   var h = fft.hrw;
+   h.ring_w = h.ring_filled = h.nnew = 0;
+}
+
+function fft_hrw_setup(iq, comp)
+{
+   var h = fft.hrw;
+   var i;
+   var n = h.fft_size = fft.hrw_size_v[fft.hrw_size_i];
+   h.hop = Math.round(n / fft.hrw_overlap_v[fft.hrw_overlap_i]);
+
+   if (iq) {
+      // NB: ooura32 "size" counts scalar floats, so a transform of n complex samples is FFT(2n)
+      h.offt = ooura32.FFT(n*2, { "type":"complex", "radix":4 });
+      h.i_re = new Float32Array(n);
+      h.i_im = new Float32Array(n);
+      h.o_re = new Float32Array(n);
+      h.o_im = new Float32Array(n);
+      h.ring_re = new Float32Array(n);
+      h.ring_im = new Float32Array(n);
+      h.nbins = n;         // full span: -srate/2 .. +srate/2 about the carrier
+   } else {
+      h.offt = ooura32.FFT(n, { "type":"real", "radix":4 });
+      h.i_re = ooura32.scalarArrayFactory(h.offt);
+      h.i_im = null;
+      h.o_re = ooura32.vectorArrayFactory(h.offt);
+      h.o_im = ooura32.vectorArrayFactory(h.offt);
+      h.ring_re = new Float32Array(n);
+      h.ring_im = null;
+      h.nbins = n/2;       // positive audio frequencies: 0 .. srate/2
+   }
+
+   // Hanning window; normalize power by the window coherent gain so the dB values
+   // are independent of the FFT size: a full-scale tone reads 0 dBFS.
+   // complex tone: |X_peak| = A * sum_w; real tone: |X_peak| = A * sum_w / 2
+   h.win = new Float32Array(n);
+   var sum_w = 0;
+   for (i = 0; i < n; i++) {
+      h.win[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (n-1));
+      sum_w += h.win[i];
+   }
+   h.scale = (iq? 1.0 : 4.0) / (sum_w * sum_w * h.MAX_VAL * h.MAX_VAL);
+
+   h.dB = new Uint8Array(h.nbins);
+   h.iq = iq;
+   h.comp = comp;
+   h.init = true;
+   fft_hrw_reset();
+   fft_hrw_canvases();
+   fft_hrw_status();
+   fft_hrw_scale();
+   console.log('FFT hrw_setup fft_size='+ n +' hop='+ h.hop +' nbins='+ h.nbins +' iq='+ iq +' comp='+ comp);
+}
+
+// resize the waterfall canvas backing store to the current bin count
+// (canvas remains displayed at fft.integ_w CSS px, times the display zoom)
+function fft_hrw_canvases()
+{
+   var h = fft.hrw;
+   [fft.wf1_canvas, fft.wf2_canvas].forEach(function(cv) {
+      if (cv.width != h.nbins || !cv.im || cv.im.width != h.nbins) {
+         cv.width = h.nbins;     // NB: resets canvas content
+         cv.im = cv.ctx.createImageData(h.nbins, 1);
+      }
+   });
+   fft_hrw_apply_zoom();
+}
+
+// display zoom is pure CSS scaling of the full-resolution backing canvas, centered
+function fft_hrw_apply_zoom()
+{
+   var z = 1 << fft.hrw_zoom_i;
+   var w = fft.integ_w * z;
+   var left = -(w - fft.integ_w) / 2;
+   [fft.wf1_canvas, fft.wf2_canvas].forEach(function(cv) {
+      cv.style.width = px(w);
+      // NB: must pin the CSS height, else the browser preserves the backing-store
+      // aspect ratio and collapses the displayed height when width >> integ_w
+      cv.style.height = px(cv.height);
+      cv.style.left = px(left);
+   });
+}
+
+// visible RF frequency range of the waterfall display (Hz), accounting for
+// stream format (IQ = full span centered on carrier, real = one sideband)
+// and the centered display zoom
+function fft_hrw_freq_range()
+{
+   var srate = ext_sample_rate();
+   var carrier = ext_get_carrier_freq();
+   var lo, span;
+   if (ext_is_IQ_or_stereo_curmode()) {
+      lo = carrier - srate/2; span = srate;
+   } else
+   if (ext_mode(cur_mode).LSB_SAL) {
+      lo = carrier - srate/2; span = srate/2;    // displayed reversed: left = lower RF freq
+   } else {
+      lo = carrier; span = srate/2;
+   }
+   var z = 1 << fft.hrw_zoom_i;
+   var vis_span = span / z;
+   var vis_lo = lo + (span - vis_span) / 2;
+   return { lo:vis_lo, span:vis_span, full_lo:lo, full_span:span };
+}
+
+// frequency scale in the 12 px header band of the overlay canvas
+function fft_hrw_scale()
+{
+   if (!isDefined(cur_mode)) return;
+   var c = fft.integ_canvas.ctx;
+   var w = fft.integ_w, hdr = fft.integ_hdr;
+   c.fillStyle = 'mediumBlue';
+   c.fillRect(0, 0, w, hdr);
+
+   var r = fft_hrw_freq_range();
+   if (!r.span || !isFinite(r.span)) return;
+
+   // tick step: nice number giving ~6 labeled ticks
+   var step = r.span / 6;
+   var pow10 = Math.pow(10, Math.floor(Math.log(step) / Math.LN10));
+   var mant = step / pow10;
+   step = ((mant >= 5)? 5 : (mant >= 2)? 2 : 1) * pow10;
+
+   var step_kHz = step / 1e3;
+   var decimals = Math.max(0, Math.ceil(-Math.log(step_kHz) / Math.LN10));
+
+   c.font = '10px Verdana';
+   c.fillStyle = 'white';
+   c.strokeStyle = 'white';
+   var f = Math.ceil(r.lo / step) * step;
+   for (; f <= r.lo + r.span; f += step) {
+      var x = Math.round((f - r.lo) / r.span * w);
+      c.fillRect(x, hdr-4, 1, 4);
+      var txt = (f/1e3).toFixed(decimals);
+      var tw = c.measureText(txt).width;
+      var tx = x - tw/2;
+      if (tx < 1) tx = 1;
+      if (tx + tw > w-1) tx = w-1 - tw;
+      c.fillText(txt, tx, 8);
+   }
+   // minor ticks
+   var minor = step / 5;
+   for (f = Math.ceil(r.lo / minor) * minor; f <= r.lo + r.span; f += minor) {
+      var xm = Math.round((f - r.lo) / r.span * w);
+      c.fillRect(xm, hdr-2, 1, 2);
+   }
+}
+
+function fft_hrw_tooltip(evt)
+{
+   var el = w3_el('id-fft-hrw-tt');
+   if (!el) return;
+   var h = fft.hrw;
+   if (fft.func != fft.func_e.WF || !h.init) { w3_hide(el); return; }
+
+   var rect = fft.integ_canvas.getBoundingClientRect();
+   var x = evt.clientX - rect.left;
+   var y = evt.clientY - rect.top;
+   if (x < 0 || x >= fft.integ_w || y < 0) { w3_hide(el); return; }
+
+   var r = fft_hrw_freq_range();
+   var freq = r.lo + (x / fft.integ_w) * r.span;
+
+   // dB readout from the most recent line
+   var bin = Math.round((freq - r.full_lo) / r.full_span * (h.nbins-1));
+   var s = (freq/1e3).toFixed(3) +' kHz';
+   if (bin >= 0 && bin < h.nbins)
+      s += ' '+ (h.dB[bin] - 255) +' dB';
+
+   el.innerHTML = s;
+   el.style.left = px((x < fft.integ_w - 130)? (x+12) : (x-130));
+   el.style.top = px(w3_clamp(y, fft.integ_hdr, fft.integ_th - 20));
+   w3_show_block(el);
+}
+
+function fft_hrw_tooltip_leave()
+{
+   var el = w3_el('id-fft-hrw-tt');
+   if (el) w3_hide(el);
+}
+
+function fft_hrw_status()
+{
+   var h = fft.hrw;
+   var el = w3_el('id-fft-hrw-status');
+   if (!el || !h.init) return;
+   var srate = ext_sample_rate();
+   var hzbin = srate / h.fft_size;
+   var lps = srate / h.hop;
+   el.innerHTML = h.nbins +' bins, '+ hzbin.toFixed(hzbin < 10? 2:1) +' Hz/bin, '+
+      lps.toFixed(1) +' lines/s'+ (h.iq? ', IQ':'');
+}
+
+// called from audio_recv() (via ext.js) with each decoded SND packet:
+// real modes: samps int16 mono samples; IQ/stereo modes: samps int16 interleaved I,Q
+function fft_audio_data_cb(data, samps)
+{
+   if (fft.func != fft.func_e.WF || !isDefined(cur_mode)) return;
+   if (!kiwi_load_js_polled(fft.hrw.dynload, 'pkgs/js/Ooura_FFT32.js')) return;
+
+   var h = fft.hrw;
+   var i;
+   var iq = ext_is_IQ_or_stereo_curmode();
+   if (!h.init || iq != h.iq || audio_compression != h.comp)
+      fft_hrw_setup(iq, audio_compression);
+   h.lsb = ext_mode(cur_mode).LSB_SAL;
+
+   // interleave appending and frame processing so that a packet larger than the
+   // hop size still produces correctly offset (not duplicated) overlapping frames;
+   // nnew counts samples only after the initial buffer fill, so per-sample checking
+   // emits the first frame exactly at fill and thereafter one frame per hop
+   var n = h.fft_size;
+   var step = iq? 2:1;
+   for (i = 0; i < samps; i += step) {
+      h.ring_re[h.ring_w] = data[i];
+      if (iq) h.ring_im[h.ring_w] = data[i+1];
+      h.ring_w++; if (h.ring_w == n) h.ring_w = 0;
+      if (h.ring_filled < n) {
+         h.ring_filled++;
+         if (h.ring_filled == n) { fft_hrw_frame(); h.nnew = 0; }
+      } else {
+         h.nnew++;
+         if (h.nnew >= h.hop) { fft_hrw_frame(); h.nnew = 0; }
+      }
+   }
+}
+
+function fft_hrw_frame()
+{
+   var h = fft.hrw;
+   var j, re, im, pwr, dB;
+   var n = h.fft_size;
+
+   // ring holds exactly the last n samples, oldest at ring_w
+   var idx = h.ring_w;
+   if (h.iq) {
+      for (j = 0; j < n; j++) {
+         h.i_re[j] = h.ring_re[idx] * h.win[j];
+         h.i_im[j] = h.ring_im[idx] * h.win[j];
+         idx++; if (idx == n) idx = 0;
+      }
+      h.offt.fft(h.offt, h.i_re.buffer, h.i_im.buffer, h.o_re.buffer, h.o_im.buffer);
+   } else {
+      for (j = 0; j < n; j++) {
+         h.i_re[j] = h.ring_re[idx] * h.win[j];
+         idx++; if (idx == n) idx = 0;
+      }
+      h.offt.fft(h.offt, h.i_re.buffer, h.o_re.buffer, h.o_im.buffer);
+   }
+
+   var nbins = h.nbins;
+   if (h.iq) {
+      // fftshift: DC at display center, same bin mapping as wf_audio_FFT()
+      var half = n/2;
+      for (j = 0; j < n; j++) {
+         re = h.o_re[j]; im = h.o_im[j];
+         pwr = re*re + im*im;
+         dB = Math.round(255 + (10.0 * Math.log10(pwr * h.scale + 1e-30)));
+         if (dB < 0) dB = 0; else if (dB > 255) dB = 255;
+         h.dB[(j < half)? (half + j) : (j - half)] = dB;
+      }
+   } else {
+      // audio frequencies 0..srate/2; reversed for LSB-family modes so the
+      // display remains RF-frequency oriented (left = lower RF frequency)
+      for (j = 0; j < nbins; j++) {
+         re = h.o_re[j]; im = h.o_im[j];
+         pwr = re*re + im*im;
+         dB = Math.round(255 + (10.0 * Math.log10(pwr * h.scale + 1e-30)));
+         if (dB < 0) dB = 0; else if (dB > 255) dB = 255;
+         h.dB[h.lsb? (nbins-1 - j) : j] = dB;
+      }
+   }
+
+   // scroll one waterfall line (same double-buffered canvas mechanism as before)
+   var fc = fft.wf_canvas;
+   var c = fc.ctx;
+   var m = fc.im;
+   for (var x = 0; x < nbins; x++) {
+      var color = waterfall_color_index_max_min(h.dB[x], fft.maxdb, fft.mindb);
+      m.data[x*4+0] = color_map_r[color];
+      m.data[x*4+1] = color_map_g[color];
+      m.data[x*4+2] = color_map_b[color];
+      m.data[x*4+3] = 0xff;
+   }
+   c.putImageData(m, 0, fft.actual_line);
+   fft.actual_line--;
+   fft.wf1_canvas.style.top = px(fft.wf1_canvas.top++);
+   fft.wf2_canvas.style.top = px(fft.wf2_canvas.top++);
+
+   if (fft.actual_line < 0) {
+      var hgt = fft.integ_h;
+      fft.wf_canvas_i ^= 1;
+      fft.wf_canvas = fft.wf_canvas_i? fft.wf2_canvas : fft.wf1_canvas;
+      fc = fft.wf_canvas;
+      fc.top = -hgt+1 + fft.integ_hdr;
+      fc.style.top = px(fc.top);
+      fft.actual_line = hgt - 1;
+   }
+}
+
+// percentile autoscale of the max/min dB sliders from the most recent line
+// (same approach as the main waterfall: noise = 50th percentile, signal = 95th)
+function fft_hrw_autoscale_cb(path, val)
+{
+   var h = fft.hrw;
+   if (h.init && h.dB) {
+      var sorted = Array.prototype.slice.call(h.dB).sort(function(a,b) { return a-b; });
+      var len = sorted.length;
+      var noise  = sorted[Math.floor(0.50 * len)] - 255;
+      var signal = sorted[Math.floor(0.95 * len)] - 255;
+      // same empirical margins as the main waterfall autoscale (openwebrx.js waterfall_add)
+      var maxdb = w3_clamp(signal + 30, -170, -10);
+      var mindb = w3_clamp(noise - 10, -190, -30);
+      if (maxdb <= mindb) maxdb = mindb + 10;
+      w3_slider_set('fft.maxdb', maxdb, 'fft_maxdb_cb');
+      w3_slider_set('fft.mindb', mindb, 'fft_mindb_cb');
+   }
+	setTimeout(function() {w3_radio_unhighlight(path);}, w3_highlight_time);
+}
+
+function fft_hrw_size_cb(path, idx, first)
+{
+   if (first) return;
+   fft.hrw_size_i = +idx;
+   w3_select_value(path, idx);
+   fft.hrw.init = false;      // re-setup on next audio packet
+   fft_clear();
+}
+
+function fft_hrw_overlap_cb(path, idx, first)
+{
+   if (first) return;
+   fft.hrw_overlap_i = +idx;
+   w3_select_value(path, idx);
+   fft.hrw.init = false;
+   fft_clear();
+}
+
+function fft_hrw_zoom_cb(path, idx, first)
+{
+   if (first) return;
+   fft.hrw_zoom_i = +idx;
+   w3_select_value(path, idx);
+   fft_hrw_apply_zoom();
+   fft_hrw_scale();
+   fft_hrw_status();
 }
 
 function fft_recv(data_raw)
@@ -305,11 +715,12 @@ function fft_controls_setup()
    var data_html =
       time_display_html('fft') +
 
-      w3_div('id-fft-data|left:150px; width:1024px; height:200px; background-color:mediumBlue; position:relative;',
+      w3_div('id-fft-data|left:150px; width:1024px; height:200px; background-color:mediumBlue; position:relative; overflow:hidden;',
    		'<canvas id="id-fft-wf1-canvas" width="1024" height="188" style="position:absolute"></canvas>',
    		'<canvas id="id-fft-wf2-canvas" width="1024" height="188" style="position:absolute"></canvas>',
    		// after fft canvases so on top
-   		'<canvas id="id-fft-integ-canvas" width="1024" height="200" style="position:absolute"></canvas>'
+   		'<canvas id="id-fft-integ-canvas" width="1024" height="200" style="position:absolute"></canvas>',
+   		w3_div('id-fft-hrw-tt w3-hide|position:absolute; z-index:2; padding:1px 4px; background-color:black; color:white; font-family:Verdana; font-size:10px; pointer-events:none;', '')
       );
 
    var info_html =
@@ -334,6 +745,23 @@ function fft_controls_setup()
          if ((r = w3_ext_param('mindb', a)).match) {
             fft.mindb = w3_clamp(r.num, -190, -30);
          } else
+         if ((r = w3_ext_param('size', a)).match) {
+            // closest available FFT size
+            var best = 0;
+            fft.hrw_size_v.forEach(function(sz, i) {
+               if (Math.abs(sz - r.num) < Math.abs(fft.hrw_size_v[best] - r.num)) best = i;
+            });
+            fft.hrw_size_i = best;
+         } else
+         if ((r = w3_ext_param('overlap', a)).match) {
+            var oi = fft.hrw_overlap_v.indexOf(r.num);
+            if (oi != -1) fft.hrw_overlap_i = oi;
+         } else
+         if ((r = w3_ext_param('zoom', a)).match) {
+            // interpret as zoom factor (1,2,4,8,16)
+            var zf = w3_clamp(r.num, 1, 16);
+            fft.hrw_zoom_i = Math.round(Math.log(zf) / Math.LN2);
+         } else
          if (w3_ext_param('help', a).match) {
             // delay needed due to interference with spectrum display render
             ext_help_click(true);
@@ -352,6 +780,17 @@ function fft_controls_setup()
                   w3_input('w3-width-64 w3-padding-smaller', 'Integrate time', 'fft.itime', fft.itime, 'fft_itime_cb')
                ),
 					w3_select('w3-margin-T-8//w3-text-red w3-width-auto', 'Integrate presets', 'select', 'fft.pre', W3_SELECT_SHOW_TITLE, fft.pre_s, 'fft_pre_select_cb'),
+					w3_div('id-fft-hrw w3-margin-T-8',
+					   w3_inline('w3-halign-space-between/',
+                     w3_select('w3-text-red', 'FFT', '', 'fft.hrw_size_i', fft.hrw_size_i, fft.hrw_size_s, 'fft_hrw_size_cb'),
+                     w3_select('w3-text-red', 'Overlap', '', 'fft.hrw_overlap_i', fft.hrw_overlap_i, fft.hrw_overlap_s, 'fft_hrw_overlap_cb'),
+                     w3_select('w3-text-red', 'Zoom', '', 'fft.hrw_zoom_i', fft.hrw_zoom_i, fft.hrw_zoom_s, 'fft_hrw_zoom_cb')
+                  ),
+					   w3_inline('w3-margin-T-4 w3-halign-space-between/',
+					      w3_div('id-fft-hrw-status w3-small', ''),
+					      w3_button('w3-padding-small', 'Auto scale', 'fft_hrw_autoscale_cb')
+					   )
+               ),
 					w3_div('id-fft-msg-fft w3-margin-T-8',
                   w3_slider('', 'max', 'fft.maxdb', fft.maxdb, -170, -10, 1, 'fft_maxdb_cb'),
                   w3_slider('', 'min', 'fft.mindb', fft.mindb, -190, -30, 1, 'fft_mindb_cb')
@@ -370,6 +809,8 @@ function fft_controls_setup()
 	fft.integ_canvas.ctx = fft.integ_canvas.getContext("2d");
 	fft.integ_canvas.im = fft.integ_canvas.ctx.createImageData(fft.integ_w, 1);
 	fft.integ_canvas.addEventListener("mousedown", fft_mousedown, w3.BUBBLING);
+	fft.integ_canvas.addEventListener("mousemove", fft_hrw_tooltip, w3.BUBBLING);
+	fft.integ_canvas.addEventListener("mouseleave", fft_hrw_tooltip_leave, w3.BUBBLING);
 
 	fft.wf1_canvas = w3_el('id-fft-wf1-canvas');
 	fft.wf1_canvas.ctx = fft.wf1_canvas.getContext("2d");
@@ -381,6 +822,10 @@ function fft_controls_setup()
 
 	fft.info_canvas = w3_el('id-fft-info-canvas');
 	fft.info_canvas.ctx = fft.info_canvas.getContext("2d");
+
+	// receive the network-rate, post-decompression samples for the client-side FFT waterfall
+	fft.hrw.init = false;
+	ext_register_audio_data_cb(fft_audio_data_cb);
 
 	FFT_environment_changed( {resize:1} );
 
@@ -398,6 +843,8 @@ function FFT_environment_changed(changed)
    if (changed.mode) {
       //console.log('FFT_environment_changed run='+ fft.func);
       ext_send('SET run='+ fft.run[fft.func+1]);
+      // mode family may have changed (e.g. USB <-> LSB) altering the displayed range
+      if (fft.func == fft.func_e.WF) fft_hrw_scale();
    }
    
    if (changed.resize) {
@@ -514,6 +961,21 @@ function fft_func_cb(path, idx, first)
 	fft.func = idx;
 	w3_show_hide('id-fft-msg-fft',  fft.func != fft.func_e.SPEC);
 	w3_show_hide('id-fft-msg-spec', fft.func == fft.func_e.SPEC);
+	w3_show_hide('id-fft-hrw',      fft.func == fft.func_e.WF);
+	if (fft.func == fft.func_e.WF) {
+	   fft.hrw.init = false;      // canvas width may have to change back from integrate's 1024
+	} else {
+	   // restore 1024-wide canvases for the server-side integrate display
+	   [fft.wf1_canvas, fft.wf2_canvas].forEach(function(cv) {
+	      if (cv && cv.width != fft.integ_w) {
+	         cv.width = fft.integ_w;
+	         cv.im = cv.ctx.createImageData(fft.integ_w, 1);
+	         cv.style.width = '';
+	         cv.style.height = '';
+	         cv.style.left = '';
+	      }
+	   });
+	}
 	fft_clear();
 	w3_attribute(fft.integ_canvas, 'title', 'click to align vertically', fft.func == fft.func_e.INTEG);
 }
@@ -605,6 +1067,7 @@ function FFT_blur()
 {
    console.log('FFT_blur');
 	kiwi_clearInterval(fft.update_interval);
+	ext_unregister_audio_data_cb();
    ext_send('SET run='+ fft.func_e.OFF);
 	spec.need_clear_avg = true;   // remove our spectrum data from averaging buffers
    
@@ -628,13 +1091,22 @@ function FFT_help(show)
          'By contrast this extension allows visualization of the <i>audio</i> channel itself by using ' +
          'an FFT, waterfall and integrator (summing waterfall) for weak signals.' +
          
+         '<br><br>The waterfall function computes its FFT in the browser directly from the audio ' +
+         'sample stream. The FFT size (hence frequency resolution), FFT overlap (time resolution) ' +
+         'and display zoom are selectable. Use an IQ mode for the full bandwidth centered on the ' +
+         'tuned frequency and the best resolution (IQ audio is never compressed). ' +
+         'A frequency scale is drawn above the waterfall and hovering the mouse shows ' +
+         'frequency and level. The <i>Auto scale</i> button sets the max/min sliders from ' +
+         'the current signal statistics.' +
+         
          '<br><br>URL parameters: <br>' +
-         w3_text('|color:orange', 'itime:<i>num</i> &nbsp; maxdb:<i>num</i> &nbsp; mindb:<i>num</i>') +
+         w3_text('|color:orange', 'itime:<i>num</i> &nbsp; maxdb:<i>num</i> &nbsp; mindb:<i>num</i> &nbsp; ' +
+            'size:<i>num</i> &nbsp; overlap:<i>num</i> &nbsp; zoom:<i>num</i>') +
          '<br> Non-numeric values are those appearing in their respective menus. <br>' +
          'Keywords are case-insensitive and can be abbreviated. <br>' +
          'So for example these are valid: <br>' +
          '<i>ext=fft,integ,itime:5</i> &nbsp;&nbsp; ' +
-         '<i>ext=fft,water,min:-130,max:-40</i> &nbsp;&nbsp; <i>ext=fft,alpha</i> <br>' +
+         '<i>ext=fft,water,min:-130,max:-40,size:16384,overlap:4</i> &nbsp;&nbsp; <i>ext=fft,alpha</i> <br>' +
          '<br>' +
          'Clicking on integrate display will restart it such that the click-point is ' +
          'moved to top of the display (i.e. vertical timing can be realigned).' +
