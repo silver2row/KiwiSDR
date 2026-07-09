@@ -42,7 +42,8 @@ var fft = {
 
       fft_size: 0,      // number of input samples (complex pairs when iq) per FFT frame
       hop: 0,           // fft_size / overlap
-      nbins: 0,         // displayed bins: fft_size (iq) or fft_size/2 (real)
+      nbins: 0,         // computed bins: fft_size (iq) or fft_size/2 (real)
+      draw_w: 0,        // canvas backing width: min(nbins, displayed px), peak-decimated
       scale: 0,         // power normalization (window-sum based, independent of fft_size)
 
       offt: null,
@@ -155,8 +156,7 @@ function fft_clear()
 
 	var c = fft.integ_canvas.ctx;
 	if (fft.func == fft.func_e.WF) {
-      c.clearRect(0, 0, w, th);
-	   th = fft.integ_hdr;
+      c.clearRect(0, 0, w, th);    // header redrawn by fft_hrw_scale() below
 	} else {
       c.fillStyle = 'mediumBlue';
       c.fillRect(0, 0, w, th);
@@ -298,26 +298,38 @@ function fft_hrw_setup(iq, comp)
    h.init = true;
    fft_hrw_reset();
    fft_hrw_canvases();
+   // old lines have a different frequency mapping (mode or FFT size changed)
+   [fft.wf1_canvas, fft.wf2_canvas].forEach(function(cv) {
+      cv.ctx.clearRect(0, 0, cv.width, cv.height);
+   });
    fft_hrw_status();
    fft_hrw_scale();
    console.log('FFT hrw_setup fft_size='+ n +' hop='+ h.hop +' nbins='+ h.nbins +' iq='+ iq +' comp='+ comp);
 }
 
-// resize the waterfall canvas backing store to the current bin count
-// (canvas remains displayed at fft.integ_w CSS px, times the display zoom)
+// resize the waterfall canvas backing store to the displayed width
+//
+// NB: never draw more columns than are displayed: browsers minify a too-wide
+// canvas with an area filter that dims a 1-bin-wide carrier towards invisibility
+// (or drops it entirely at default filter quality). Instead the dB line is
+// peak-decimated into draw_w columns in fft_hrw_frame(), so narrow carriers
+// stay at full brightness. The full-resolution line is kept in hrw.dB for the
+// tooltip and autoscale.
 function fft_hrw_canvases()
 {
    var h = fft.hrw;
+   h.draw_w = Math.min(h.nbins, fft.integ_w << fft.hrw_zoom_i);
    [fft.wf1_canvas, fft.wf2_canvas].forEach(function(cv) {
-      if (cv.width != h.nbins || !cv.im || cv.im.width != h.nbins) {
-         cv.width = h.nbins;     // NB: resets canvas content
-         cv.im = cv.ctx.createImageData(h.nbins, 1);
+      if (cv.width != h.draw_w || !cv.im || cv.im.width != h.draw_w) {
+         cv.width = h.draw_w;    // NB: resets canvas content
+         cv.im = cv.ctx.createImageData(h.draw_w, 1);
       }
    });
    fft_hrw_apply_zoom();
 }
 
-// display zoom is pure CSS scaling of the full-resolution backing canvas, centered
+// display zoom: the backing canvas (draw_w wide) is CSS-scaled up to
+// integ_w * zoom CSS px and centered; scaling is always >= 1:1 (see above)
 function fft_hrw_apply_zoom()
 {
    var z = 1 << fft.hrw_zoom_i;
@@ -438,8 +450,10 @@ function fft_hrw_status()
    var srate = ext_sample_rate();
    var hzbin = srate / h.fft_size;
    var lps = srate / h.hop;
+   var dec = h.nbins / h.draw_w;
    el.innerHTML = h.nbins +' bins, '+ hzbin.toFixed(hzbin < 10? 2:1) +' Hz/bin, '+
-      lps.toFixed(1) +' lines/s'+ (h.iq? ', IQ':'');
+      lps.toFixed(1) +' lines/s'+ (h.iq? ', IQ':'') +
+      ((dec > 1)? (', '+ dec +':1 shown'):'');    // zoom in to reveal full resolution
 }
 
 // called from audio_recv() (via ext.js) with each decoded SND packet:
@@ -522,12 +536,20 @@ function fft_hrw_frame()
       }
    }
 
-   // scroll one waterfall line (same double-buffered canvas mechanism as before)
+   // peak-decimate the full-resolution dB line into the draw_w-wide canvas
+   // (max per column, not average, so single-bin carriers stay full brightness);
+   // 1:1 copy when nbins <= draw_w
    var fc = fft.wf_canvas;
    var c = fc.ctx;
    var m = fc.im;
-   for (var x = 0; x < nbins; x++) {
-      var color = waterfall_color_index_max_min(h.dB[x], fft.maxdb, fft.mindb);
+   var dw = h.draw_w;
+   for (var x = 0; x < dw; x++) {
+      var b0 = Math.floor(x * nbins / dw);
+      var b1 = Math.floor((x+1) * nbins / dw);
+      var v = h.dB[b0];
+      for (var b = b0+1; b < b1; b++)
+         if (h.dB[b] > v) v = h.dB[b];
+      var color = waterfall_color_index_max_min(v, fft.maxdb, fft.mindb);
       m.data[x*4+0] = color_map_r[color];
       m.data[x*4+1] = color_map_g[color];
       m.data[x*4+2] = color_map_b[color];
@@ -592,9 +614,16 @@ function fft_hrw_zoom_cb(path, idx, first)
    if (first) return;
    fft.hrw_zoom_i = +idx;
    w3_select_value(path, idx);
-   fft_hrw_apply_zoom();
-   fft_hrw_scale();
-   fft_hrw_status();
+   var h = fft.hrw;
+   if (h.init && Math.min(h.nbins, fft.integ_w << fft.hrw_zoom_i) != h.draw_w) {
+      // zoom changes the peak-decimated backing width: full re-setup
+      h.init = false;
+      fft_clear();
+   } else {
+      fft_hrw_apply_zoom();
+      fft_hrw_scale();
+      fft_hrw_status();
+   }
 }
 
 function fft_recv(data_raw)
@@ -746,10 +775,11 @@ function fft_controls_setup()
             fft.mindb = w3_clamp(r.num, -190, -30);
          } else
          if ((r = w3_ext_param('size', a)).match) {
-            // closest available FFT size
+            // closest available FFT size; values <= 16 are shorthand for k units (e.g. size:8 = 8192)
+            var sznum = (r.num <= 16)? (r.num * 1024) : r.num;
             var best = 0;
             fft.hrw_size_v.forEach(function(sz, i) {
-               if (Math.abs(sz - r.num) < Math.abs(fft.hrw_size_v[best] - r.num)) best = i;
+               if (Math.abs(sz - sznum) < Math.abs(fft.hrw_size_v[best] - sznum)) best = i;
             });
             fft.hrw_size_i = best;
          } else
@@ -965,15 +995,16 @@ function fft_func_cb(path, idx, first)
 	if (fft.func == fft.func_e.WF) {
 	   fft.hrw.init = false;      // canvas width may have to change back from integrate's 1024
 	} else {
-	   // restore 1024-wide canvases for the server-side integrate display
+	   // restore 1024-wide, unscaled canvases for the server-side integrate display
 	   [fft.wf1_canvas, fft.wf2_canvas].forEach(function(cv) {
-	      if (cv && cv.width != fft.integ_w) {
+	      if (!cv) return;
+	      if (cv.width != fft.integ_w) {
 	         cv.width = fft.integ_w;
 	         cv.im = cv.ctx.createImageData(fft.integ_w, 1);
-	         cv.style.width = '';
-	         cv.style.height = '';
-	         cv.style.left = '';
 	      }
+	      cv.style.width = '';
+	      cv.style.height = '';
+	      cv.style.left = '';
 	   });
 	}
 	fft_clear();
@@ -1095,6 +1126,8 @@ function FFT_help(show)
          'sample stream. The FFT size (hence frequency resolution), FFT overlap (time resolution) ' +
          'and display zoom are selectable. Use an IQ mode for the full bandwidth centered on the ' +
          'tuned frequency and the best resolution (IQ audio is never compressed). ' +
+         'When there are more FFT bins than display pixels each pixel shows the strongest bin ' +
+         '(so narrow carriers are never lost); increase the zoom to see the full resolution. ' +
          'A frequency scale is drawn above the waterfall and hovering the mouse shows ' +
          'frequency and level. The <i>Auto scale</i> button sets the max/min sliders from ' +
          'the current signal statistics.' +
@@ -1106,7 +1139,8 @@ function FFT_help(show)
          'Keywords are case-insensitive and can be abbreviated. <br>' +
          'So for example these are valid: <br>' +
          '<i>ext=fft,integ,itime:5</i> &nbsp;&nbsp; ' +
-         '<i>ext=fft,water,min:-130,max:-40,size:16384,overlap:4</i> &nbsp;&nbsp; <i>ext=fft,alpha</i> <br>' +
+         '<i>ext=fft,water,min:-130,max:-40,size:16,overlap:4</i> &nbsp;&nbsp; <i>ext=fft,alpha</i> <br>' +
+         '(<i>size</i> values &le; 16 mean k units, e.g. size:16 = 16384) <br>' +
          '<br>' +
          'Clicking on integrate display will restart it such that the click-point is ' +
          'moved to top of the display (i.e. vertical timing can be realigned).' +
