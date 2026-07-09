@@ -936,7 +936,7 @@ function freedv_rebuild_hosts(opts)
 
 function freedv_get_hosts_cb(hosts)
 {
-   var i, j, err;
+   var i, j, s, err;
    
    if (!hosts) {
       console.log('freedv_get_hosts_cb hosts='+ hosts);
@@ -994,7 +994,7 @@ function freedv_get_hosts_cb(hosts)
          freedv.not_allow_camping = true;
          freedv_error('must allow camping');
          confirmation_panel_close();
-         var s =
+         s =
             'The FreeDV extension can only be used when this Kiwi allows sufficient channel camping. <br>' +
             'On the admin "control" tab make sure the value of "Number of audio campers per channel" <br>' +
             'is set to at least 2. Alternatively, try running the extension on another Kiwi.<br>' +
@@ -1006,7 +1006,7 @@ function freedv_get_hosts_cb(hosts)
       freedv.not_public_url = true;
       freedv_error('must use public URL');
       confirmation_panel_close();
-      var s =
+      s =
          'The FreeDV extension can only be used when this Kiwi is accessed via <br>' +
          'a public URL, not the local/private URL: ' +
          w3_link('', host_port, host_port) + '<br>' +
@@ -2402,9 +2402,9 @@ function FreeDV_focus()
    // switch optbar off to not obscure map on smaller screens
    ext_set_optbar('optbar-off', 'init');
    
-   shortcut.ext_key['a'] = 'freedv_stop_start_cb';
-   shortcut.ext_key['s'] = 'freedv_hosts_visible_cb';
-   shortcut.ext_key['d'] = 'freedv_spots_visible_cb';
+   shortcut.ext_key.a = 'freedv_stop_start_cb';
+   shortcut.ext_key.s = 'freedv_hosts_visible_cb';
+   shortcut.ext_key.d = 'freedv_spots_visible_cb';
 }
 
 function freedv_blur_complete()
@@ -2414,7 +2414,7 @@ function freedv_blur_complete()
 	ext_set_data_height();     // restore default height
 	ext_set_data_height();     // restore default height
 	zoom_center = 0.5;         // restore
-	shortcut.ext_key['a'] = shortcut.ext_key['s'] = shortcut.ext_key['d'] = null;
+	shortcut.ext_key.s = shortcut.ext_key.s = shortcut.ext_key.d = null;
 
 	// restore optbar if it wasn't changed
 	console.log(ext_get_optbar() +' '+ freedv.optbar);

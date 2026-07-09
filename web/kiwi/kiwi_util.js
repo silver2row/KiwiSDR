@@ -526,8 +526,9 @@ function removeEnding(str, ending)
       return str;
 }
 
-function kiwi_inet4_d2h(inet4_str, opt)
+function kiwi_inet4_d2h(inet4_str, opts)
 {
+   opts = opts || {};
 	var s = inet4_str.split('.');
 	//console.log('kiwi_inet4_d2h:');
 	//console.log(s);
@@ -544,35 +545,33 @@ function kiwi_inet4_d2h(inet4_str, opt)
 	if ((d = check(s[3])) == null) return null;
 	var ip = (a<<24) | (b<<16) | (c<<8) | d;
 	
-	if (opt) {
-	   if (opt['no_local_ip']) {
-         //console.log('no_local_ip '+ kiwi_ip_str(ip));
-         if (
-            (ip >= kiwi_ip_10_lo && ip <= kiwi_ip_10_hi) ||
-            (ip >= kiwi_ip_172_16_lo && ip <= kiwi_ip_172_16_hi) ||
-            (ip >= kiwi_ip_192_168_lo && ip <= kiwi_ip_192_168_hi) ||
-            (ip == kiwi_ip_loopback)) {
-               console.log('EXCLUDE LOCAL RANGE '+ kiwi_ip_str(ip));
-               return null;
-         }
-      }
-      
-      // overlap check with kiwisdr.com IP done on server because it's easier
-	   if (opt['no_local_overlap']) {
-         var s2 = s[3].split('/');
-         var nmd = (s2.length >= 2)? parseInt(s2[1]) : 32;
-         if (nmd < 1 || nm > 32) return null;
-         var nm = (~((1<<(32-nmd))-1)) & 0xffffffff;
-         var ip1 = ip & nm;
-         //console.log('no_local_overlap '+ kiwi_ip_str(ip) +' ip1='+ ip1.toHex(8) +' nmd='+ nmd +' nm='+ nm.toHex(8));
-         if (
-            (ip1 == (kiwi_ip_loopback & nm)) ||
-            (ip1 == (kiwi_ip_10_lo & nm)) ||
-            (ip1 == (kiwi_ip_172_16_lo & nm)) ||
-            (ip1 == (kiwi_ip_192_168_lo & nm))) {
-            console.log('EXCLUDE LOCAL OVERLAP '+ kiwi_ip_str(ip));
+   if (opts.no_local_ip) {
+      //console.log('no_local_ip '+ kiwi_ip_str(ip));
+      if (
+         (ip >= kiwi_ip_10_lo && ip <= kiwi_ip_10_hi) ||
+         (ip >= kiwi_ip_172_16_lo && ip <= kiwi_ip_172_16_hi) ||
+         (ip >= kiwi_ip_192_168_lo && ip <= kiwi_ip_192_168_hi) ||
+         (ip == kiwi_ip_loopback)) {
+            console.log('EXCLUDE LOCAL RANGE '+ kiwi_ip_str(ip));
             return null;
-         }
+      }
+   }
+   
+   // overlap check with kiwisdr.com IP done on server because it's easier
+   if (opts.no_local_overlap) {
+      var s2 = s[3].split('/');
+      var nmd = (s2.length >= 2)? parseInt(s2[1]) : 32;
+      if (nmd < 1 || nm > 32) return null;
+      var nm = (~((1<<(32-nmd))-1)) & 0xffffffff;
+      var ip1 = ip & nm;
+      //console.log('no_local_overlap '+ kiwi_ip_str(ip) +' ip1='+ ip1.toHex(8) +' nmd='+ nmd +' nm='+ nm.toHex(8));
+      if (
+         (ip1 == (kiwi_ip_loopback & nm)) ||
+         (ip1 == (kiwi_ip_10_lo & nm)) ||
+         (ip1 == (kiwi_ip_172_16_lo & nm)) ||
+         (ip1 == (kiwi_ip_192_168_lo & nm))) {
+         console.log('EXCLUDE LOCAL OVERLAP '+ kiwi_ip_str(ip));
+         return null;
       }
    }
 	return ip;

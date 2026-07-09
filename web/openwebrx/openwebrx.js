@@ -1204,7 +1204,7 @@ function kiwi_passbands(mode)
       console.log('kiwi_passbands('+ mode +') fallback:');
       if (isUndefined(mode) || isUndefined(passbands_fallback[mode])) {
          //kiwi_trace();
-         return passbands_fallback['am'];
+         return passbands_fallback.am;
       } else {
          console.log(passbands_fallback[mode]);
          return passbands_fallback[mode];
