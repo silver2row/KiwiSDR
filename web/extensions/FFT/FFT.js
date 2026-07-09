@@ -424,11 +424,20 @@ function fft_hrw_tooltip(evt)
    var r = fft_hrw_freq_range();
    var freq = r.lo + (x / fft.integ_w) * r.span;
 
-   // dB readout from the most recent line
-   var bin = Math.round((freq - r.full_lo) / r.full_span * (h.nbins-1));
-   var s = (freq/1e3).toFixed(3) +' kHz';
-   if (bin >= 0 && bin < h.nbins)
-      s += ' '+ (h.dB[bin] - 255) +' dB';
+   // readout from the most recent line: the strongest bin within the hovered pixel
+   // column, consistent with the peak-decimated display; when there are more bins
+   // than pixels this also refines the frequency readout to the exact peak bin
+   var bpp = (r.span / r.full_span) * h.nbins / fft.integ_w;    // bins per displayed px
+   var b = Math.round((freq - r.full_lo) / r.full_span * (h.nbins-1));
+   var b_lo = w3_clamp(Math.round(b - bpp/2), 0, h.nbins-1);
+   var b_hi = w3_clamp(Math.round(b + bpp/2), 0, h.nbins-1);
+   var bm = b_lo;
+   for (b = b_lo+1; b <= b_hi; b++)
+      if (h.dB[b] > h.dB[bm]) bm = b;
+   if (bpp > 1)
+      freq = r.full_lo + bm / (h.nbins-1) * r.full_span;
+   var decimals = (r.full_span / h.nbins < 1)? 4 : 3;     // sub-Hz resolution: show sub-Hz
+   var s = (freq/1e3).toFixed(decimals) +' kHz '+ (h.dB[bm] - 255) +' dB';
 
    el.innerHTML = s;
    el.style.left = px((x < fft.integ_w - 130)? (x+12) : (x-130));
