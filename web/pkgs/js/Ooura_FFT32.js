@@ -35,6 +35,37 @@ var ooura32 = {
 	DIRECTION_BACKWARDS: -1
 };
 
+// Memoized typed-array views: the transform kernels below take raw ArrayBuffers
+// and used to construct fresh (sub)views on every call, several times per
+// transform. Since a view of a given type/offset over the same buffer is always
+// identical, cache them in a WeakMap (no leak: entries die with their buffer).
+// Falls back to plain construction if WeakMap is unavailable.
+ooura32.view_cache = (typeof WeakMap !== 'undefined')? new WeakMap() : null;
+
+ooura32.view = function (buffer, key, make) {
+	if (!ooura32.view_cache) return make();
+	/* let */ var e = ooura32.view_cache.get(buffer);
+	if (!e) { e = {}; ooura32.view_cache.set(buffer, e); }
+	if (!e[key]) e[key] = make();
+	return e[key];
+};
+
+ooura32.f32 = function (buffer) {
+	return ooura32.view(buffer, 'f', function() { return new Float32Array(buffer); });
+};
+
+ooura32.f32sub = function (buffer, offset) {
+	return ooura32.view(buffer, 'f'+ offset, function() { return new Float32Array(buffer).subarray(offset); });
+};
+
+ooura32.i16 = function (buffer) {
+	return ooura32.view(buffer, 'i', function() { return new Int16Array(buffer); });
+};
+
+ooura32.i16sub = function (buffer, offset) {
+	return ooura32.view(buffer, 'i'+ offset, function() { return new Int16Array(buffer).subarray(offset); });
+};
+
 //class Ooura {
 	ooura32.FFT = function (size, info) {
 		assert(ooura32.isPowerOf2(size));
@@ -96,7 +127,7 @@ var ooura32 = {
 
 	ooura32.getVectorSize = function (this_) {
 		return ooura32.vectorSize(this_.size);
-	}
+	};
 
 	// Helper factory functions returning correct array and data size for a
 	// given fft setup;
@@ -109,21 +140,31 @@ var ooura32 = {
 	};
 
 	// Functions below here should be called via their aliases defined in the ctor
+	//
+	// NB: the de-interleave/interleave loops below run only while their reads and
+	// writes are in bounds (half the scalar size: the interleaved internal buffer
+	// holds size floats = size/2 complex values). The upstream code looped nn to
+	// this_.size: every iteration of the second half read past the end of a typed
+	// array (yielding undefined, which forces the JIT off its fast path) and its
+	// writes were out of bounds (silently dropped). Stopping at the functional
+	// bound is bit-identical and makes the wrapper several times faster.
 	ooura32.fftReal = function (this_, dataBuffer, reBuffer, imBuffer) {
-		/* const */ var data = new Float32Array(dataBuffer);
-		this_.internal.set(data);
+		/* const */ var data = ooura32.f32(dataBuffer);
+		/* const */ var internal = this_.internal;
+		internal.set(data);
 
-		ooura32.trans_rdft(this_.size, ooura32.DIRECTION_FORWARDS, this_.internal.buffer, this_.ip.buffer, this_.w.buffer);
+		ooura32.trans_rdft(this_.size, ooura32.DIRECTION_FORWARDS, internal.buffer, this_.ip.buffer, this_.w.buffer);
 
-		/* const */ var im = new Float32Array(imBuffer);
-		/* const */ var re = new Float32Array(reBuffer);
+		/* const */ var im = ooura32.f32(imBuffer);
+		/* const */ var re = ooura32.f32(reBuffer);
 
 		// De-interleave data
+		/* const */ var half = this_.size / 2;
 		/* let */ var nn = 0;
 		/* let */ var mm = 0;
-		while (nn !== this_.size) {
-			re[nn] = this_.internal[mm++];
-			im[nn++] = -this_.internal[mm++];
+		while (nn !== half) {
+			re[nn] = internal[mm++];
+			im[nn++] = -internal[mm++];
 		}
 
 		// Post cleanup
@@ -133,8 +174,8 @@ var ooura32 = {
 	};
 
 	ooura32.ifftReal = function (this_, dataBuffer, reBuffer, imBuffer) {
-		/* const */ var im = new Float32Array(imBuffer);
-		/* const */ var re = new Float32Array(reBuffer);
+		/* const */ var im = ooura32.f32(imBuffer);
+		/* const */ var re = ooura32.f32(reBuffer);
 
 		// Pack complex into buffer
 		/* let */ var nn = 0;
@@ -147,33 +188,35 @@ var ooura32 = {
 
 		ooura32.trans_rdft(this_.size, ooura32.DIRECTION_BACKWARDS, this_.internal.buffer, this_.ip.buffer, this_.w.buffer);
 
-		/* const */ var data = new Float32Array(dataBuffer);
+		/* const */ var data = ooura32.f32(dataBuffer);
 		//data.set(this_.internal.map(x => x * 2 / this_.size));
 		console.log("older js doesn't support '=>'");
 	};
 
 	ooura32.xfftComplex = function (this_, direction, reIpBuffer, imIpBuffer, reOpBuffer, imOpBuffer) {
-		/* const */ var reIp = new Float32Array(reIpBuffer);
-		/* const */ var imIp = new Float32Array(imIpBuffer);
-		/* const */ var reOp = new Float32Array(reOpBuffer);
-		/* const */ var imOp = new Float32Array(imOpBuffer);
+		/* const */ var reIp = ooura32.f32(reIpBuffer);
+		/* const */ var imIp = ooura32.f32(imIpBuffer);
+		/* const */ var reOp = ooura32.f32(reOpBuffer);
+		/* const */ var imOp = ooura32.f32(imOpBuffer);
+		/* const */ var internal = this_.internal;
+		/* const */ var half = this_.size / 2;    // number of complex values
 
-		// Pack complex input into buffer
+		// Pack complex input into buffer (see loop-bound note above)
 		/* let */ var nn = 0;
 		/* let */ var mm = 0;
-		while (nn !== this_.size) {
-			this_.internal[mm++] = reIp[nn];
-			this_.internal[mm++] = -imIp[nn++];
+		while (nn !== half) {
+			internal[mm++] = reIp[nn];
+			internal[mm++] = -imIp[nn++];
 		}
 
-		ooura32.trans_cdft(this_.size, direction, this_.internal.buffer, this_.ip.buffer, this_.w.buffer);
+		ooura32.trans_cdft(this_.size, direction, internal.buffer, this_.ip.buffer, this_.w.buffer);
 
 		// De-interleave data into output
 		nn = 0;
 		mm = 0;
-		while (nn !== this_.size) {
-			reOp[nn] = this_.internal[mm++];
-			imOp[nn++] = -this_.internal[mm++];
+		while (nn !== half) {
+			reOp[nn] = internal[mm++];
+			imOp[nn++] = -internal[mm++];
 		}
 	};
 
@@ -266,8 +309,8 @@ ooura32.init_makect = function (nc, ipBuffer, cBuffer, cOffset) {
 };
 
 ooura32.trans_rdft = function (n, dir, aBuffer, ipBuffer, wBuffer) {
-	/* const */ var ip = new Int16Array(ipBuffer);
-	/* const */ var a = new Float32Array(aBuffer);
+	/* const */ var ip = ooura32.i16(ipBuffer);
+	/* const */ var a = ooura32.f32(aBuffer);
 	/* const */ var nw = ip[0];
 	/* const */ var nc = ip[1];
 
@@ -314,8 +357,8 @@ ooura32.child_bitrv2 = function (n, ipBuffer, ipOffset, aBuffer) {
 	/* let */ var xr, xi, yr, yi;
 
     // Create some views on the raw buffers
-	/* const */ var ip = new Int16Array(ipBuffer).subarray(ipOffset);
-	/* const */ var a = new Float32Array(aBuffer);
+	/* const */ var ip = ooura32.i16sub(ipBuffer, ipOffset);
+	/* const */ var a = ooura32.f32(aBuffer);
 
 	ip[0] = 0;
 	l = n;
@@ -415,8 +458,8 @@ ooura32.child_bitrv2conj = function (n, ipBuffer, ipOffset, aBuffer) {
 	/* let */ var j, j1, k, k1, l, m;
 	/* let */ var xr, xi, yr, yi;
 
-	/* const */ var ip = new Int16Array(ipBuffer).subarray(ipOffset);
-	/* const */ var a = new Float32Array(aBuffer);
+	/* const */ var ip = ooura32.i16sub(ipBuffer, ipOffset);
+	/* const */ var a = ooura32.f32(aBuffer);
 
 	ip[0] = 0;
 	l = n;
@@ -526,8 +569,8 @@ ooura32.child_cftmdl = function (n, l, aBuffer, wBuffer) {
 	/* let */ var wk1r, wk1i, wk2r, wk2i, wk3r, wk3i;
 	/* let */ var x0r, x0i, x1r, x1i, x2r, x2i, x3r, x3i;
 
-	/* const */ var a = new Float32Array(aBuffer);
-	/* const */ var w = new Float32Array(wBuffer);
+	/* const */ var a = ooura32.f32(aBuffer);
+	/* const */ var w = ooura32.f32(wBuffer);
 
 	/* const */ var m = l << 2;
 	for (j = 0; j < l; j += 2) {
@@ -654,8 +697,8 @@ ooura32.child_cft1st = function (n, aBuffer, wBuffer) {
 	/* let */ var wk1r, wk1i, wk2r, wk2i, wk3r, wk3i;
 	/* let */ var x0r, x0i, x1r, x1i, x2r, x2i, x3r, x3i;
 
-	/* const */ var a = new Float32Array(aBuffer);
-	/* const */ var w = new Float32Array(wBuffer);
+	/* const */ var a = ooura32.f32(aBuffer);
+	/* const */ var w = ooura32.f32(wBuffer);
 
 	x0r = a[0] + a[2];
 	x0i = a[1] + a[3];
@@ -760,8 +803,8 @@ ooura32.child_cftfsub = function (n, aBuffer, wBuffer) {
 	/* let */ var x0r, x0i, x1r, x1i, x2r, x2i, x3r, x3i;
 
     // Create some views on the raw buffers
-	/* const */ var a = new Float32Array(aBuffer);
-	/* const */ var w = new Float32Array(wBuffer);
+	/* const */ var a = ooura32.f32(aBuffer);
+	/* const */ var w = ooura32.f32(wBuffer);
 
 	l = 2;
 	if (n > 8) {
@@ -811,8 +854,8 @@ ooura32.child_cftbsub = function (n, aBuffer, wBuffer) {
 	/* let */ var j, j1, j2, j3, l;
 	/* let */ var x0r, x0i, x1r, x1i, x2r, x2i, x3r, x3i;
 
-	/* const */ var a = new Float32Array(aBuffer);
-	/* const */ var w = new Float32Array(wBuffer);
+	/* const */ var a = ooura32.f32(aBuffer);
+	/* const */ var w = ooura32.f32(wBuffer);
 
 	l = 2;
 	if (n > 8) {
@@ -862,8 +905,8 @@ ooura32.child_rftfsub = function (n, aBuffer, nc, cBuffer, cOffset) {
 	/* let */ var j, k, kk;
 	/* let */ var wkr, wki, xr, xi, yr, yi;
 
-	/* const */ var a = new Float32Array(aBuffer);
-	/* const */ var c = new Float32Array(cBuffer).subarray(cOffset);
+	/* const */ var a = ooura32.f32(aBuffer);
+	/* const */ var c = ooura32.f32sub(cBuffer, cOffset);
 
 	/* const */ var m = n >> 1;
 	/* const */ var ks = 2 * nc / m;
@@ -888,8 +931,8 @@ ooura32.child_rftbsub = function (n, aBuffer, nc, cBuffer, cOffset) {
 	/* let */ var j, k, kk;
 	/* let */ var wkr, wki, xr, xi, yr, yi;
 
-	/* const */ var a = new Float32Array(aBuffer);
-	/* const */ var c = new Float32Array(cBuffer).subarray(cOffset);
+	/* const */ var a = ooura32.f32(aBuffer);
+	/* const */ var c = ooura32.f32sub(cBuffer, cOffset);
 
 	a[1] = -a[1];
 	/* const */ var m = n >> 1;

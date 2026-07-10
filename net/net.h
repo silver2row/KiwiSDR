@@ -189,6 +189,7 @@ typedef enum { IS_NOT_LOCAL, IS_LOCAL, NO_LOCAL_IF } isLocal_t;
 struct conn_st;
 isLocal_t isLocal_if_ip(struct conn_st *conn, char *ip_addr, const char *log_prefix);
 
+bool inet4_d_valid(int a, int b, int c, int d, int port = -1);
 u4_t inet4_d2h_strict(char *inet4_str, bool *error = NULL, u1_t *ap = NULL, u1_t *bp = NULL, u1_t *cp = NULL, u1_t *dp = NULL, bool debug = false);
 bool is_valid_ipv6_strict(char *inet6_str);
 
@@ -199,7 +200,7 @@ bool is_valid_ipv6_strict(char *inet6_str);
 
 bool find_local_IPs(int retry);
 void inet4_h2d(u4_t inet4, u1_t *ap, u1_t *bp, u1_t *cp, u1_t *dp);
-char *inet4_h2s(u4_t inet4, int which = 0);
+char *inet4_h2s(u4_t inet4, int port = -1, int which = 0);
 bool is_inet4_map_6(u1_t *a);
 int inet_nm_bits(int family, void *netmask);
 bool isLocal_ip(char *ip, bool *is_loopback = NULL, u4_t *ipv4 = NULL, bool *error = NULL, bool *kiwisdr_com = NULL);

@@ -72,7 +72,7 @@ Boston, MA  02110-1301, USA.
 
 #include <algorithm>
 
-#define WF_APER_INFO
+//#define WF_APER_INFO
 
 // if entries here are ordered by wf_cmd_key_e then the reverse lookup (str_hash_t *)->hashes[key].name
 // will work as a debugging aid

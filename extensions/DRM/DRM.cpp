@@ -34,6 +34,11 @@
     drm_shmem_t *drm_shmem_p = &drm_shmem;
 #endif
 
+
+////////////////////////////////
+// BEGIN routines called by DRM/dream code
+////////////////////////////////
+
 #ifdef DRM_SHMEM_DISABLE
     static u4_t drm_last_start;
     
@@ -104,6 +109,79 @@
     #endif
 #endif
 
+int DRM_rx_chan()
+{
+    drm_t *drm = &DRM_SHMEM->drm[(int) FROM_VOID_PARAM(TaskGetUserParam())];
+    return drm->rx_chan;
+}
+
+drm_t *DRM_drm_p(int rx_chan)
+{
+    if (rx_chan == -1) {
+        rx_chan = (int) FROM_VOID_PARAM(TaskGetUserParam());
+    } else {
+        TaskSetUserParam(TO_VOID_PARAM(rx_chan));
+    }
+
+    drm_t *drm = &DRM_SHMEM->drm[rx_chan];
+    return drm;
+}
+
+drm_buf_t *DRM_buf_p()
+{
+    drm_buf_t *drm_buf = &DRM_SHMEM->drm_buf[(int) FROM_VOID_PARAM(TaskGetUserParam())];
+    return drm_buf;
+}
+
+// pass msg & data via shared mem buf since DRM_SHMEM might be enabled
+void DRM_msg_encoded(drm_msg_e msg_type, const char *cmd, kstr_t *ks)
+{
+    drm_t *drm = &DRM_SHMEM->drm[(int) FROM_VOID_PARAM(TaskGetUserParam())];
+    int slen = strlen(kstr_sp(ks));
+    #if 0
+        const char *type_s[] = { "stat", "svc", "jour", "slide" };
+        printf("DRM: %s sl=%d\n", type_s[msg_type], slen);
+    #endif
+    if (slen >= L_MSGBUF)
+        printf("WARNING DRM_msg_encoded: msg_type=%d len=%d/%d\n", msg_type, slen, L_MSGBUF);
+    kiwi_strncpy(drm->msg_cmd[msg_type], cmd, L_MSGCMD);
+    kiwi_strncpy(drm->msg_buf[msg_type], kstr_sp(ks), L_MSGBUF);
+    drm->msg_tx_seq[msg_type]++;
+    DRM_yield();
+}
+
+// pass FAC, SDC, MSC data
+void DRM_data(u1_t cmd, u1_t *data, u4_t nbuf)
+{
+    drm_t *drm = &DRM_SHMEM->drm[(int) FROM_VOID_PARAM(TaskGetUserParam())];
+    assert(nbuf <= N_DATABUF);
+    drm->data_cmd = cmd;
+    memcpy(drm->data_buf, data, nbuf);
+    drm->data_nbuf = nbuf;
+    drm->data_tx_seq++;
+    DRM_yield();
+}
+
+bool DRM_new_rsci()
+{
+    drm_t *d = &DRM_SHMEM->drm[(int) FROM_VOID_PARAM(TaskGetUserParam())];
+    bool rv = false;
+    //printf("DRM_new_rsci() %d:%d\n", d->rsci_rx_seq, d->rsci_tx_seq);
+    if (d->rsci_rx_seq != d->rsci_tx_seq) {
+        //printf("DRM_new_rsci() %s:%s\n", d->rsci_profile, d->rsci_ip);
+        printf("DRM_new_rsci() %c:%s\n", d->rsci_profile, d->rsci_ip);
+        rv = true;
+        d->rsci_rx_seq = d->rsci_tx_seq;
+    }
+    return rv;
+}
+
+
+////////////////////////////////
+// END routines called by DRM/dream code
+////////////////////////////////
+
+
 static drm_info_t drm_info;
 
 void DRM_close(int rx_chan)
@@ -173,13 +251,14 @@ bool DRM_msgs(char *msg, int rx_chan)
 	    return true;
 	}
 
-    drm_t *d = &DRM_SHMEM->drm[rx_chan];
+    drm_t *dp = &DRM_SHMEM->drm[rx_chan];
     if (strcmp(msg, "SET ext_server_init") == 0) {
 		ext_send_msg(rx_chan, false, "EXT ready");
+		dp->rsci_profile = 'A';
 		
 		// extension notified of rx_chan >= drm_info.drm_max_rx in response to lock_set below
 		if (rx_chan < drm_info.drm_max_rx) {
-            d->rx_chan = rx_chan;	// remember our receiver channel number
+            dp->rx_chan = rx_chan;	// remember our receiver channel number
         }
         
         return true;
@@ -247,13 +326,13 @@ bool DRM_msgs(char *msg, int rx_chan)
         }
         
 		if (rv == DRM_OK_LOCKED) {
-            if (!d->tid) {
+            if (!dp->tid) {
                 #ifdef DRM_SHMEM_DISABLE
-                    d->tid = CreateTaskF(drm_task, TO_VOID_PARAM(rx_chan), EXT_PRIORITY, CTF_STACK_LARGE | CTF_RX_CHANNEL | (rx_chan & CTF_CHANNEL));
+                    dp->tid = CreateTaskF(drm_task, TO_VOID_PARAM(rx_chan), EXT_PRIORITY, CTF_STACK_LARGE | CTF_RX_CHANNEL | (rx_chan & CTF_CHANNEL));
                 #else
                     rcprintf(rx_chan, "DRM ext_server_init shmem_ipc_invoke rx_chan=%d\n", rx_chan);
                     shmem_ipc_invoke(SIG_IPC_DRM + rx_chan, rx_chan, NO_WAIT);
-                    d->tid = 1;
+                    dp->tid = 1;
                 #endif
             }
 		}
@@ -273,25 +352,25 @@ bool DRM_msgs(char *msg, int rx_chan)
     
     int run = 0;
     if (sscanf(msg, "SET run=%d", &run) == 1) {
-        d->run = run;
-        d->dbgUs = kiwi.dbgUs;
-        for (int i = 0; i < 4; i++) d->p_i[i] = p_i[i];
-        printf("DRM run=%d rx_chan=%d dbgUs=%d p_i[0]=%d\n", run, rx_chan, d->dbgUs, d->p_i[0]);
+        dp->run = run;
+        dp->dbgUs = kiwi.dbgUs;
+        for (int i = 0; i < 4; i++) dp->p_i[i] = p_i[i];
+        printf("DRM run=%d rx_chan=%d dbgUs=%d p_i[0]=%d\n", run, rx_chan, dp->dbgUs, dp->p_i[0]);
         return true;
     }
 
     int test = 0;
     if (sscanf(msg, "SET test=%d", &test) == 1) {
         printf("DRM test=%d rx_chan=%d\n", test, rx_chan);
-        d->test = test;
+        dp->test = test;
         if (drm_info.s2p_start1 == NULL || drm_info.s2p_start2 == NULL) {
-            d->test = 0;
+            dp->test = 0;
             return true;
         }
 
-        if (d->test) {
-            d->s2p = ((d->test == 1)? d->info->s2p_start1 : d->info->s2p_start2);
-            d->tsamp = 0;
+        if (dp->test) {
+            dp->s2p = ((dp->test == 1)? dp->info->s2p_start1 : dp->info->s2p_start2);
+            dp->tsamp = 0;
             
             // misuse ext_register_receive_iq_samps() to pushback audio samples from the test file
             ext_register_receive_iq_samps(drm_pushback_file_data, rx_chan);
@@ -303,101 +382,91 @@ bool DRM_msgs(char *msg, int rx_chan)
     
     int lpf = 0;
     if (sscanf(msg, "SET lpf=%d", &lpf) == 1) {
-        d->use_LPF = lpf;
+        dp->use_LPF = lpf;
         rcprintf(rx_chan, "DRM lpf=%d rx_chan=%d\n", lpf);
         return true;
     }
 
     int svc = 0;
     if (sscanf(msg, "SET svc=%d", &svc) == 1) {
-        d->audio_service = svc - 1;
+        dp->audio_service = svc - 1;
         return true;
     }
     
     int objID = 0;
     if (sscanf(msg, "SET journaline_objID=%d", &objID) == 1) {
         printf("DRM journaline_objID=0x%x\n", objID);
-        d->journaline_objID = objID;
-        d->journaline_objSet = true;
+        dp->journaline_objID = objID;
+        dp->journaline_objSet = true;
         return true;
     }
     
     int debug = 0;
     if (sscanf(msg, "SET debug=%d", &debug) == 1) {
-        d->debug = debug;
+        dp->debug = debug;
         return true;
     }
     
     int send_iq;
     if (sscanf(msg, "SET send_iq=%d", &send_iq) == 1) {
-        d->send_iq = send_iq? true:false;
+        dp->send_iq = send_iq? true:false;
         return true;
     }
     
     int monitor = 0;
     if (sscanf(msg, "SET monitor=%d", &monitor) == 1) {
-        d->monitor = monitor;
+        dp->monitor = monitor;
         return true;
     }
     
     if (strcmp(msg, "SET reset") == 0) {
-        d->reset = true;
-        d->i_epoch = d->i_samples = d->i_tsamples = 0;
-        d->no_input = d->sent_silence = 0;
-        d->journaline_objID = 0;
-        d->journaline_objSet = true;
+        dp->reset = true;
+        dp->i_epoch = dp->i_samples = dp->i_tsamples = 0;
+        dp->no_input = dp->sent_silence = 0;
+        dp->journaline_objID = 0;
+        dp->journaline_objSet = true;
         return true;    
     }
     
-    return false;
-}
-
-int DRM_rx_chan()
-{
-    drm_t *drm = &DRM_SHMEM->drm[(int) FROM_VOID_PARAM(TaskGetUserParam())];
-    return drm->rx_chan;
-}
-
-drm_t *DRM_drm_p(int rx_chan)
-{
-    if (rx_chan == -1) {
-        rx_chan = (int) FROM_VOID_PARAM(TaskGetUserParam());
-    } else {
-        TaskSetUserParam(TO_VOID_PARAM(rx_chan));
+    
+    //  RSCI
+    
+    int profile;
+    if (sscanf(msg, "SET profile=%d", &profile) == 1) {
+        profile = CLAMP_TO(profile, 0, 5, 0);
+        const char profile_c[] = { 'A', 'B', 'C', 'D', 'Q', 'M' };
+        dp->rsci_profile = profile_c[profile];
+        return true;
     }
-
-    drm_t *drm = &DRM_SHMEM->drm[rx_chan];
-    return drm;
-}
-
-drm_buf_t *DRM_buf_p()
-{
-    drm_buf_t *drm_buf = &DRM_SHMEM->drm_buf[(int) FROM_VOID_PARAM(TaskGetUserParam())];
-    return drm_buf;
-}
-
-// pass msg & data via shared mem buf since DRM_SHMEM might be enabled
-void DRM_msg_encoded(drm_msg_e msg_type, const char *cmd, kstr_t *ks)
-{
-    drm_t *drm = &DRM_SHMEM->drm[(int) FROM_VOID_PARAM(TaskGetUserParam())];
-    int slen = strlen(kstr_sp(ks));
-    if (slen >= L_MSGBUF)
-        printf("WARNING DRM_msg_encoded: msg_type=%d len=%d/%d\n", msg_type, slen, L_MSGBUF);
-    kiwi_strncpy(drm->msg_cmd[msg_type], cmd, L_MSGCMD);
-    kiwi_strncpy(drm->msg_buf[msg_type], kstr_sp(ks), L_MSGBUF);
-    drm->msg_tx_seq[msg_type]++;
-    DRM_yield();
-}
-
-void DRM_data(u1_t cmd, u1_t *data, u4_t nbuf)
-{
-    drm_t *drm = &DRM_SHMEM->drm[(int) FROM_VOID_PARAM(TaskGetUserParam())];
-    assert(nbuf <= N_DATABUF);
-    drm->data_cmd = cmd;
-    memcpy(drm->data_buf, data, nbuf);
-    drm->data_nbuf = nbuf;
-    drm->data_tx_seq++;
-    DRM_yield();
+    
+    char *ip = NULL;    // xxx.xxx.xxx.xxx:ddddd (21 max)
+    if (strncmp(msg, "SET rsci_ip=", 12) == 0) {
+        int n = sscanf(msg, "SET rsci_ip=%32ms", &ip);
+        bool err = true;
+        int a=0, b=0, c=0, d=0, port=0;
+        if (n == 1 && !kiwi_emptyStr(ip)) {
+            int sl = strlen(ip);
+            int consumed;
+            int n = sscanf(ip, "%d.%d.%d.%d:%d%n", &a, &b, &c, &d, &port, &consumed);
+            //printf("DRM: rsci_ip n=%d sl=%d consumed=%d\n", n, sl, consumed);
+            if (n == 5 && consumed == sl && inet4_d_valid(a,b,c,d, port))
+                err = false;
+        }
+        printf("DRM: rsci_ip err=%d %c:%d.%d.%d.%d:%d\n", err, dp->rsci_profile, a,b,c,d, port);
+        if (err) {
+            dp->rsci_ip[0] = '\0';
+        } else {
+            kiwi_snprintf_buf(dp->rsci_ip, "%d.%d.%d.%d:%d", a,b,c,d, port);
+            printf("DRM: rsci_ip <%s>\n", dp->rsci_ip);
+        }
+        dp->rsci_err = err;
+        dp->rsci_tx_seq++;
+        ext_send_msg(rx_chan, false, "EXT rsci=%d", err);
+        kiwi_asfree(ip);
+        return true;
+    }
+    
+    return false;
 }
 
 void DRM_poll(int rx_chan)
@@ -406,7 +475,7 @@ void DRM_poll(int rx_chan)
     
     drm_t *d = &DRM_SHMEM->drm[rx_chan];
     
-    // DRM_msg_encoded()
+    // relay data from DRM_msg_encoded()
     for (int i = 0; i < N_MSGBUF; i++) {
         if (d->msg_rx_seq[i] != d->msg_tx_seq[i]) {
             //printf("%d %s=%s\n", rx_chan, d->msg_cmd[i], d->msg_buf[i]);
@@ -415,7 +484,7 @@ void DRM_poll(int rx_chan)
         }
     }
     
-    // DRM_data()
+    // relay data from DRM_data()
     if (d->data_rx_seq != d->data_tx_seq) {
         ext_send_msg_data(rx_chan, false, d->data_cmd, d->data_buf, d->data_nbuf);
         d->data_rx_seq = d->data_tx_seq;

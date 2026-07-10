@@ -45,6 +45,10 @@ static const char *drm_argv[] = {
 
     "-c", "8",
     "-f", "drm.dat",
+    
+    //"--rsioutprofile", "B",
+    //"--rsiout", "127.0.0.1:2222",
+    
     //"-f", "/root/kiwi.config/samples/Kuwait.15110.1.12k.iq.wav",
     //"-f", "/root/kiwi.config/samples/Kuwait.12k.iq.be12",
     //"-f", "/root/kiwi.config/samples/RFI.3965.12k.iq.be12",

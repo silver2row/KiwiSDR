@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<!--
+   Standalone demo of the FFT extension's client-side high-resolution waterfall.
+   Loads the REAL modified FFT.js and the REAL Ooura_FFT32.js; only the Kiwi UI
+   framework (w3_*, ext_*) is stubbed. Signals are synthesized in the exact SND
+   packet format (512 IQ pairs / 512 real int16 samples per packet, 12 kHz).
+
+   Open this file directly in a browser (file://). Untracked; safe to delete.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<title>FFT extension: client-side high-res waterfall demo</title>
+<style>
+   body { background:#222; color:#ddd; font-family:Verdana,sans-serif; font-size:13px; margin:20px; }
+   h2 { color:#7fdbff; font-size:16px; }
+   #id-fft-data { left:0; width:1024px; height:200px; background-color:mediumBlue; position:relative; overflow:hidden; }
+   .controls { margin:12px 0; display:flex; gap:18px; align-items:center; flex-wrap:wrap; }
+   .controls label { color:#ffb0b0; margin-right:4px; }
+   .controls select, .controls button { font-size:13px; }
+   #id-fft-hrw-status { color:#fff; font-size:12px; min-width:260px; }
+   .sig { color:#9f9; font-size:12px; max-width:1024px; }
+   .sliders { display:flex; gap:14px; align-items:center; }
+   .sliders input { width:180px; }
+   .w3-hide { display:none; }
+</style>
+</head>
+<body>
+
+<h2>FFT extension &mdash; client-side high-resolution waterfall (sessions 1+2 demo)</h2>
+
+<div class="sig">
+Synthesized at "carrier" 1000.0 kHz, 12 kHz IQ: twin carriers 3 Hz apart at +40 Hz (resolvable
+only at FFT 8k/16k, or any size with Decim &ge; 4), keyed NDB-style carrier at &minus;1000 Hz
+(watch overlap setting for keying detail), steady carrier at +2500 Hz, one slowly drifting
+carrier at &minus;3300 Hz, plus noise. <b>Decim</b> decimates ahead of the FFT (zoom FFT):
+span shrinks, resolution improves by the same factor &mdash; e.g. Decim 32 + FFT 4k =
+0.09 Hz/bin over 375 Hz. Hover the waterfall for the frequency/level tooltip. In USB/LSB the
+generator switches to audio tones at 700 Hz (keyed) and a 1900/1903 Hz pair (passband center
+assumed 1500 Hz for the decimated span).
+</div>
+
+<div class="controls">
+   <span><label>Mode</label>
+   <select id="demo-mode">
+      <option value="iq" selected>IQ</option>
+      <option value="usb">USB</option>
+      <option value="lsb">LSB</option>
+   </select></span>
+   <span><label>FFT</label><select id="demo-size"></select></span>
+   <span><label>Overlap</label><select id="demo-overlap"></select></span>
+   <span><label>Decim</label><select id="demo-decim"></select></span>
+   <span><label>Zoom</label><select id="demo-zoom"></select></span>
+   <button id="demo-auto">Auto scale</button>
+   <button id="demo-pause">Pause</button>
+</div>
+
+<div id="id-fft-data">
+   <canvas id="id-fft-wf1-canvas" width="1024" height="188" style="position:absolute"></canvas>
+   <canvas id="id-fft-wf2-canvas" width="1024" height="188" style="position:absolute"></canvas>
+   <canvas id="id-fft-integ-canvas" width="1024" height="200" style="position:absolute"></canvas>
+   <div id="id-fft-hrw-tt" class="w3-hide" style="position:absolute; z-index:2; padding:1px 4px; background-color:black; color:white; font-family:Verdana; font-size:10px; pointer-events:none;"></div>
+</div>
+
+<div class="controls">
+   <div id="id-fft-hrw-status"></div>
+   <div class="sliders">
+      <span><label id="fft.maxdb-label">max</label><input id="demo-maxdb" type="range" min="-170" max="-10" step="1"></span>
+      <span><label id="fft.mindb-label">min</label><input id="demo-mindb" type="range" min="-190" max="-30" step="1"></span>
+   </div>
+</div>
+
+<script>
+// ---------- stubs required by Ooura_FFT32.js ----------
+function kiwi_trace() {}
+function isNumber(v) { return typeof v === 'number' && !isNaN(v); }
+</script>
+<script src="../../pkgs/js/Ooura_FFT32.js"></script>
+<script>
+// ---------- stubs required by FFT.js (Kiwi framework) ----------
+function isDefined(v) { return typeof v !== 'undefined'; }
+function px(v) { return v +'px'; }
+function w3_el(id) { return document.getElementById(id); }
+function w3_clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+function w3_hide(el) { (typeof el == 'string'? w3_el(el):el).classList.add('w3-hide'); }
+function w3_show_block(el) { el = (typeof el == 'string'? w3_el(el):el); el.classList.remove('w3-hide'); el.style.display='block'; }
+function w3_select_value() {}
+function w3_num_cb() {}
+function w3_set_label(label, path) { var el = document.getElementById(path +'-label'); if (el) el.innerHTML = label; }
+function w3_radio_unhighlight() {}
+var w3_highlight_time = 0;
+function w3_slider_set(path, val, cb) {
+   window[cb](path, val, true, false);
+   if (path == 'fft.maxdb') document.getElementById('demo-maxdb').value = val;
+   if (path == 'fft.mindb') document.getElementById('demo-mindb').value = val;
+}
+function kiwi_load_js_polled() { return true; }     // Ooura loaded above
+// Number.toUnits from kiwi_util.js (used by the status line)
+Number.prototype.toUnits = function(opts) {
+   opts = opts || {};
+   var prec = (typeof opts.precision == 'number')? opts.precision : 1;
+   var n = Number(this);
+   if (n < 1000) return n.toString();
+   if (n < 1e6) return (n/1e3).toFixed(prec) +'k';
+   return (n/1e6).toFixed(prec) +'M';
+};
+
+var cur_mode = 'iq';
+var audio_compression = false;
+var DEMO_SR = 12000, DEMO_CARRIER = 1000000;        // 1000.0 kHz
+function ext_sample_rate() { return DEMO_SR; }
+function ext_get_carrier_freq() { return DEMO_CARRIER; }
+function ext_is_IQ_or_stereo_curmode() { return cur_mode == 'iq'; }
+function ext_mode(m) { return { LSB_SAL: (m == 'lsb') }; }
+function ext_send() {}
+function ext_get_freq() { return DEMO_CARRIER; }
+// passband center steers the decimated (zoom FFT) span in real modes;
+// the demo pretends a 300-2700 Hz passband => span centered at 1500 Hz audio
+function ext_get_passband() { return (cur_mode == 'lsb')? { low:-2700, high:-300 } : { low:300, high:2700 }; }
+
+// real colormap machinery: waterfall_color_index_max_min() verbatim from openwebrx.js,
+// color map built with the Kiwi default colormap formula (mkcolormap() case kiwi)
+function waterfall_color_index_max_min(db_value, maxdb, mindb)
+{
+	db_value = -(255 - db_value);
+	if (db_value < mindb) db_value = mindb;
+	if (db_value > maxdb) db_value = maxdb;
+	var relative_value = db_value - mindb;
+	var fullscale = maxdb - mindb;
+	fullscale = fullscale? fullscale : 1;
+	var value_percent = relative_value / fullscale;
+	var i = value_percent * 255;
+	i = Math.round(i);
+	if (i < 0) i = 0;
+	if (i > 255) i = 255;
+	return i;
+}
+var color_map_r = new Uint8Array(256), color_map_g = new Uint8Array(256), color_map_b = new Uint8Array(256);
+(function() {
+   for (var i=0; i<256; i++) {
+      var r, g, b;
+      if (i < 32) { r = 0; g = 0; b = i*255/31; }
+      else if (i < 72)  { r = 0; g = (i-32)*255/39; b = 255; }
+      else if (i < 96)  { r = 0; g = 255; b = 255-(i-72)*255/23; }
+      else if (i < 116) { r = (i-96)*255/19; g = 255; b = 0; }
+      else if (i < 184) { r = 255; g = 255-(i-116)*255/67; b = 0; }
+      else              { r = 255; g = 0; b = (i-184)*128/70; }
+      color_map_r[i] = Math.round(r); color_map_g[i] = Math.round(g); color_map_b[i] = Math.round(b);
+   }
+})();
+</script>
+<script src="FFT.js"></script>
+<script>
+// ---------- demo panel init (mirrors fft_controls_setup canvas init) ----------
+fft.integ_h = fft.integ_th - fft.integ_hdr;
+
+fft.integ_canvas = w3_el('id-fft-integ-canvas');
+fft.integ_canvas.ctx = fft.integ_canvas.getContext('2d');
+fft.integ_canvas.addEventListener('mousemove', fft_hrw_tooltip);
+fft.integ_canvas.addEventListener('mouseleave', fft_hrw_tooltip_leave);
+
+fft.wf1_canvas = w3_el('id-fft-wf1-canvas');
+fft.wf1_canvas.ctx = fft.wf1_canvas.getContext('2d');
+fft.wf1_canvas.im = fft.wf1_canvas.ctx.createImageData(fft.integ_w, 1);
+
+fft.wf2_canvas = w3_el('id-fft-wf2-canvas');
+fft.wf2_canvas.ctx = fft.wf2_canvas.getContext('2d');
+fft.wf2_canvas.im = fft.wf2_canvas.ctx.createImageData(fft.integ_w, 1);
+
+fft.func = fft.func_e.WF;
+
+// demo-local replacement for fft_clear() (the real one manages the whole extension
+// panel incl. integrate mode and server messages, none of which exist here)
+function fft_clear()
+{
+   var h = fft.integ_h;
+   fft.actual_line = h - 1;
+   fft.wf_canvas_i = 0;
+   fft.wf_canvas = fft.wf1_canvas;
+   var top = -h+1 + fft.integ_hdr;
+   [fft.wf1_canvas, fft.wf2_canvas].forEach(function(cv) {
+      cv.ctx.clearRect(0, 0, cv.width, h);
+      cv.top = top;
+      cv.style.top = px(top);
+   });
+   fft.integ_canvas.ctx.clearRect(0, 0, fft.integ_w, fft.integ_th);
+   fft_hrw_reset();
+   fft_hrw_scale();
+}
+fft_clear();
+
+// ---------- demo UI wiring (calls the real extension callbacks) ----------
+function fill_select(id, opts, sel) {
+   var el = document.getElementById(id);
+   opts.forEach(function(o, i) {
+      var op = document.createElement('option');
+      op.value = i; op.text = o; if (i == sel) op.selected = true;
+      el.add(op);
+   });
+   return el;
+}
+fill_select('demo-size', fft.hrw_size_s, fft.hrw_size_i)
+   .addEventListener('change', function(e) { fft_hrw_size_cb('fft.hrw_size_i', e.target.value, false); });
+fill_select('demo-overlap', fft.hrw_overlap_s, fft.hrw_overlap_i)
+   .addEventListener('change', function(e) { fft_hrw_overlap_cb('fft.hrw_overlap_i', e.target.value, false); });
+fill_select('demo-decim', fft.hrw_decim_s, fft.hrw_decim_i)
+   .addEventListener('change', function(e) { fft_hrw_decim_cb('fft.hrw_decim_i', e.target.value, false); });
+fill_select('demo-zoom', fft.hrw_zoom_s, fft.hrw_zoom_i)
+   .addEventListener('change', function(e) { fft_hrw_zoom_cb('fft.hrw_zoom_i', e.target.value, false); });
+document.getElementById('demo-mode').addEventListener('change', function(e) { cur_mode = e.target.value; });
+document.getElementById('demo-auto').addEventListener('click', function() { fft_hrw_autoscale_cb('demo', 0); });
+
+var paused = false;
+document.getElementById('demo-pause').addEventListener('click', function(e) {
+   paused = !paused; e.target.textContent = paused? 'Resume':'Pause';
+});
+
+var el_max = document.getElementById('demo-maxdb'), el_min = document.getElementById('demo-mindb');
+el_max.value = fft.maxdb; el_min.value = fft.mindb;
+el_max.addEventListener('input', function(e) { fft_maxdb_cb('fft.maxdb', e.target.value); });
+el_min.addEventListener('input', function(e) { fft_mindb_cb('fft.mindb', e.target.value); });
+fft_maxdb_cb('fft.maxdb', fft.maxdb);
+fft_mindb_cb('fft.mindb', fft.mindb);
+
+// ---------- signal generator: SND packets, 512 samples/pairs each, ~23.4/s ----------
+function dBFS(dB) { return 32767 * Math.pow(10, dB/20); }
+function gauss() {   // ~N(0,1)
+   var s = 0;
+   for (var i = 0; i < 4; i++) s += Math.random();
+   return (s - 2) * 1.732;
+}
+// NDB-ish keying: repeating dah-dit-dit pattern, element 0.15 s
+var keying = [1,1,1,0, 1,0, 1,0, 0,0,0];
+function keyed(t) { return keying[Math.floor(t / (DEMO_SR * 0.15)) % keying.length]; }
+
+var t = 0;
+var A_twin = dBFS(-60), A_ndb = dBFS(-55), A_cw = dBFS(-45), A_drift = dBFS(-52), A_noise = dBFS(-88);
+
+function gen_packet()
+{
+   var i, ph;
+   var TAU = 2 * Math.PI;
+   if (cur_mode == 'iq') {
+      var data = new Int16Array(1024);
+      for (i = 0; i < 512; i++) {
+         var re = 0, im = 0;
+         // twin carriers, 3 Hz apart
+         ph = TAU * 40.0 * t / DEMO_SR; re += A_twin * Math.cos(ph); im += A_twin * Math.sin(ph);
+         ph = TAU * 43.0 * t / DEMO_SR; re += A_twin * Math.cos(ph); im += A_twin * Math.sin(ph);
+         // keyed NDB-style carrier
+         var k = keyed(t) * A_ndb;
+         ph = TAU * -1000.0 * t / DEMO_SR; re += k * Math.cos(ph); im += k * Math.sin(ph);
+         // steady carrier
+         ph = TAU * 2500.0 * t / DEMO_SR; re += A_cw * Math.cos(ph); im += A_cw * Math.sin(ph);
+         // slowly drifting carrier: +-8 Hz over ~80 s
+         var fd = -3300 + 8 * Math.sin(TAU * t / (DEMO_SR * 80));
+         ph = TAU * fd * t / DEMO_SR; re += A_drift * Math.cos(ph); im += A_drift * Math.sin(ph);
+         re += A_noise * gauss(); im += A_noise * gauss();
+         data[2*i]   = Math.max(-32768, Math.min(32767, Math.round(re)));
+         data[2*i+1] = Math.max(-32768, Math.min(32767, Math.round(im)));
+         t++;
+      }
+      fft_audio_data_cb(data, 1024);
+   } else {
+      var data = new Int16Array(512);
+      for (i = 0; i < 512; i++) {
+         var v = 0;
+         v += keyed(t) * A_ndb * Math.sin(TAU * 700 * t / DEMO_SR);
+         v += A_twin * Math.sin(TAU * 1900 * t / DEMO_SR);
+         v += A_twin * Math.sin(TAU * 1903 * t / DEMO_SR);
+         v += A_cw * Math.sin(TAU * 3400 * t / DEMO_SR);
+         v += A_noise * gauss();
+         data[i] = Math.max(-32768, Math.min(32767, Math.round(v)));
+         t++;
+      }
+      fft_audio_data_cb(data, 512);
+   }
+}
+
+setInterval(function() { if (!paused) gen_packet(); }, 1000 * 512 / DEMO_SR);
+</script>
+</body>
+</html>

@@ -103,7 +103,7 @@ CPacketSocketNative::SendPacket(const vector < _BYTE > &vecbydata, uint32_t, uin
     {
         string ss;
         GetDestination(ss);
-        cerr << "send packet " << ss << endl;
+        //cerr << "send packet " << ss << endl;
         int n = sendto(s, (char*)&vecbydata[0], vecbydata.size(), 0, (sockaddr*)&HostAddrOut, sizeof(HostAddrOut));
 		if(n==SOCKET_ERROR) {
 #ifdef _WIN32

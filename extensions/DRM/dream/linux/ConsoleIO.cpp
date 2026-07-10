@@ -386,6 +386,30 @@ CConsoleIO::Update(drm_t *drm)
         DRM_msg_encoded(DRM_MSG_JOURNALINE, "drm_journaline_cb", sb);
         kstr_free(sb);
     }
+    
+    
+    // RSCI
+    if (DRM_new_rsci()) {
+        //printf("DRM Console rsci change: %c:%s err=%d en=%d\n", drm->rsci_profile, drm->rsci_ip,
+        //    drm->rsci_err, pDRMReceiver->GetDownstreamRSCIOutEnabled());
+        CDownstreamDI* downstreamRSCI = pDRMReceiver->GetRSIOut();
+        if (drm->rsci_err) {
+            downstreamRSCI->DeleteSubscribers();
+            Parameters.bMeasureDelay = false;
+            Parameters.bMeasureDoppler = false;
+            Parameters.bMeasureInterference = false;
+            Parameters.bMeasurePSD = false;
+        } else {
+            downstreamRSCI->SetReceiver(pDRMReceiver);
+            if (downstreamRSCI->GetOutEnabled()) {
+                Parameters.bMeasureDelay = true;
+                Parameters.bMeasureDoppler = true;
+                Parameters.bMeasureInterference = true;
+                Parameters.bMeasurePSD = true;
+            }
+            downstreamRSCI->AddSubscriber(drm->rsci_ip, drm->rsci_profile);
+        }
+    }
 
 
 	return RUNNING;

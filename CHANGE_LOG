@@ -3,6 +3,28 @@ CHANGE_LOG
 For the Github commit log see here: github.com/jks-prv/KiwiSDR/commits/master
     Older commits: github.com/jks-prv/Beagle_SDR_GPS/commits/master
 
+v1.901  July 11, 2026
+    FFT extension major improvement:
+        Added comprehensive client-side (i.e. browser) FFT with millihertz resolution.
+        This is in response to the new 8-channel mode having reduced waterfall zoom from
+        z14 (RBW 1.8 kHz, 2 Hz/bin) to z11 (RBW 14.6 kHz, 14 Hz/bin). Some users depended
+        on the high resolution provided by z14 in 4-channel mode and didn't want to give
+        up such a capability in the new 8-channel mode.
+        
+        Click the extension help button and read the instructions for complete details.
+        My thanks to Christoph who very quickly coded these changes, assisted by Cursor AI.
+
+    Admin page:
+        Added copy (to clipboard) buttons. (thanks Paul VK3KHZ)
+        Status tab, for user list.
+        Users tab, for users list.
+        Log tab, for log messages.
+        Console tab, for console window contents.
+    
+    DRM extension:
+        Added "Receiver Status and Control Interface" (RSCI) output to UDP. (thanks Guido)
+        Will be used for experimenting with a DRM MediaPlayer.
+
 v1.900  July 4, 2026
     New Kiwi operating mode: "Full 8 channel". See admin mode tab for complete description.
     8 simultaneous channels except all of them get a fully functional waterfall.

@@ -618,6 +618,87 @@ function w3_wrap(v, min, max)
    return v;
 }
 
+// This works, but clipboard results in double newlines (\n\n) if e.g. multiple <pre> elements inside a <code>
+// But it is useful to visually show select-all selection.
+/*
+function w3_select_all_visual(id) {
+    var div = w3_el(id);
+    if (!div) return;
+
+    // create a range that covers the entire div
+    var range = document.createRange();
+    range.selectNodeContents(div);
+    
+    var selection = window.getSelection();
+    selection.removeAllRanges();    // clear any existing selection
+    selection.addRange(range);
+}
+*/
+
+function w3_copy_to_clipboard_el(id, func) {
+    var el = w3_el(id);
+    if (!el) return;
+    var s = '';
+    w3_iterate_children(el,      // only the nodes one level deep
+      function(child, i) {
+         //console.log(child);
+         //console.log('i='+ i +' <'+ child.textContent +'>');
+         var t = child.textContent;
+         if (isFunction(func)) t = func(t);
+         s += t +'\n';
+      }
+   );
+   //console.log('s='+ s);
+   
+   w3_copy_to_clipboard(s);
+   //w3_select_all_visual(el);
+   w3_alert('w3_copy_to_clipboard_alert', '', 'copied to clipboard', null, {width:'180px', fadeout:1000});
+}
+
+function w3_copy_to_clipboard_deep_el(id, func) {
+    var el = w3_el(id);
+    if (!el) return;
+    var s = '';
+    w3_iterateDeep_children(el,
+      function(child) {
+         s += func(child);
+      }
+   );
+   s += '\n';
+   //console.log('s='+ s);
+   
+   w3_copy_to_clipboard(s);
+   //w3_select_all_visual(el);
+   w3_alert('w3_copy_to_clipboard_deep_alert', '', 'copied to clipboard', null, {width:'180px', fadeout:1000});
+}
+
+function w3_copy_to_clipboard(s)
+{
+   // this isn't available on non-https connections
+   //navigator.clipboard.writeText(s.trim());
+   
+   // workaround for http connections using execCommand('copy')
+   // NB: This tiny, invisible, readonly textarea element prevents Firefox from doing an inward autozoom.
+   // Also, it is necessary to use textarea and not an input element to preserve newlines.
+   var el = document.createElement("textarea");
+   el.value = s;
+   el.style.position = "fixed";
+   el.style.left = "-99999px";
+   el.style.top = "-99999px";
+   el.style.width = "1px";
+   el.style.height = "1px";
+   el.style.padding = "0";
+   el.style.border = "0";
+   el.style.opacity = "0";
+   el.style.zIndex = "-9999";
+   el.setAttribute("readonly", "readonly");
+   document.body.appendChild(el);
+   el.focus();
+   el.select();
+   document.execCommand('copy');
+   document.body.removeChild(el);
+}
+
 
 ////////////////////////////////
 // HTML
@@ -963,7 +1044,8 @@ function w3_field_select(el_id, opts)
 	var el = w3_el(el_id);
 	el = (el && isFunction(el.select))? el : null;
 
-   var trace = opts['trace'];
+   opts = opts || {};
+   var trace = opts.trace;
    if (trace) {
       var id = isObject(el_id)? el_id.id : el_id;
       console.log('w3_field_select id='+ id +' el='+ el +' v='+ (el? el.value:null));
@@ -978,20 +1060,20 @@ function w3_field_select(el_id, opts)
    // The ALE_2G extension currently does this so its control panel UI items can be used
    // without being interrupted by the frequency entry field taking focus away during
    // each scan frequency tune.
-   if (opts['scanning'] && extint.scanning) return;
+   if (opts.scanning && extint.scanning) return;
    
    var focus=0, select=0, blur=0, dismiss=0;
-   if (opts['mobile']) {
+   if (opts.mobile) {
       if (kiwi_isMobile()) blur = 1; else focus = select = 1;
    }
-   if (opts['blur']) blur = 1;
-   if (opts['dismiss_kybd'] && kiwi_isMobile()) dismiss = 1;
-   if (opts['focus_select']) focus = select = 1;
-   if (opts['focus_only']) { focus = 1; select = 0; }
-   if (opts['select_only']) select = 1;
+   if (opts.blur) blur = 1;
+   if (opts.dismiss_kybd && kiwi_isMobile()) dismiss = 1;
+   if (opts.focus_select) focus = select = 1;
+   if (opts.focus_only) { focus = 1; select = 0; }
+   if (opts.select_only) select = 1;
    
    if (trace) console.log('w3_field_select focus='+ focus +' select='+ select +' blur='+ blur +' dismiss='+ dismiss);
-   //if (opts['log']) canvas_log('$'+ opts['log'] +': F='+ focus +' S='+ select +' B='+ blur +' D='+ dismiss +' S='+ TF(kiwi_isOld_iOS()));
+   //if (opts.log) canvas_log('$'+ opts.log +': F='+ focus +' S='+ select +' B='+ blur +' D='+ dismiss +' S='+ TF(kiwi_isOld_iOS()));
    
    // old iPad-2 safari/iOS does this weird repeating keyboard popup if keyboard blurred this way
    if (kiwi_isOld_iOS()) dismiss = 0;
@@ -1848,17 +1930,6 @@ function w3int_post_action()
    w3_call('freqset_select');
 }
 
-function w3_copy_to_clipboard(val)
-{
-	var el = document.createElement("input");
-	el.setAttribute('type', 'text');
-	el.setAttribute('value', val);
-   document.body.appendChild(el);
-	el.select();
-	document.execCommand("copy");
-   document.body.removeChild(el);
-}
-
 function w3_isScrollingY(id)
 {
    var el = w3_el(id);
@@ -1932,7 +2003,7 @@ function w3_scrollTop(id, cond)
 function w3_do_when_rendered(id, func, arg, poll_ms)
 {
    var el = w3_el(id);
-   poll_ms = isNumber(poll_ms)? poll_ms : 500;
+   poll_ms = isNumberElse(poll_ms, 500);
    rend = isArg(el);
    //console.log('id='+ id +' ms='+ poll_ms +' rend='+ rend +' arg='+ arg);
    if (!rend) {
@@ -1957,7 +2028,7 @@ function w3_do_when_rendered(id, func, arg, poll_ms)
 // calls func(arg) when cond_func() becomes true
 function w3_do_when_cond(cond_func, func, arg, poll_ms)
 {
-   poll_ms = isNumber(poll_ms)? poll_ms : 500;
+   poll_ms = isNumberElse(poll_ms, 500);
    if (!cond_func(arg)) {
       setTimeout(function () {
          w3_do_when_cond(cond_func, func, arg, poll_ms);
@@ -3225,16 +3296,18 @@ function w3_textarea_get_param(psa, label, path, rows, cols, cb, init_val)
 // alert
 ////////////////////////////////
 
-function w3_alert(id, psa, msg, close, width, top, left) {
+function w3_alert(id, psa, msg, close, opts) {
    path = 'id-alert-'+ id;
-   width = width || 650;
-   left = left || 50;
-   top = top || 100;
+   opts = opts || {};
+   var width = opts.width || '650px';
+   var top = opts.top || '50%';
+   var left = opts.left || '50%';
+   // translate[XY](-50%) so e.g. top:50% left:50% are referenced to div center
    var css = sprintf(
-      'position: fixed; top: %s; left: %s; transform: translateX(-50%%); width: %s; ' +
+      'position: fixed; top: %s; left: %s; transform: translateX(-50%%) translateY(-50%%); width: %s; ' +
       'background: #444; color: white; padding: 15px 25px; border-radius: 8px; ' +
       'box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 9999; font-family: sans-serif;',
-      px(top), pct(left), px(width));
+      top, left, width);
    var psa3 = w3_psa3(psa);
    var psa_outer = w3_psa(psa3.middle, path, css);
    var psa_inner = w3_psa(psa3.right);
@@ -3243,10 +3316,13 @@ function w3_alert(id, psa, msg, close, width, top, left) {
    var html =
       w3_div(psa_outer,
          w3_text('w3-wrap '+ psa_inner, msg),
-         w3_button('w3-margin-T-16 w3-green', 'Close', 'w3int_alert_ok', path)
+         opts.fadeout? '' : w3_button('w3-margin-T-16 w3-green', 'Close', 'w3int_alert_ok', path)
       );
    var alert = w3_create_appendElement('id-kiwi-body', 'div', html, path);
    w3int.alert = { path:path, active:true, close:close };
+   if (opts.fadeout) {
+      setTimeout(function() { w3_alert_close(); }, opts.fadeout);
+   }
 }
 
 function w3int_alert_ok(path, cb_param) {

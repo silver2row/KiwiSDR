@@ -270,6 +270,9 @@ function status_html()
          w3_div('id-msg-stats-xfer') +
          '<hr>' +
          w3_div('id-users-list') +
+         (admin_sdr_mode?
+            w3_button('w3-padding-smaller w3-aqua w3-margin-T-8', 'Copy', 'status_copy_users_list_cb') : ''
+         ) +
          '<hr>' +
          s2 + s3
       );
@@ -362,6 +365,15 @@ function status_user_kick_cb(id, idx)
 {
    console.log('status_user_kick_cb='+ idx);
 	ext_send('SET user_kick='+ idx);
+}
+
+function status_copy_users_list_cb()
+{
+   w3_copy_to_clipboard_el('id-users-list',
+      function(s) {
+         return removeEnding(s, 'Kick');
+      }
+   );
 }
 
 
@@ -1315,6 +1327,7 @@ function connect_dom_sip_focus(id, ok)    // NB: id is a string passed from nav 
 function connect_dom_name_cb(path, val, first)
 {
    var ok = true;
+   val = val.trim();
 	var dom = connect_remove_port_and_local_ip(path, val, first);
    //console.log('$connect_dom_name_cb <'+ dom +'>');
 	if (isNonEmptyString(dom)) {
@@ -1371,6 +1384,7 @@ function connect_domain_check_cb(found)
 function connect_dom_ip_cb(path, val, first)
 {
    var ok = false;
+   val = val.trim();
 	var ip_rem_port = connect_remove_port_and_local_ip(path, val, first);
    var isIP = kiwi_inet4_d2h(ip_rem_port);
    var isPublicIP = kiwi_inet4_d2h(ip_rem_port, { no_local_ip:1 });
@@ -1415,6 +1429,7 @@ function connect_ip_check_cb(status)
 
 function connect_remove_port_and_local_ip(el, s, first, check_ip)
 {
+   check_ip = check_ip || {};
 	var state = { bad:0, number:1, alpha:2, remove:3 };
 	var st = state.bad;
 	
@@ -1441,11 +1456,11 @@ function connect_remove_port_and_local_ip(el, s, first, check_ip)
 		s = s.substr(0,i);
 	}
 	
-	if (check_ip && check_ip['always'] && kiwi_inet4_d2h(s, { no_local_ip:1 }) == null) s = '';
+	if (check_ip.always && kiwi_inet4_d2h(s, { no_local_ip:1 }) == null) s = '';
 	else
 	
 	// only check for local ip if entry is a valid ip to begin with (i.e. allows domain name)
-	if (check_ip && check_ip['if_ip'] && kiwi_inet4_d2h(s) != null) {
+	if (check_ip.if_ip && kiwi_inet4_d2h(s) != null) {
 	   if (kiwi_inet4_d2h(s, { no_local_ip:1 }) == null) s = '';
 	}
 	
@@ -1754,8 +1769,9 @@ function users_html()
       w3_div('id-users w3-container w3-hide',
          w3_inline('w3-container/w3-margin-top',
             w3_text('w3-text-teal w3-bold', 'All users since Kiwi restart'),
-            w3_icon('id-users-spin w3-margin-left w3-hide', 'fa-refresh fa-spin', 24),
-            w3_button('w3-margin-left w3-aqua', 'Clear list', 'users_clear_cb')
+            w3_button('w3-margin-left w3-aqua', 'Copy', 'users_copy_to_clipboard_cb'),
+            w3_button('w3-margin-left w3-aqua', 'Clear list', 'users_clear_cb'),
+            w3_icon('id-users-spin w3-margin-left w3-hide', 'fa-refresh fa-spin', 24)
          ),
          w3_div('w3-container w3-margin-top w3-margin-bottom w3-card-8 w3-round-xlarge w3-pale-blue',
             w3_table('id-users-table w3-margin-bottom w3-table-6-8 w3-striped-except-hidden')
@@ -1935,6 +1951,19 @@ function users_list_cb(s)
       users_get_list();
    else
       w3_hide('id-users-spin');
+}
+
+function users_copy_to_clipboard_cb()
+{
+   w3_copy_to_clipboard_deep_el('id-users-table',
+      function(child) {
+          var nn = child.nodeName;
+          var t = isString(child.innerText)? child.innerText : '';
+          if (nn == 'TR' ) return '\n';
+          if ((nn == 'TH' || nn == 'TD') && t != '') return t +'\t';
+          return '';
+      }
+   );
 }
 
 
@@ -3420,7 +3449,7 @@ function gps_focus2(id)
          'If your Kiwi has good GPS reception you can anonymously contribute valuable GPS data ' +
          'to the project. KiwiSDR\'s contributing from the world-wide public network ...' +
          '<br><br>Thank you for your consideration. You will not see this message again.',
-         600
+         {width:'600px'}
       );
       //ext_set_cfg_param('adm.seen_gnss_jam_alert', true, true);
    }
@@ -3993,7 +4022,8 @@ function log_html()
 		w3_div('w3-container',
 		   w3_inline('w3-valign w3-halign-space-between/',
 		      w3_div('',
-               w3_label('w3-show-inline', 'KiwiSDR server log (scrollable list, first and last set of messages)'),
+               w3_label('w3-show-inline', 'KiwiSDR server log (first and last set of messages)'),
+               w3_button('w3-aqua|margin-left:10px', 'Copy', 'log_copy_to_clipboard_cb'),
                w3_button('w3-aqua|margin-left:10px', 'Log state', 'log_state_cb'),
                w3_button('w3-aqua|margin-left:10px', 'Log IP blacklist', 'log_blacklist_cb'),
                w3_button('w3-blue|margin-left:10px', 'Clear Histogram', 'log_clear_hist_cb')
@@ -4063,6 +4093,12 @@ function log_blur(id)
 function log_update()
 {
 	ext_send('SET log_update=0');
+}
+
+function log_copy_to_clipboard_cb()
+{
+   //console.log('log_copy_to_clipboard_cb');
+   w3_copy_to_clipboard_el('id-log-msg');
 }
 
 
@@ -4135,41 +4171,45 @@ function console_html()
 			   'cl-admin-console-color' + console_msg_psa,
 			   '<pre><code id="id-console-msgs"></code></pre>'
 			),
+
+         w3_inline('w3-valign',
+            w3_button('w3-aqua', 'Copy', 'console_copy_to_clipboard_cb'),
 			
-			w3_div('',
-            admin.console.always_char_oriented?
-               w3_text('id-console-debug w3-text-black w3-margin-T-8',
-                  kiwi_isWindows()?
-                     'Windows: Type <x1>control-v</x1> twice (quickly) for clipboard paste. Once to get a normal <x1>control-v</x1>. ' +
-                     'Control-w alternatives: nano <x1>fn-f6</x1>, bash <x1>esc</x1> <x1>control-h</x1> (see ' +
-                     w3_link('w3-link-darker-color',
-                        'https://forum.kiwisdr.com/index.php?p=/discussion/2927/windows-and-running-nano-text-editor-in-admin-console#p1',
-                        'forum') +')'
-                  :
-                     'Mac: Type <x1>command-v</x1> for clipboard paste.'
-               )
-            :
-               w3_div('id-console-line',
-                  admin.console.isMobile?
-                     w3_inline('w3-margin-T-8/',
-                        w3_input('//id-console-line-input w3-input-any-change',
-                           '', 'console_input', '', 'console_input_cb|console_key_cb', 'enter shell command'),
-                        w3_inline('w3-margin-L-16/',
-                           w3_button('w3-yellow', '^C', 'console_ctrl_button_cb', 'c'),
-                           w3_button('w3-blue|margin-left:10px', '^D', 'console_ctrl_button_cb', 'd'),
-                           w3_button('w3-red|margin-left:10px', '^\\', 'console_ctrl_button_cb', '\x3c'),
-                           w3_button('w3-blue|margin-left:10px', '^P', 'console_ctrl_button_cb', 'p'),
-                           w3_button('w3-blue|margin-left:10px', '^N', 'console_ctrl_button_cb', 'n')
+            w3_div('w3-margin-L-16',
+               admin.console.always_char_oriented?
+                  w3_text('id-console-debug w3-inline w3-text-black w3-margin-T-8',
+                     kiwi_isWindows()?
+                        'Windows: Type <x1>control-v</x1> twice (quickly) for clipboard paste. Once to get a normal <x1>control-v</x1>. ' +
+                        'Control-w alternatives: nano <x1>fn-f6</x1>, bash <x1>esc</x1> <x1>control-h</x1> (see ' +
+                        w3_link('w3-link-darker-color',
+                           'https://forum.kiwisdr.com/index.php?p=/discussion/2927/windows-and-running-nano-text-editor-in-admin-console#p1',
+                           'forum') +')'
+                     :
+                        'Mac: Type <x1>command-v</x1> for clipboard paste.'
+                  )
+               :
+                  w3_div('id-console-line',
+                     admin.console.isMobile?
+                        w3_inline('w3-margin-T-8/',
+                           w3_input('//id-console-line-input w3-input-any-change',
+                              '', 'console_input', '', 'console_input_cb|console_key_cb', 'enter shell command'),
+                           w3_inline('w3-margin-L-16/',
+                              w3_button('w3-yellow', '^C', 'console_ctrl_button_cb', 'c'),
+                              w3_button('w3-blue|margin-left:10px', '^D', 'console_ctrl_button_cb', 'd'),
+                              w3_button('w3-red|margin-left:10px', '^\\', 'console_ctrl_button_cb', '\x3c'),
+                              w3_button('w3-blue|margin-left:10px', '^P', 'console_ctrl_button_cb', 'p'),
+                              w3_button('w3-blue|margin-left:10px', '^N', 'console_ctrl_button_cb', 'n')
+                           )
                         )
-                     )
-                  :
-                     w3_div('w3-margin-T-8',
-                        w3_input('id-console-line-input w3-input-any-key', '', 'console_input', '',
-                           'console_input_cb|console_key_cb', 'enter shell command'),
-                        w3_text('id-console-debug w3-text-black w3-margin-T-8',
-                           'Control characters (^C, ^D, ^\\) and empty lines may now be typed directly into shell command field.')
-                     )
-               )
+                     :
+                        w3_div('w3-margin-T-8',
+                           w3_input('id-console-line-input w3-input-any-key', '', 'console_input', '',
+                              'console_input_cb|console_key_cb', 'enter shell command'),
+                           w3_text('id-console-debug w3-text-black w3-margin-T-8',
+                              'Control characters (^C, ^D, ^\\) and empty lines may now be typed directly into shell command field.')
+                        )
+                  )
+            )
          )
 		)
 	);
@@ -4344,6 +4384,12 @@ function console_key_cb(ev, called_from_w3_input)
 	// subsequent keyup & change/input events from occurring.
 	//console.log('console_key_cb stopPropagation');
 	ev.stopPropagation();
+}
+
+function console_copy_to_clipboard_cb()
+{
+   //console.log('console_copy_to_clipboard_cb');
+   w3_copy_to_clipboard_el('id-console-msgs');
 }
 
 // paste single char every 10 msec
@@ -5173,6 +5219,7 @@ function admin_show_help()
 
 function admin_close()
 {
+   console.error('################ admin_close ################');
    // don't show message if reload countdown running
    kiwi_clearTimeout(admin.keepalive_timeoout);
    if (kiwi.no_reopen_retry) {
@@ -5255,7 +5302,7 @@ function admin_pwd_unsafe_alert()
             //console.log('$admin_pwd_unsafe_close');
             admin_rx83_mode_alert();
          },
-         650, 100, 35
+         {width:'650px', left:'35%'}
       );
    }
 }

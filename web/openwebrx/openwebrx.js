@@ -1204,7 +1204,7 @@ function kiwi_passbands(mode)
       console.log('kiwi_passbands('+ mode +') fallback:');
       if (isUndefined(mode) || isUndefined(passbands_fallback[mode])) {
          //kiwi_trace();
-         return passbands_fallback['am'];
+         return passbands_fallback.am;
       } else {
          console.log(passbands_fallback[mode]);
          return passbands_fallback[mode];
@@ -4848,7 +4848,7 @@ function wf_init_ready()
 {
 	init_wf_container();
 
-   wf.audioFFT_active = (rx_chan >= wf_chans && !kiwi.wf_share);
+   wf.audioFFT_active = ((rx_chan >= wf_chans && !kiwi.wf_share) || wf.no_wf);
 	resize_waterfall_container(false);
 	resize_wf_canvases();
 	bands_init();
@@ -11676,7 +11676,7 @@ function panels_setup()
 
 function update_wf_stats()
 {
-   var s = 'span '+ zoom_span_Hz.toUnits(true) +'Hz, '+ kiwi.wf_fps.toFixed(0) +' fps';
+   var s = 'span '+ zoom_span_Hz.toUnits({include_space:1}) +'Hz, '+ kiwi.wf_fps.toFixed(0) +' fps';
    w3_innerHTML('id-status-wf',
       w3_text('w3-text-css-orange', 'WF'),
       w3_text('', s)

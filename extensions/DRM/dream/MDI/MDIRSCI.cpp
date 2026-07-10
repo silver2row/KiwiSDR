@@ -94,6 +94,8 @@ void CDownstreamDI::SendLockedFrame(CParameter& Parameter,
 						vector<CSingleBuffer<_BINARY> >& vecMSCData
 )
 {
+    if (!bMDIOutEnabled) return;
+    
 	TagItemGeneratorFAC.GenTag(Parameter, FACData);
 	TagItemGeneratorSDC.GenTag(Parameter, SDCData);
 	//for (size_t i = 0; i < vecMSCData.size(); i++)
@@ -146,6 +148,8 @@ void CDownstreamDI::SendUnlockedFrame(CParameter& Parameter)
 /*	if (cProfile == 'M')
 		return;*/
 
+    if (!bMDIOutEnabled) return;
+    
 	/* Send empty tags for most tag items */
 	ResetTags();
 
@@ -189,6 +193,8 @@ void CDownstreamDI::SendAMFrame(CParameter& Parameter, CSingleBuffer<_BINARY>& C
 	/*if (cProfile == 'M')
 		return;*/
 
+    if (!bMDIOutEnabled) return;
+    
 	/* Send empty tags for most tag items */
 	ResetTags();
 
@@ -240,6 +246,8 @@ void CDownstreamDI::SetReceiver(CDRMReceiver *pReceiver)
 /* Actual DRM DI protocol implementation *****************************************/
 void CDownstreamDI::GenDIPacket()
 {
+    if (!bMDIOutEnabled) return;
+    
 	/* Reset the tag packet generator */
 	TagPacketGenerator.Reset();
 
@@ -428,6 +436,21 @@ CDownstreamDI::AddSubscriber(const string& dest, const char profile, const strin
 		delete subs;
 	}
 	return false;
+}
+
+void
+CDownstreamDI::DeleteSubscribers()
+{
+    bMDIInEnabled = false;
+    bMDIOutEnabled = false;
+	for(vector<CRSISubscriber*>::iterator i = RSISubscribers.begin() + 1;   // keep first: pRSISubscriberFile
+			i!=RSISubscribers.end(); i++)
+	{
+		delete *i;
+	}
+    if (!RSISubscribers.empty()) {
+        RSISubscribers.resize(1);   // keep first: pRSISubscriberFile
+    }
 }
 
 bool CDownstreamDI::SetOrigin(const string&)
