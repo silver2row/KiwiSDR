@@ -6,6 +6,7 @@ var fft = {
    ext_name: 'FFT',     // NB: must match fft.c:fft_ext.name
    first_time: true,
    update_interval: 0,
+   initial_autoscale: false,
    passband_altered: false,
    
    cmd_e: { FFT:0, CLEAR:1 },
@@ -179,7 +180,7 @@ function fft_clear()
 		w3_inline_percent_set(right, 49.9);
 		fft_alpha();
 	} else {
-		ext_set_controls_width_height(275, 275);
+		ext_set_controls_width_height(275, (fft.func == fft.func_e.WF)? 320:275);
 		w3_inline_percent_set(left, 0);
 		w3_inline_percent_set(right, 100);
 		if (fft.func == fft.func_e.WF) {
@@ -460,8 +461,8 @@ function fft_hrw_status()
    var hzbin = srate / h.fft_size;
    var lps = srate / h.hop;
    var dec = h.nbins / h.draw_w;
-   el.innerHTML = h.nbins +' bins, '+ hzbin.toFixed(hzbin < 10? 2:1) +' Hz/bin, '+
-      lps.toFixed(1) +' lines/s'+ (h.iq? ', IQ':'') +
+   el.innerHTML = h.nbins.toUnits({precision:0}) +' bins, '+ hzbin.toFixed(hzbin < 10? 2:1) +' Hz/bin, '+
+      lps.toFixed(0) +' lines/s'+ (h.iq? ', IQ':'') +
       ((dec > 1)? (', '+ dec +':1 shown'):'');    // zoom in to reveal full resolution
 }
 
@@ -496,6 +497,11 @@ function fft_audio_data_cb(data, samps)
          h.nnew++;
          if (h.nnew >= h.hop) { fft_hrw_frame(); h.nnew = 0; }
       }
+   }
+   
+   if (!fft.initial_autoscale && h.nnew) {
+      fft_hrw_autoscale_cb();
+      fft.initial_autoscale = true;
    }
 }
 
@@ -597,7 +603,7 @@ function fft_hrw_autoscale_cb(path, val)
       w3_slider_set('fft.maxdb', maxdb, 'fft_maxdb_cb');
       w3_slider_set('fft.mindb', mindb, 'fft_mindb_cb');
    }
-	setTimeout(function() {w3_radio_unhighlight(path);}, w3_highlight_time);
+	if (path) setTimeout(function() {w3_radio_unhighlight(path);}, w3_highlight_time);
 }
 
 function fft_hrw_size_cb(path, idx, first)
@@ -814,11 +820,15 @@ function fft_controls_setup()
 				info_html,
 				w3_divs('',
 					w3_div('w3-medium w3-text-aqua', '<b>Audio FFT</b>'),
-					w3_inline('w3-margin-T-8 w3-halign-space-between/',
+					w3_inline('w3-margin-T-8 w3-halign-space-between w3-valign-end/',
                   w3_select('w3-text-red', 'Function', '', 'fft.func', fft.func, fft.func_s, 'fft_func_cb'),
-                  w3_input('w3-width-64 w3-padding-smaller', 'Integrate time', 'fft.itime', fft.itime, 'fft_itime_cb')
+                  w3_input('w3-width-64 w3-padding-smaller', 'Integrate<br>time', 'fft.itime', fft.itime, 'fft_itime_cb'),
+     					w3_button('w3-margin-T-8 w3-padding-small w3-css-yellow', 'Clear', 'fft_clear_cb')
                ),
-					w3_select('w3-margin-T-8//w3-text-red w3-width-auto', 'Integrate presets', 'select', 'fft.pre', W3_SELECT_SHOW_TITLE, fft.pre_s, 'fft_pre_select_cb'),
+					w3_inline('w3-margin-T-8 w3-halign-space-between w3-valign-end/',
+					   w3_select('//w3-text-red w3-width-auto', 'Integrate presets', 'select', 'fft.pre', W3_SELECT_SHOW_TITLE, fft.pre_s, 'fft_pre_select_cb'),
+					   w3_button('w3-padding-small w3-aqua', 'Auto scale', 'fft_hrw_autoscale_cb')
+					),
 					w3_div('id-fft-hrw w3-margin-T-8',
 					   w3_inline('w3-halign-space-between/',
                      w3_select('w3-text-red', 'FFT', '', 'fft.hrw_size_i', fft.hrw_size_i, fft.hrw_size_s, 'fft_hrw_size_cb'),
@@ -826,16 +836,14 @@ function fft_controls_setup()
                      w3_select('w3-text-red', 'Zoom', '', 'fft.hrw_zoom_i', fft.hrw_zoom_i, fft.hrw_zoom_s, 'fft_hrw_zoom_cb')
                   ),
 					   w3_inline('w3-margin-T-4 w3-halign-space-between/',
-					      w3_div('id-fft-hrw-status w3-small', ''),
-					      w3_button('w3-padding-small', 'Auto scale', 'fft_hrw_autoscale_cb')
+					      w3_div('id-fft-hrw-status w3-margin-T-2 w3-font-11px', '')
 					   )
                ),
 					w3_div('id-fft-msg-fft w3-margin-T-8',
                   w3_slider('', 'max', 'fft.maxdb', fft.maxdb, -170, -10, 1, 'fft_maxdb_cb'),
                   w3_slider('', 'min', 'fft.mindb', fft.mindb, -190, -30, 1, 'fft_mindb_cb')
                ),
-               w3_text('id-fft-msg-spec  w3-margin-T-8 w3-hide', 'Spectrum uses main control panel<br>WF tab sliders and settings'),
-					w3_button('w3-margin-T-8 w3-padding-small', 'Clear', 'fft_clear_cb')
+               w3_text('id-fft-msg-spec  w3-margin-T-8 w3-hide', 'Spectrum uses main control panel<br>WF tab sliders and settings')
 				)
 			)
 		);
@@ -897,17 +905,19 @@ function fft_alpha()
 {
 	var c = fft.info_canvas.ctx;
 	var xo = 64, xi = 48, y = 16, yh = 20, yi = 24, barw = 9, nbarw = 5;
+	var station, freq;
 
 	c.font = '12px Verdana';
 	var ty = yh/2 + 10/2;
 
-	for (var freq = 0; freq < 4; freq++) {
+	for (freq = 0; freq < 4; freq++) {
 		c.fillStyle = 'white';
-		var txt = fft.alpha_sched[0][freq];
-		var tx = barw/2 - c.measureText(txt).width/2;
+		var txt, tx;
+		txt = fft.alpha_sched[0][freq];
+		tx = barw/2 - c.measureText(txt).width/2;
 		c.fillText(txt, xo + xi*freq + tx, 10);
-		var txt = fft.alpha_sched[1][freq].toFixed(2);
-		var tx = barw/2 - c.measureText(txt).width/2;
+		txt = fft.alpha_sched[1][freq].toFixed(2);
+		tx = barw/2 - c.measureText(txt).width/2;
 		c.fillText(txt, xo + xi*freq + tx, 26);
 
 		y = 32;
@@ -917,7 +927,7 @@ function fft_alpha()
 				c.fillText('slot '+ tslot, 16, y + ty);
 			}
 			
-			var station = fft.alpha_sched[tslot+2][freq];
+			station = fft.alpha_sched[tslot+2][freq];
 			if (station == fft_a.MULT) {
 				c.fillStyle = fft.alpha_station_colors[fft_a.NOVO-1];
 				c.fillRect(xo + xi*freq + (2-2-nbarw), y, nbarw, yh);
@@ -936,7 +946,7 @@ function fft_alpha()
 
 	y = 192;
 	c.font = '12px Verdana';
-	for (var station = 0; station <= 4; station++) {
+	for (station = 0; station <= 4; station++) {
 		c.fillStyle = fft.alpha_station_colors[station];
 		c.fillRect(xo, y, yh, barw);
 		c.fillStyle = 'white';
@@ -945,12 +955,12 @@ function fft_alpha()
 	}
 
 	// draw frequency markers on FFT canvas
-	var c = fft.integ_canvas.ctx;
+	c = fft.integ_canvas.ctx;
 	var pxphz = fft.integ_w / ext_sample_rate();
 	
 	c.font = '12px Verdana';
 	c.fillStyle = 'white';
-	for (var freq = 0; freq < 4; freq++) {
+	for (freq = 0; freq < 4; freq++) {
 		var f_s = fft.alpha_sched[1][freq].toFixed(2);
 		var f = parseFloat(f_s) * 1e3;
 		fft_marker(f_s, fft.alpha_sched[2][freq], f);
@@ -1126,35 +1136,39 @@ function FFT_help(show)
    if (show) {
       var s = 
          w3_text('w3-medium w3-bold w3-text-aqua', 'Audio FFT help') +
-         '<br>Remember that on KiwiSDR the audio and waterfall channels are completely separate. ' +
-         'For example you can pan the waterfall frequency without effecting the audio. ' +
-         'By contrast this extension allows visualization of the <i>audio</i> channel itself by using ' +
-         'an FFT, waterfall and integrator (summing waterfall) for weak signals.' +
-         
-         '<br><br>The waterfall function computes its FFT in the browser directly from the audio ' +
-         'sample stream. The FFT size (hence frequency resolution), FFT overlap (time resolution) ' +
-         'and display zoom are selectable. Use an IQ mode for the full bandwidth centered on the ' +
-         'tuned frequency and the best resolution (IQ audio is never compressed). ' +
-         'When there are more FFT bins than display pixels each pixel shows the strongest bin ' +
-         '(so narrow carriers are never lost); increase the zoom to see the full resolution. ' +
-         'A frequency scale is drawn above the waterfall and hovering the mouse shows ' +
-         'frequency and level. The <i>Auto scale</i> button sets the max/min sliders from ' +
-         'the current signal statistics.' +
-         
-         '<br><br>URL parameters: <br>' +
-         w3_text('|color:orange', 'itime:<i>num</i> &nbsp; maxdb:<i>num</i> &nbsp; mindb:<i>num</i> &nbsp; ' +
-            'size:<i>num</i> &nbsp; overlap:<i>num</i> &nbsp; zoom:<i>num</i>') +
-         '<br> Non-numeric values are those appearing in their respective menus. <br>' +
-         'Keywords are case-insensitive and can be abbreviated. <br>' +
-         'So for example these are valid: <br>' +
-         '<i>ext=fft,integ,itime:5</i> &nbsp;&nbsp; ' +
-         '<i>ext=fft,water,min:-130,max:-40,size:16,overlap:4</i> &nbsp;&nbsp; <i>ext=fft,alpha</i> <br>' +
-         '(<i>size</i> values &le; 16 mean k units, e.g. size:16 = 16384) <br>' +
-         '<br>' +
-         'Clicking on integrate display will restart it such that the click-point is ' +
-         'moved to top of the display (i.e. vertical timing can be realigned).' +
-         '';
-      confirmation_show_content(s, 610, 300);
+         w3_div('w3-margin-T-8 w3-scroll-y|height:90%',
+            w3_div('w3-margin-R-8',
+               'Remember that on KiwiSDR the audio and waterfall channels are completely separate. ' +
+               'For example you can pan the waterfall frequency without effecting the audio. ' +
+               'By contrast this extension allows visualization of the <i>audio</i> channel itself by using ' +
+               'an FFT, waterfall and integrator (summing waterfall) for weak signals.' +
+               
+               '<br><br>The waterfall function computes its FFT in the browser directly from the audio ' +
+               'sample stream. The FFT size (hence frequency resolution), FFT overlap (time resolution) ' +
+               'and display zoom are selectable. Use IQ mode for the full bandwidth centered on the ' +
+               'tuned frequency and the best resolution (IQ audio is never compressed). ' +
+               'When there are more FFT bins than display pixels each pixel shows the strongest bin ' +
+               '(so narrow carriers are never lost); increase the zoom to see the full resolution. ' +
+               'A frequency scale is drawn above the waterfall and hovering the mouse shows ' +
+               'frequency and level. The <i>Auto scale</i> button sets the max/min sliders from ' +
+               'the current signal statistics.' +
+               
+               '<br><br>URL parameters: <br>' +
+               w3_text('|color:orange', 'itime:<i>num</i> &nbsp; maxdb:<i>num</i> &nbsp; mindb:<i>num</i> &nbsp; ' +
+                  'size:<i>num</i> &nbsp; overlap:<i>num</i> &nbsp; zoom:<i>num</i>') +
+               '<br> Non-numeric values are those appearing in their respective menus. <br>' +
+               'Keywords are case-insensitive and can be abbreviated. <br>' +
+               'So for example these are valid: <br>' +
+               '<i>ext=fft,integ,itime:5</i> &nbsp;&nbsp; ' +
+               '<i>ext=fft,water,min:-130,max:-40,size:16,overlap:4</i> &nbsp;&nbsp; <i>ext=fft,alpha</i> <br>' +
+               '(<i>size</i> values &le; 16 mean k units, e.g. size:16 = 16384) <br>' +
+               '<br>' +
+               'Clicking on integrate display will restart it such that the click-point is ' +
+               'moved to top of the display (i.e. vertical timing can be realigned).'
+            )
+         );
+      confirmation_show_content(s, 610, 350);
+      w3_el('id-confirmation-container').style.height = '100%';   // to get the w3-scroll-y above to work
    }
    return true;
 }
