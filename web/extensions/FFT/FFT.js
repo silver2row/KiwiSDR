@@ -33,6 +33,10 @@ var fft = {
    hrw_overlap_v: [ 1, 2, 4, 8 ],
    hrw_overlap_i: 1,    // 2x = 50% overlap default
 
+   hrw_decim_s: [ 'off', '2', '4', '8', '16', '32', '64' ],
+   hrw_decim_v: [ 1, 2, 4, 8, 16, 32, 64 ],
+   hrw_decim_i: 0,      // decimation ahead of the FFT (zoom FFT)
+
    hrw: {
       init: false,
       dynload: {},
@@ -43,7 +47,7 @@ var fft = {
 
       fft_size: 0,      // number of input samples (complex pairs when iq) per FFT frame
       hop: 0,           // fft_size / overlap
-      nbins: 0,         // computed bins: fft_size (iq) or fft_size/2 (real)
+      nbins: 0,         // computed bins: fft_size (cplx) or fft_size/2 (real)
       draw_w: 0,        // canvas backing width: min(nbins, displayed px), peak-decimated
       scale: 0,         // power normalization (window-sum based, independent of fft_size)
 
@@ -59,6 +63,17 @@ var fft = {
       nnew: 0,          // samples since last frame, compared against hop
 
       dB: null,         // last line, byte-encoded dB (255 + dB, clamped 0..255)
+
+      // decimation ahead of the FFT (zoom FFT)
+      decim: 1,         // decimation factor at last setup
+      cplx: false,      // FFT input is complex: iq stream, or real stream after mixing
+      f_mix: 0,         // audio frequency mixed down to 0 Hz (passband center)
+      mix_ph: 0,        // NCO phase accumulator
+      mix_dph: 0,       // NCO phase increment per input sample
+      stages: null,     // cascade of halfband decimate-by-2 stages
+      HB: null,         // shared halfband filter coefficients
+      scr_re: null,     // scratch: packet converted to float, then decimated in place
+      scr_im: null,
 
       MAX_VAL: 32767,
    },
@@ -246,12 +261,96 @@ function fft_mousedown(evt)
 // stream delivered on the SND websocket. This allows an arbitrary, user-selectable
 // FFT resolution and overlapping FFTs. Pipeline modeled on wf_audio_FFT() in
 // openwebrx.js which uses the same Ooura FFT package.
+//
+// Design note, full-bandwidth analysis independent of the demod mode:
+// the extension sees the post-demodulator output of the user's own SND stream,
+// so in real modes (AM/SSB/CW) only the passband is visible. Getting the full
+// channel bandwidth as IQ regardless of demod mode would require one of:
+//   1) a second SND connection in IQ mode (kiwirecorder-style) -- rejected,
+//      because each FFT user would silently occupy two of the limited rx slots;
+//   2) a server-side pre-demod IQ tap forwarded on the extension data stream
+//      (C++ change, no extra rx slot; would also benefit other extensions);
+//   3) forcing the channel to IQ and demodulating client-side -- not worth
+//      reimplementing AM/SSB/AGC/squelch in the browser.
+// Option 2 is the clean long-term solution if the need arises. Until then the
+// decimation feature below centers on the passband in real modes, and IQ mode
+// provides the full channel bandwidth.
 ////////////////////////////////
 
 function fft_hrw_reset()
 {
    var h = fft.hrw;
    h.ring_w = h.ring_filled = h.nnew = 0;
+   h.mix_ph = 0;
+   if (h.stages) h.stages.forEach(function(st) { st.nbuf = fft.hrw.HB.length - 1; st.buf_re.fill(0); st.buf_im.fill(0); });
+}
+
+// halfband lowpass for decimate-by-2 (cutoff srate/4): Blackman-windowed sinc,
+// every second tap is zero except the center (0.5), so a 63-tap filter costs
+// only 17 multiplies per component per output sample
+function fft_hrw_hb_design()
+{
+   var T = 63, c = (T-1)/2;
+   var h = new Float32Array(T);
+   var sum = 0, i, d;
+   for (i = 0; i < T; i++) {
+      d = i - c;
+      var sinc = d? (Math.sin(Math.PI * d / 2) / (Math.PI * d)) : 0.5;
+      var win = 0.42 - 0.5 * Math.cos(2*Math.PI * i / (T-1)) + 0.08 * Math.cos(4*Math.PI * i / (T-1));
+      h[i] = sinc * win;
+      sum += h[i];
+   }
+   for (i = 0; i < T; i++) h[i] /= sum;    // unity DC gain
+   return h;
+}
+
+function fft_hrw_hb_stage()
+{
+   var T = fft.hrw.HB.length;
+   return {
+      // T-1 samples of zeroed history followed by appended input
+      // (leftover after processing is at most T+1 samples)
+      buf_re: new Float32Array(T+1 + 2048),
+      buf_im: new Float32Array(T+1 + 2048),
+      nbuf: T-1
+   };
+}
+
+// halfband decimate-by-2: append n input samples, return the number of output
+// samples written (in-place output into the input arrays is safe)
+function fft_hrw_decim2(st, in_re, in_im, n, out_re, out_im)
+{
+   var hb = fft.hrw.HB, T = hb.length, c = (T-1)/2;
+   var i, j, k;
+   for (i = 0; i < n; i++) { st.buf_re[st.nbuf + i] = in_re[i]; st.buf_im[st.nbuf + i] = in_im[i]; }
+   st.nbuf += n;
+   var br = st.buf_re, bi = st.buf_im;
+   var nout = 0;
+   for (j = 0; j + T <= st.nbuf; j += 2) {
+      var sr = 0.5 * br[j+c], si = 0.5 * bi[j+c];
+      for (k = 0; k < T; k += 2) {     // odd-offset taps are zero
+         var w = hb[k];
+         sr += w * br[j+k]; si += w * bi[j+k];
+      }
+      out_re[nout] = sr; out_im[nout] = si;
+      nout++;
+   }
+   // keep the unconsumed tail (incl. T-1 history) at the buffer start
+   var nkeep = st.nbuf - j;
+   br.copyWithin(0, j, st.nbuf);
+   bi.copyWithin(0, j, st.nbuf);
+   st.nbuf = nkeep;
+   return nout;
+}
+
+// audio frequency mixed to 0 Hz ahead of the decimator: the passband center
+// for real modes (user positions the zoomed span by adjusting the passband),
+// 0 (= the tuned carrier) for IQ mode
+function fft_hrw_mix_freq(iq)
+{
+   if (iq) return 0;
+   var pb = ext_get_passband();
+   return Math.abs(pb.low + pb.high) / 2;
 }
 
 function fft_hrw_setup(iq, comp)
@@ -261,7 +360,25 @@ function fft_hrw_setup(iq, comp)
    var n = h.fft_size = fft.hrw_size_v[fft.hrw_size_i];
    h.hop = Math.round(n / fft.hrw_overlap_v[fft.hrw_overlap_i]);
 
-   if (iq) {
+   // decimation ahead of the FFT (zoom FFT): mix the band of interest to 0 Hz,
+   // decimate by 2^k with cascaded halfband lowpass stages, then run the normal
+   // (complex) FFT at the reduced sample rate. The same FFT size then spans
+   // srate/decim, improving resolution to srate/(decim*fft_size) Hz/bin.
+   var decim = h.decim = fft.hrw_decim_v[fft.hrw_decim_i];
+   var cplx = h.cplx = (iq || decim > 1);    // real input becomes complex after mixing
+   if (decim > 1) {
+      if (!h.HB) h.HB = fft_hrw_hb_design();
+      h.stages = [];
+      for (i = 1; i < decim; i <<= 1) h.stages.push(fft_hrw_hb_stage());
+      h.f_mix = fft_hrw_mix_freq(iq);
+      h.mix_dph = 2*Math.PI * h.f_mix / ext_sample_rate();
+   } else {
+      h.stages = null;
+      h.f_mix = h.mix_dph = 0;
+   }
+   if (!h.scr_re) { h.scr_re = new Float32Array(2048); h.scr_im = new Float32Array(2048); }
+
+   if (cplx) {
       // NB: ooura32 "size" counts scalar floats, so a transform of n complex samples is FFT(2n)
       h.offt = ooura32.FFT(n*2, { "type":"complex", "radix":4 });
       h.i_re = new Float32Array(n);
@@ -270,7 +387,7 @@ function fft_hrw_setup(iq, comp)
       h.o_im = new Float32Array(n);
       h.ring_re = new Float32Array(n);
       h.ring_im = new Float32Array(n);
-      h.nbins = n;         // full span: -srate/2 .. +srate/2 about the carrier
+      h.nbins = n;         // full span: srate/decim centered on carrier (IQ) or passband center
    } else {
       h.offt = ooura32.FFT(n, { "type":"real", "radix":4 });
       h.i_re = ooura32.scalarArrayFactory(h.offt);
@@ -305,7 +422,8 @@ function fft_hrw_setup(iq, comp)
    });
    fft_hrw_status();
    fft_hrw_scale();
-   console.log('FFT hrw_setup fft_size='+ n +' hop='+ h.hop +' nbins='+ h.nbins +' iq='+ iq +' comp='+ comp);
+   console.log('FFT hrw_setup fft_size='+ n +' hop='+ h.hop +' nbins='+ h.nbins +' iq='+ iq +' comp='+ comp +
+      ' decim='+ decim + ((decim > 1 && !iq)? (' f_mix='+ h.f_mix):''));
 }
 
 // resize the waterfall canvas backing store to the displayed width
@@ -346,17 +464,27 @@ function fft_hrw_apply_zoom()
 }
 
 // visible RF frequency range of the waterfall display (Hz), accounting for
-// stream format (IQ = full span centered on carrier, real = one sideband)
-// and the centered display zoom
+// stream format (IQ = full span centered on carrier, real = one sideband),
+// decimation ahead of the FFT and the centered display zoom
 function fft_hrw_freq_range()
 {
    var srate = ext_sample_rate();
    var carrier = ext_get_carrier_freq();
+   var iq = ext_is_IQ_or_stereo_curmode();
+   var lsb = ext_mode(cur_mode).LSB_SAL;
+   var decim = fft.hrw_decim_v[fft.hrw_decim_i];
    var lo, span;
-   if (ext_is_IQ_or_stereo_curmode()) {
+   if (decim > 1) {
+      // zoom FFT: srate/decim span centered on the mixed-down frequency
+      var f_mix = fft_hrw_mix_freq(iq);
+      var center = iq? carrier : (lsb? (carrier - f_mix) : (carrier + f_mix));
+      span = srate / decim;
+      lo = center - span/2;
+   } else
+   if (iq) {
       lo = carrier - srate/2; span = srate;
    } else
-   if (ext_mode(cur_mode).LSB_SAL) {
+   if (lsb) {
       lo = carrier - srate/2; span = srate/2;    // displayed reversed: left = lower RF freq
    } else {
       lo = carrier; span = srate/2;
@@ -457,13 +585,36 @@ function fft_hrw_status()
    var h = fft.hrw;
    var el = w3_el('id-fft-hrw-status');
    if (!el || !h.init) return;
-   var srate = ext_sample_rate();
+   var srate = ext_sample_rate() / h.decim;      // sample rate at the FFT after decimation
    var hzbin = srate / h.fft_size;
    var lps = srate / h.hop;
    var dec = h.nbins / h.draw_w;
-   el.innerHTML = h.nbins.toUnits({precision:0}) +' bins, '+ hzbin.toFixed(hzbin < 10? 2:1) +' Hz/bin, '+
-      lps.toFixed(0) +' lines/s'+ (h.iq? ', IQ':'') +
+   el.innerHTML = h.nbins.toUnits({precision:0}) +' bins, '+
+      hzbin.toFixed((hzbin < 0.1)? 3 : (hzbin < 10)? 2:1) +' Hz/bin, '+
+      lps.toFixed((lps < 10)? 1:0) +' lines/s'+ (h.iq? ', IQ':'') +
+      ((h.decim > 1)? (', decim '+ h.decim):'') +
       ((dec > 1)? (', '+ dec +':1 shown'):'');    // zoom in to reveal full resolution
+}
+
+// append one (possibly complex) sample to the ring buffer, interleaving frame
+// processing so that an append run larger than the hop size still produces
+// correctly offset (not duplicated) overlapping frames; nnew counts samples
+// only after the initial buffer fill, so per-sample checking emits the first
+// frame exactly at fill and thereafter one frame per hop
+function fft_hrw_ring(re, im)
+{
+   var h = fft.hrw;
+   var n = h.fft_size;
+   h.ring_re[h.ring_w] = re;
+   if (h.cplx) h.ring_im[h.ring_w] = im;
+   h.ring_w++; if (h.ring_w == n) h.ring_w = 0;
+   if (h.ring_filled < n) {
+      h.ring_filled++;
+      if (h.ring_filled == n) { fft_hrw_frame(); h.nnew = 0; }
+   } else {
+      h.nnew++;
+      if (h.nnew >= h.hop) { fft_hrw_frame(); h.nnew = 0; }
+   }
 }
 
 // called from audio_recv() (via ext.js) with each decoded SND packet:
@@ -480,23 +631,33 @@ function fft_audio_data_cb(data, samps)
       fft_hrw_setup(iq, audio_compression);
    h.lsb = ext_mode(cur_mode).LSB_SAL;
 
-   // interleave appending and frame processing so that a packet larger than the
-   // hop size still produces correctly offset (not duplicated) overlapping frames;
-   // nnew counts samples only after the initial buffer fill, so per-sample checking
-   // emits the first frame exactly at fill and thereafter one frame per hop
-   var n = h.fft_size;
-   var step = iq? 2:1;
-   for (i = 0; i < samps; i += step) {
-      h.ring_re[h.ring_w] = data[i];
-      if (iq) h.ring_im[h.ring_w] = data[i+1];
-      h.ring_w++; if (h.ring_w == n) h.ring_w = 0;
-      if (h.ring_filled < n) {
-         h.ring_filled++;
-         if (h.ring_filled == n) { fft_hrw_frame(); h.nnew = 0; }
+   var ns = iq? (samps/2) : samps;     // complex pairs count as one sample
+
+   if (h.decim > 1) {
+      // zoom FFT: mix the selected band to 0 Hz, cascade of halfband
+      // decimate-by-2 stages, then the ring/FFT runs at srate/decim
+      var re = h.scr_re, im = h.scr_im;
+      if (iq) {
+         for (i = 0; i < ns; i++) { re[i] = data[2*i]; im[i] = data[2*i+1]; }
+      } else if (h.f_mix) {
+         var ph = h.mix_ph, dph = h.mix_dph;
+         for (i = 0; i < ns; i++) {
+            re[i] = data[i] * Math.cos(ph);
+            im[i] = -data[i] * Math.sin(ph);
+            ph += dph;
+         }
+         h.mix_ph = ph % (2*Math.PI);
       } else {
-         h.nnew++;
-         if (h.nnew >= h.hop) { fft_hrw_frame(); h.nnew = 0; }
+         for (i = 0; i < ns; i++) { re[i] = data[i]; im[i] = 0; }
       }
+      var nd = ns;
+      for (i = 0; i < h.stages.length; i++)
+         nd = fft_hrw_decim2(h.stages[i], re, im, nd, re, im);
+      for (i = 0; i < nd; i++) fft_hrw_ring(re[i], im[i]);
+   } else {
+      var step = iq? 2:1;
+      for (i = 0; i < samps; i += step)
+         fft_hrw_ring(data[i], iq? data[i+1] : 0);
    }
    
    if (!fft.initial_autoscale && h.nnew) {
@@ -513,7 +674,7 @@ function fft_hrw_frame()
 
    // ring holds exactly the last n samples, oldest at ring_w
    var idx = h.ring_w;
-   if (h.iq) {
+   if (h.cplx) {
       for (j = 0; j < n; j++) {
          h.i_re[j] = h.ring_re[idx] * h.win[j];
          h.i_im[j] = h.ring_im[idx] * h.win[j];
@@ -529,15 +690,19 @@ function fft_hrw_frame()
    }
 
    var nbins = h.nbins;
-   if (h.iq) {
-      // fftshift: DC at display center, same bin mapping as wf_audio_FFT()
+   if (h.cplx) {
+      // fftshift: DC at display center, same bin mapping as wf_audio_FFT();
+      // decimated real modes are reversed for LSB so the display remains
+      // RF-frequency oriented (left = lower RF frequency)
       var half = n/2;
+      var rev = h.lsb && !h.iq;
       for (j = 0; j < n; j++) {
          re = h.o_re[j]; im = h.o_im[j];
          pwr = re*re + im*im;
          dB = Math.round(255 + (10.0 * Math.log10(pwr * h.scale + 1e-30)));
          if (dB < 0) dB = 0; else if (dB > 255) dB = 255;
-         h.dB[(j < half)? (half + j) : (j - half)] = dB;
+         var si = (j < half)? (half + j) : (j - half);
+         h.dB[rev? (n-1 - si) : si] = dB;
       }
    } else {
       // audio frequencies 0..srate/2; reversed for LSB-family modes so the
@@ -621,6 +786,15 @@ function fft_hrw_overlap_cb(path, idx, first)
    fft.hrw_overlap_i = +idx;
    w3_select_value(path, idx);
    fft.hrw.init = false;
+   fft_clear();
+}
+
+function fft_hrw_decim_cb(path, idx, first)
+{
+   if (first) return;
+   fft.hrw_decim_i = +idx;
+   w3_select_value(path, idx);
+   fft.hrw.init = false;      // re-setup on next audio packet
    fft_clear();
 }
 
@@ -802,6 +976,10 @@ function fft_controls_setup()
             var oi = fft.hrw_overlap_v.indexOf(r.num);
             if (oi != -1) fft.hrw_overlap_i = oi;
          } else
+         if ((r = w3_ext_param('decim', a)).match) {
+            var di = fft.hrw_decim_v.indexOf(r.num);
+            if (di != -1) fft.hrw_decim_i = di;
+         } else
          if ((r = w3_ext_param('zoom', a)).match) {
             // interpret as zoom factor (1,2,4,8,16)
             var zf = w3_clamp(r.num, 1, 16);
@@ -833,6 +1011,7 @@ function fft_controls_setup()
 					   w3_inline('w3-halign-space-between/',
                      w3_select('w3-text-red', 'FFT', '', 'fft.hrw_size_i', fft.hrw_size_i, fft.hrw_size_s, 'fft_hrw_size_cb'),
                      w3_select('w3-text-red', 'Overlap', '', 'fft.hrw_overlap_i', fft.hrw_overlap_i, fft.hrw_overlap_s, 'fft_hrw_overlap_cb'),
+                     w3_select('w3-text-red', 'Decim', '', 'fft.hrw_decim_i', fft.hrw_decim_i, fft.hrw_decim_s, 'fft_hrw_decim_cb'),
                      w3_select('w3-text-red', 'Zoom', '', 'fft.hrw_zoom_i', fft.hrw_zoom_i, fft.hrw_zoom_s, 'fft_hrw_zoom_cb')
                   ),
 					   w3_inline('w3-margin-T-4 w3-halign-space-between/',
@@ -892,6 +1071,13 @@ function FFT_environment_changed(changed)
       ext_send('SET run='+ fft.run[fft.func+1]);
       // mode family may have changed (e.g. USB <-> LSB) altering the displayed range
       if (fft.func == fft.func_e.WF) fft_hrw_scale();
+   }
+   
+   if (changed.passband && fft.func == fft.func_e.WF && fft.hrw_decim_v[fft.hrw_decim_i] > 1 &&
+      !ext_is_IQ_or_stereo_curmode()) {
+      // the decimated span is centered on the passband: re-mix and redraw
+      fft.hrw.init = false;
+      fft_clear();
    }
    
    if (changed.resize) {
@@ -1153,9 +1339,18 @@ function FFT_help(show)
                'frequency and level. The <i>Auto scale</i> button sets the max/min sliders from ' +
                'the current signal statistics.' +
                
+               '<br><br>The <i>Decim</i> menu decimates the sample stream ahead of the FFT (zoom FFT): ' +
+               'the displayed span shrinks by the decimation factor and the resolution improves by ' +
+               'the same factor without a larger FFT. E.g. IQ mode, FFT 16k, decim 32: span 375 Hz ' +
+               'centered on the tuned frequency at 0.023 Hz/bin &mdash; sub-Hz MW carrier work. ' +
+               'In IQ mode the span is centered on the tuned frequency. In USB/LSB/CW modes it is ' +
+               'centered on the <i>passband center</i>: drag the passband (or use a /pb URL suffix) ' +
+               'to steer the zoomed span. Note the waterfall rate slows accordingly at high ' +
+               'decimation and large FFT sizes (see the lines/s readout); use overlap to compensate.' +
+               
                '<br><br>URL parameters: <br>' +
                w3_text('|color:orange', 'itime:<i>num</i> &nbsp; maxdb:<i>num</i> &nbsp; mindb:<i>num</i> &nbsp; ' +
-                  'size:<i>num</i> &nbsp; overlap:<i>num</i> &nbsp; zoom:<i>num</i>') +
+                  'size:<i>num</i> &nbsp; overlap:<i>num</i> &nbsp; decim:<i>num</i> &nbsp; zoom:<i>num</i>') +
                '<br> Non-numeric values are those appearing in their respective menus. <br>' +
                'Keywords are case-insensitive and can be abbreviated. <br>' +
                'So for example these are valid: <br>' +
