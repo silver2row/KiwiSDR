@@ -6,8 +6,7 @@ var fft = {
    ext_name: 'FFT',     // NB: must match fft.c:fft_ext.name
    first_time: true,
    update_interval: 0,
-   initial_autoscale: false,
-   passband_altered: false,
+   passband_mode_altered: false,
    
    cmd_e: { FFT:0, CLEAR:1 },
 
@@ -61,6 +60,7 @@ var fft = {
       ring_w: 0,
       ring_filled: 0,
       nnew: 0,          // samples since last frame, compared against hop
+      nframe: 0,
 
       dB: null,         // last line, byte-encoded dB (255 + dB, clamped 0..255)
 
@@ -195,7 +195,7 @@ function fft_clear()
 		w3_inline_percent_set(right, 49.9);
 		fft_alpha();
 	} else {
-		ext_set_controls_width_height(275, (fft.func == fft.func_e.WF)? 320:275);
+		ext_set_controls_width_height(285, (fft.func == fft.func_e.WF)? 320:275);
 		w3_inline_percent_set(left, 0);
 		w3_inline_percent_set(right, 100);
 		if (fft.func == fft.func_e.WF) {
@@ -591,7 +591,7 @@ function fft_hrw_status()
    var dec = h.nbins / h.draw_w;
    el.innerHTML = h.nbins.toUnits({precision:0}) +' bins, '+
       hzbin.toFixed((hzbin < 0.1)? 3 : (hzbin < 10)? 2:1) +' Hz/bin, '+
-      lps.toFixed((lps < 10)? 1:0) +' lines/s'+ (h.iq? ', IQ':'') +
+      lps.toFixed((lps < 10)? 1:0) +' upd/s'+ (h.iq? ', IQ':'') +
       ((h.decim > 1)? (', decim '+ h.decim):'') +
       ((dec > 1)? (', '+ dec +':1 shown'):'');    // zoom in to reveal full resolution
 }
@@ -660,10 +660,7 @@ function fft_audio_data_cb(data, samps)
          fft_hrw_ring(data[i], iq? data[i+1] : 0);
    }
    
-   if (!fft.initial_autoscale && h.nnew) {
-      fft_hrw_autoscale_cb();
-      fft.initial_autoscale = true;
-   }
+   if (h.nframe == 3) fft_hrw_autoscale_cb();
 }
 
 function fft_hrw_frame()
@@ -671,6 +668,7 @@ function fft_hrw_frame()
    var h = fft.hrw;
    var j, re, im, pwr, dB;
    var n = h.fft_size;
+   h.nframe++;
 
    // ring holds exactly the last n samples, oldest at ring_w
    var idx = h.ring_w;
@@ -1062,6 +1060,11 @@ function fft_controls_setup()
 	fft.update_interval = setInterval(fft_update, 1000);
 	fft_func_cb('fft.func', fft.func, false);
 	if (fft.pre != -1) fft_pre_select_cb('fft.pre', fft.pre, false);
+	
+	if (fft.func == fft.func_e.WF) {
+	   ext_set_mode('iq');
+	   fft.passband_mode_altered = true;
+	}
 }
 
 function FFT_environment_changed(changed)
@@ -1234,7 +1237,7 @@ function fft_pre_select_cb(path, idx, first)
 	case fft.pre_ALPHA:
 		ext_tune(11.5, 'usb', ext_zoom.NOM_IN);
 		ext_set_passband(300, 3470);
-		fft.passband_altered = true;
+		fft.passband_mode_altered = true;
 		fft_set_itime(3.6);
 		break;
 	
@@ -1307,7 +1310,7 @@ function FFT_blur()
    ext_send('SET run='+ fft.func_e.OFF);
 	spec.need_clear_avg = true;   // remove our spectrum data from averaging buffers
    
-   if (fft.passband_altered)
+   if (fft.passband_mode_altered)
 	   ext_set_mode(fft.saved_mode);
 }
 
