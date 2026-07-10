@@ -515,7 +515,7 @@ void c2s_admin(void *param)
                 char *dom_s = DNS_lookup_result("domain_check", dom_m, &ips_dom_m);
                 n = DNS_lookup(dom_m, &ips_dom_m);
                 printf("domain_check %s=%d\n", dom_m, n);
-                send_msg(conn, SM_NO_DEBUG, "ADM domain_check_result=%d", n? 1:0);
+                send_msg(conn, SM_NO_DEBUG, "ADM domain_check_result=%d", (n == 1)? 1:0);
                 kiwi_asfree(dom_m);
                 continue;
             }
