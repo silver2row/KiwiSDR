@@ -83,10 +83,13 @@ typedef struct {
     // DRM_data()
     u4_t data_tx_seq, data_rx_seq;
     u4_t data_nbuf;
-    #define N_DATABUF (4 + 64*2 + 256*2 + 2048*2)
+    #define N_DATABUF (4 + 64*2 + 256*2 + 2048*2)       // counts, FAC, SDC, MSC
     u1_t data_buf[N_DATABUF];
     u1_t data_cmd;
     
+    char rsci_profile;
+    char rsci_ip[32];
+    bool rsci_err;
     u4_t rsci_tx_seq, rsci_rx_seq;
 
     DRM_CHECK(u4_t magic2;)
@@ -99,6 +102,7 @@ typedef struct {
 
 #define DRM_NREG_CHANS_DEFAULT 3
 
+// routines called by DRM/dream code
 int DRM_rx_chan();
 drm_t *DRM_drm_p(int rx_chan = -1);
 drm_buf_t *DRM_buf_p();
@@ -109,3 +113,4 @@ void DRM_run_sleep();
 void DRM_sleep_ns(u64_t delay_ns);
 void DRM_msg_encoded(drm_msg_e msg_type, const char *cmd, kstr_t *ks);
 void DRM_data(u1_t cmd, u1_t *data, u4_t nbuf);
+bool DRM_new_rsci();

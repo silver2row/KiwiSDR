@@ -120,6 +120,7 @@ public:
 	void SetAFPktCRC(const bool bNAFPktCRC);
 
 	bool AddSubscriber(const std::string& dest, const char profile, const std::string& origin="");
+	void DeleteSubscribers();
 
 	bool SetOrigin(const std::string& strAddr);
 	void SetRSIRecording(CParameter& Parameter, bool bOn, char cPro, const std::string& type="");

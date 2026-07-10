@@ -27,6 +27,7 @@ var drm = {
    csvc: 1,       // NB: 1-based
    
    // ui
+   controls: { w:375, h:150, scroll:90 },
    w_multi_nom: 675,
    w_multi_min: 400,
    h_data: 300,
@@ -148,6 +149,11 @@ var drm = {
    slides: [],
    play: 0,
    ss_ping_pong: 0,
+   
+   // RSCI
+   profile_i: 0,
+   profile_s: [ 'A', 'B', 'C', 'D', 'Q', 'M' ],
+   rsci_ip: '',
 
    last_last: 0
 };
@@ -504,6 +510,15 @@ function drm_recv(data)
             }
 			   break;
 			
+			case "rsci":
+			   var err = +param[1];
+			   console.log('rsci err='+ err);
+			   w3_hide2('id-drm-rsci-spin', err);
+			   w3_spin('id-drm-rsci-spin', !err);
+            w3_colors('id-drm-rsci-ip', '', 'w3-css-pink', err && drm.rsci_ip != '');
+            w3_scrollDown('id-drm-controls-scroll');
+			   break;
+			
 			default:
 				console.log('drm_recv: UNKNOWN CMD '+ param[0]);
 				break;
@@ -617,13 +632,15 @@ function drm_slideshow_step_cb(path, idx, first)
    switch (idx) {
       case 0: drm.cur_slide = 0; break;
       case 1: case -1: drm.cur_slide += idx; break;
-      case drm.SS_RESET: default: drm.slides = []; drm.play = 0; break;
       case drm.SS_PLAY:
          if (drm.slides.length) {
             drm.play ^= 1;
             if (drm.play) start_playing = 1;
          }
          break;
+      case drm.SS_RESET:
+         /* fall through */
+      default: drm.slides = []; drm.play = 0; break;
    }
    
    drm_slideshow_display(drm.cur_slide);
@@ -1090,7 +1107,7 @@ function drm_panel_show(controls_inner, data_html)
 			w3_divs('',
 				w3_div('w3-medium w3-text-aqua', '<b>Digital Radio Mondiale decoder</b>'),
             w3_div('id-drm-station w3-margin-T-4 w3-text-css-yellow', '&nbsp;'),
-            w3_div('id-drm-bar-container w3-margin-T-4 w3-progress-container w3-round-large w3-white w3-hide|width:130px; height:16px',
+            w3_div('id-drm-bar-container w3-margin-TB-4 w3-progress-container w3-round-large w3-white w3-hide|width:130px; height:16px',
                w3_div('id-drm-bar w3-progressbar w3-round-large w3-light-green|width:'+ 50 +'%', '&nbsp;')
             ),
             controls_inner
@@ -1098,7 +1115,7 @@ function drm_panel_show(controls_inner, data_html)
       );
    
 	ext_panel_show(controls_html, data_html, null);
-	ext_set_controls_width_height(375, 145);
+	ext_set_controls_width_height(drm.controls.w, drm.controls.h);
 }
 
 function drm_mobile_controls_setup(mobile)
@@ -1110,7 +1127,7 @@ function drm_mobile_controls_setup(mobile)
    drm.cpanel_margin = 20;
 
 	var controls_html =
-      w3_div(sprintf('id-drm-controls w3-absolute|width:%dpx; height:%dpx;', drm.w_sched, drm.h_sched),
+      w3_div(sprintf('w3-absolute|width:%dpx; height:%dpx;', drm.w_sched, drm.h_sched),
          w3_div('id-drm-panel-container cl-drm-sched|width:100%; height:100%',
             w3_div('id-drm-panel-by-svc-static', drm_schedule_static()),
             w3_div('id-drm-panel-by-svc w3-iphone-scroll w3-absolute|width:100%; height:100%;', drm.loading_msg)
@@ -1363,27 +1380,41 @@ function drm_desktop_controls_setup(w_multi)
          );
 
       controls_inner =
-         w3_inline('w3-halign-space-between w3-margin-T-4/',
-            w3_text('w3-text-white',
-               //'Top panel schedule: Click green/pink bars to tune station. Hover to see times.<br>' +
-               //'Use menu to sort schedule by service, time or frequency. <br>' +
-               //'Gray vertical lines are spaced 1 hour apart beginning at 00:00 UTC on the left. <br>' +
-               //'Red line shows current UTC time and updates while the extension is running. <br>' +
-					'DRM decoder is based on <a href="https://sourceforge.net/projects/drm/" target="_blank">Dream 2.2.1</a><br>' +
-               'Click help button for more information. <br>' +
-               'Schedule information courtesy of ' + w3_link('w3-link-color', 'https://www.drmrx.org', 'drmrx.org')
+         w3_divs(sprintf('id-drm-controls-scroll w3-scroll-y|height:%dpx/', drm.controls.scroll),
+            w3_inline('w3-halign-space-between w3-margin-T-4/',
+               w3_text('w3-text-white',
+                  //'Top panel schedule: Click green/pink bars to tune station. Hover to see times.<br>' +
+                  //'Use menu to sort schedule by service, time or frequency. <br>' +
+                  //'Gray vertical lines are spaced 1 hour apart beginning at 00:00 UTC on the left. <br>' +
+                  //'Red line shows current UTC time and updates while the extension is running. <br>' +
+                  'DRM decoder is based on <a href="https://sourceforge.net/projects/drm/" target="_blank">Dream 2.2.1</a><br>' +
+                  'Click help button for more information. <br>' +
+                  'Schedule information courtesy of ' + w3_link('w3-link-color', 'https://www.drmrx.org', 'drmrx.org')
+               )
+            ),
+   
+            w3_inline('w3-margin-T-8/w3-margin-between-16',
+               //w3_select('w3-text-red', '', 'database', 'drm.database', drm.database, drm.database_s, 'drm_database_cb'),
+               w3_button('id-drm-stop-button w3-padding-smaller w3-pink', 'Stop', 'drm_stop_start_cb'),
+               w3_button('id-drm-btn-monitor w3-padding-smaller w3-pink', 'Monitor IQ', 'drm_monitor_IQ_cb'),
+               //w3_button('w3-padding-smaller w3-css-yellow', 'Reset', 'drm_reset_cb'),
+               w3_button('id-drm-test1 w3-padding-smaller w3-aqua', 'Test 1', 'drm_test_cb', 1),
+               w3_button('id-drm-test2 w3-padding-smaller w3-aqua', 'Test 2', 'drm_test_cb', 2),
+               w3_checkbox('/w3-label-inline w3-label-not-bold', 'LPF', 'drm.lpf', drm.lpf, 'drm_lpf_cbox_cb')
+            ),
+   
+            w3_div('w3-valign-end w3-round-large w3-padding-small w3-text-white w3-grey w3-width-fit w3-margin-T-8',
+               w3_inline('/w3-margin-between-6',
+                  '<b>RSCI</b>',
+                  w3_icon('id-drm-rsci-spin w3-text-aqua w3-static w3-hide', 'fa-repeat fa-stack-1x', 16)
+               ),
+               w3_inline('/w3-margin-between-16',
+                  w3_select('w3-label-not-bold/w3-text-red w3-margin-T-0', 'profile', '', 'drm.profile_i', 0, drm.profile_s, 'w3_select_cb'),
+                  w3_input('/w3-label-not-bold/id-drm-rsci-ip|padding:0;width:auto|size=20',
+                     'UDP', 'drm.rsci_ip', '', 'drm_rsci_ip_cb', ' ip address:port')
+               )
             )
-         ) +
-
-         w3_inline('w3-margin-T-8/w3-margin-between-16',
-            //w3_select('w3-text-red', '', 'database', 'drm.database', drm.database, drm.database_s, 'drm_database_cb'),
-            w3_button('id-drm-stop-button w3-padding-smaller w3-pink', 'Stop', 'drm_stop_start_cb'),
-            w3_button('id-drm-btn-monitor w3-padding-smaller w3-pink', 'Monitor IQ', 'drm_monitor_IQ_cb'),
-            //w3_button('w3-padding-smaller w3-css-yellow', 'Reset', 'drm_reset_cb'),
-            w3_button('id-drm-test1 w3-padding-smaller w3-aqua', 'Test 1', 'drm_test_cb', 1),
-            w3_button('id-drm-test2 w3-padding-smaller w3-aqua', 'Test 2', 'drm_test_cb', 2),
-            w3_checkbox('/w3-label-inline w3-label-not-bold', 'LPF', 'drm.lpf', drm.lpf, 'drm_lpf_cbox_cb')
-         );
+      );
    }
 
    drm_panel_show(controls_inner, data_html);
@@ -1715,6 +1746,16 @@ function drm_lpf_cbox_cb(path, checked, first)
 {
    //console.log('drm_lpf_cbox_cb path='+ path +' checked='+ checked);
    ext_send('SET lpf='+ (checked? 1:0));
+}
+
+function drm_rsci_ip_cb(path, val)
+{
+   val = val.trim();
+   drm.rsci_ip = val;
+   w3_set_value('id-drm-rsci-ip', val);
+   console.log('drm_rsci_ip_cb: profile='+ drm.profile_s[drm.profile_i] +' ip='+ val);
+   ext_send('SET profile='+ drm.profile_i);
+   ext_send('SET rsci_ip='+ val);
 }
 
 function drm_database_cb(path, idx, first)
