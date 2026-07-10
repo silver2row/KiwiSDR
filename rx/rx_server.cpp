@@ -206,10 +206,20 @@ void rx_server_remove(conn_t *c)
 	    }
     }
     
+    // latest Mongoose needs this for multi-admin autokick to work again
+	struct mg_connection *mc = c->mc;
+    if (c->type == STREAM_ADMIN) {
+        conn_printf2(c, "rx_server_remove: no_reopen_retry\n");
+        send_msg(c, false, "MSG no_reopen_retry");
+        if (mc != NULL) {
+            conn_printf2(c, "rx_server_remove: WEBSOCKET_OP_CLOSE\n");
+            mg_ws_send(mc, "", 0, WEBSOCKET_OP_CLOSE);
+        }
+    }
+
     if (st->shutdown) (st->shutdown)((void *) c);
 	c->stop_data = TRUE;
 
-	struct mg_connection *mc = c->mc;
     #ifdef CONN_PRINTF
         cprintf(c, "rx_server_remove: c=%p mc=%p mc->connection_param=%p == %s\n",
             c, mc, mc? mc->connection_param : NULL, (mc && c == (conn_t *) mc->connection_param)? "T":"F");
@@ -277,7 +287,8 @@ conn_t *rx_server_websocket(websocket_mode_e mode, struct mg_connection *mc, u4_
         
         if (c->magic != CN_MAGIC || !c->valid || mc != c->mc || mc->remote_port != c->remote_port) {
             if (mode != WS_MODE_ALLOC && !internal) return NULL;
-        #ifdef CONN_PRINTF
+        //#ifdef CONN_PRINTF
+        #if 0
             lprintf("rx_server_websocket(%s): BAD CONN MC PARAM\n", ws_mode_s[mode]);
             lprintf("rx_server_websocket: (mc=%p == mc->c->mc=%p)? mc->c=%p mc->c->valid=%d mc->c->magic=0x%x CN_MAGIC=0x%x mc->c->rport=%d\n",
                 mc, c->mc, c, c->valid, c->magic, CN_MAGIC, c->remote_port);
