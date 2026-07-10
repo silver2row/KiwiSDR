@@ -510,6 +510,17 @@ isLocal_t isLocal_if_ip(conn_t *conn, char *remote_ip_s, const char *log_prefix)
 	return isLocal;
 }
 
+bool inet4_d_valid(int a, int b, int c, int d, int port)
+{
+    bool ok = true;
+    if (port >= 0 && (port < 1024 || port > 65535))
+        ok = false;
+    else
+    if (!RANGE(a,0,255) || !RANGE(b,0,255) || !RANGE(c,0,255) || !RANGE(d,0,255))
+        ok = false;
+    return ok;
+}
+
 // be very strict about content of inet4_str
 u4_t inet4_d2h_strict(char *inet4_str, bool *error, u1_t *ap, u1_t *bp, u1_t *cp, u1_t *dp, bool debug)
 {
@@ -536,7 +547,7 @@ u4_t inet4_d2h_strict(char *inet4_str, bool *error, u1_t *ap, u1_t *bp, u1_t *cp
             nm = 32;
         }
 	}
-	if (a < 0 || a > 255 || b < 0 || b > 255 || c < 0 || c > 255 || d < 0 || d > 255 || nm < 0 || nm > 32)
+	if (!RANGE(a,0,255) || !RANGE(b,0,255) || !RANGE(c,0,255) || !RANGE(d,0,255) || !RANGE(nm,0,32))
 	    goto err;
 	if (debug) printf(GREEN "inet4_d2h_strict: accepted \"%s\"" NONL, inet4_str);
 
@@ -560,11 +571,14 @@ void inet4_h2d(u4_t inet4, u1_t *ap, u1_t *bp, u1_t *cp, u1_t *dp)
     if (dp != NULL) *dp = bf(inet4,  7,  0);
 }
 
-char *inet4_h2s(u4_t inet4, int which)
+char *inet4_h2s(u4_t inet4, int port, int which)
 {
     u1_t a,b,c,d;
     inet4_h2d(inet4, &a,&b,&c,&d);
-    return stnprintf(which, "%d.%d.%d.%d", a,b,c,d);
+    if (port < 0)
+        return stnprintf(which, "%d.%d.%d.%d", a,b,c,d);
+    else
+        return stnprintf(which, "%d.%d.%d.%d:%d", a,b,c,d, port);
 }
 
 // ::ffff:a.b.c.d/96

@@ -467,7 +467,7 @@ bool user_ip4_cmp(const void *elem1, void *elem2)
 {
 	u4_t ip4_1 = (u4_t) FROM_VOID_PARAM(elem1);
 	user_entry_t *entry = (user_entry_t *) FROM_VOID_PARAM(elem2);
-    ul_prf2("user_ip4_cmp %s %s ", inet4_h2s(ip4_1, 0), inet4_h2s(entry->ip4, 1));
+    ul_prf2("user_ip4_cmp %s %s ", inet4_h2s(ip4_1, -1, 0), inet4_h2s(entry->ip4, -1, 1));
 	return (ip4_1 == entry->ip4);
 }
 */
