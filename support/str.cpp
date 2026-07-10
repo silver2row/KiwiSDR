@@ -343,6 +343,14 @@ bool kiwi_nonEmptyStr(const char *s)
     return (s != NULL && s[0] != '\0');
 }
 
+bool kiwi_nonEmptyStrRemNL(char *s)
+{
+    if (s == NULL) return false;
+    int sl = strlen(s);
+    if (sl != 0 && s[sl-1] == '\n') { s[sl-1] = '\0'; sl--; }
+    return (sl != 0);
+}
+
 // Version of strsep() that handles delimiters embedded inside double-quotes.
 // Also recognizes the spreadsheet standard of escaping quoted double-quotes by doubling them up.
 static char *ed_strsep(char **sp, const char *delim)
