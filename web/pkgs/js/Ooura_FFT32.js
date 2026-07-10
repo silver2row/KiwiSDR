@@ -127,7 +127,7 @@ ooura32.i16sub = function (buffer, offset) {
 
 	ooura32.getVectorSize = function (this_) {
 		return ooura32.vectorSize(this_.size);
-	}
+	};
 
 	// Helper factory functions returning correct array and data size for a
 	// given fft setup;
