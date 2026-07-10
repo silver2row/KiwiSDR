@@ -8,6 +8,7 @@ function isUndefined(v) { return (typeof(v) === 'undefined'); }
 function isDefined(v) { return (typeof(v) !== 'undefined'); }
 function isNull(v) { return (v === null); }
 function isNumber(v) { return (typeof(v) === 'number' && !isNaN(v)); }
+function isNumberElse(v,e) { return (isNumber(v)? v:e); }
 function isBoolean(v) { return (typeof(v) === 'boolean'); }
 function isString(v) { return (typeof(v) === 'string'); }
 function isNonEmptyString(v) { return (isString(v) && v !== ''); }
@@ -708,20 +709,22 @@ Number.prototype.toFixedNZ = function(d)
 	return s;
 };
 
-Number.prototype.toUnits = function(include_space)
+Number.prototype.toUnits = function(opts)
 {
-   var suffix = function(s) { return (include_space? ' ':'') + s; };
+   opts = opts || {};
+   var prec = isNumberElse(opts.precision, 1);
+   var suffix = function(s) { return (opts.include_space? ' ':'') + s; };
 	var n = Number(this);
 	if (n < 1000) {
 		return n.toString() + suffix('');         // nnn
 	} else
 	if (n < 1e6) {
-		return (n/1e3).toFixed(1) + suffix('k');  // nnn.fk
+		return (n/1e3).toFixed(prec) + suffix('k');  // nnn.fk
 	} else
 	if (n < 1e9) {
-		return (n/1e6).toFixed(1) + suffix('M');  // nnn.fM
+		return (n/1e6).toFixed(prec) + suffix('M');  // nnn.fM
 	} else {
-		return (n/1e9).toFixed(1) + suffix('G');  // nnn.fG
+		return (n/1e9).toFixed(prec) + suffix('G');  // nnn.fG
 	}
 };
 
