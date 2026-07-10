@@ -635,7 +635,7 @@ function kiwi_get_init_settings()
 
 	var init_z = (init_zoom == undefined)? 0 : init_zoom;
 	init_z = ext_get_cfg_param('init.zoom', init_z, EXT_NO_SAVE);
-	init_zoom = isNumber(override_zoom)? override_zoom : init_z;
+	init_zoom = isNumberElse(override_zoom, init_z);
 
 	var init_max = (init_max_dB == undefined)? -10 : init_max_dB;
 	init_max = ext_get_cfg_param('init.max_dB', init_max, EXT_NO_SAVE);
@@ -2753,7 +2753,7 @@ function users_init(called_from)
    
       for (var i=0; i < rx_chans; i++) {
          if (kiwi.called_from_admin) {
-            s1 = w3_button('id-user-kick-'+ i +' w3-margin-L-8 w3-hide w3-small w3-white w3-border w3-border-red w3-round-large w3-padding-0 w3-padding-LR-8',
+            s1 = '&nbsp;'+ w3_button('id-user-kick-'+ i +' w3-margin-L-4 w3-hide w3-small w3-white w3-border w3-border-red w3-round-large w3-padding-0 w3-padding-LR-8',
                'Kick', 'status_user_kick_cb', i);
             /*
             s1 += w3_button('id-user-bl32-'+ i +' w3-hide w3-margin-L-8 w3-small w3-white w3-border w3-border-red w3-round-large w3-padding-0 w3-padding-LR-8',
@@ -2764,10 +2764,10 @@ function users_init(called_from)
          }
          s2 = w3_div('id-campers-'+ i +' w3-margin-L-8 w3-css-orange w3-padding-LR-4');
          
-         // Done this way with "w3-span" and "&nbsp;" for the benefit of browser copy/paste of users-list
+         // Done this way with "w3-span" and "&nbsp;" for the benefit of admin users-list copy button
          // such that is pastes to a text file as a single line.
          w3_el('id-users-list').innerHTML +=
-            w3_inline('w3-span', w3_span('id-user-'+ i + pad +' w3-span', 'RX'+ i), '&nbsp', w3_span(id_prefix + i +' w3-span'), s1, s2);
+            w3_inline('w3-span', w3_span('id-user-'+ i + pad +' w3-span', 'RX'+ i), '&nbsp;', w3_span(id_prefix + i +' w3-span'), s1, s2);
       }
    }
 	
@@ -3510,8 +3510,7 @@ function kiwi_msg(param, ws)     // #msg-proc #MSG
                   '<yel>Kiwi owner/admin: Please open the admin page for an important security advisory.</yel>' +
                   '<br><br>' +
                   w3_button('w3-aqua w3-medium w3-padding-small w3-margin-L-16x', 'admin page', 'admin_page_cb') +
-                  ' &nbsp; Thank you.',
-                  null, 650, 250
+                  ' &nbsp; Thank you.'
                );
 				   kiwi.seen_admin_advisory = true;
 				}
