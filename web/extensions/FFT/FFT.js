@@ -82,6 +82,12 @@ var fft = {
       dc_alpha: 0,      // per-frame EMA gain, set in setup: DC_BW/overlap
       DC_BW: 0.2,       // notch width = DC_BW/(2*pi) =~ 0.03 bins, all settings
 
+      // autoscale statistics (see fft_hrw_autoscale_cb): histogram of the
+      // byte-encoded dB values of recent lines, exponentially forgotten
+      hist: null,
+      hist_n: 0,        // total counts in hist
+      hist_frames: 0,   // lines accumulated (same forgetting as hist)
+
       MAX_VAL: 32767,
    },
 
@@ -290,6 +296,8 @@ function fft_hrw_reset()
    h.ring_w = h.ring_filled = h.nnew = 0;
    h.mix_ph = 0;
    h.dc_re = h.dc_im = 0; h.dc_init = false;
+   if (h.hist) h.hist.fill(0);
+   h.hist_n = h.hist_frames = 0;
    if (h.stages) h.stages.forEach(function(st) { st.nbuf = fft.hrw.HB.length - 1; st.buf_re.fill(0); st.buf_im.fill(0); });
 }
 
@@ -421,6 +429,7 @@ function fft_hrw_setup(iq, comp)
    h.scale = (iq? 1.0 : 4.0) / (sum_w * sum_w * h.MAX_VAL * h.MAX_VAL);
 
    h.dB = new Uint8Array(h.nbins);
+   if (!h.hist) h.hist = new Uint32Array(256);
    h.iq = iq;
    h.comp = comp;
    h.init = true;
@@ -753,6 +762,19 @@ function fft_hrw_frame()
       }
    }
 
+   // accumulate the autoscale histogram (see fft_hrw_autoscale_cb); halving
+   // both counts and the frame counter keeps a sliding, exponentially
+   // forgotten window of the most recent ~32..64 lines
+   var hist = h.hist;
+   for (j = 0; j < nbins; j++) hist[h.dB[j]]++;
+   h.hist_n += nbins;
+   h.hist_frames++;
+   if (h.hist_frames >= 64) {
+      h.hist_n = 0;
+      for (j = 0; j < 256; j++) { hist[j] >>= 1; h.hist_n += hist[j]; }
+      h.hist_frames >>= 1;
+   }
+
    // peak-decimate the full-resolution dB line into the draw_w-wide canvas
    // (max per column, not average, so single-bin carriers stay full brightness);
    // 1:1 copy when nbins <= draw_w
@@ -793,13 +815,29 @@ function fft_hrw_frame()
 function fft_hrw_autoscale_cb(path, val)
 {
    var h = fft.hrw;
-   if (h.init && h.dB) {
-      var sorted = Array.prototype.slice.call(h.dB).sort(function(a,b) { return a-b; });
-      var len = sorted.length;
-      var noise  = sorted[Math.floor(0.50 * len)] - 255;
-      var signal = sorted[Math.floor(0.95 * len)] - 255;
-      // same empirical margins as the main waterfall autoscale (openwebrx.js waterfall_add)
-      var maxdb = w3_clamp(signal + 30, -170, -10);
+   if (h.init && h.hist && h.hist_n) {
+      // statistics from the histogram of recent lines (see fft_hrw_frame)
+      // rather than a single-line sort: immune to per-line fluctuation and
+      // to any individual bin (including the DC bin), and O(256) to read out
+      var k;
+      var cum = 0, noise = -255;
+      for (k = 0; k < 256; k++) {
+         cum += h.hist[k];
+         if (cum >= 0.5 * h.hist_n) { noise = k - 255; break; }   // median
+      }
+      // signal = highest level sustained by >= 1 bin per line on average:
+      // a real carrier is present every line so it qualifies, a noise
+      // excursion reaches any given level only occasionally and does not
+      var above = 0, signal = noise;
+      for (k = 255; k >= 0; k--) {
+         above += h.hist[k];
+         if (above >= h.hist_frames) { signal = k - 255; break; }
+      }
+      // floor as the main waterfall autoscale (openwebrx.js waterfall_add);
+      // ceiling follows the strongest sustained signal so carriers far above
+      // the noise (common at high resolution) don't saturate, with the old
+      // noise+30 margin as the noise-only default
+      var maxdb = w3_clamp(Math.max(signal + 5, noise + 30), -170, -10);
       var mindb = w3_clamp(noise - 10, -190, -30);
       if (maxdb <= mindb) maxdb = mindb + 10;
       w3_slider_set('fft.maxdb', maxdb, 'fft_maxdb_cb');
