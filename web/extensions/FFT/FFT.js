@@ -75,6 +75,19 @@ var fft = {
       scr_re: null,     // scratch: packet converted to float, then decimated in place
       scr_im: null,
 
+      // DC removal (see fft_hrw_frame): slow EMA of per-frame weighted means
+      dc_re: 0,
+      dc_im: 0,
+      dc_init: false,
+      dc_alpha: 0,      // per-frame EMA gain, set in setup: DC_BW/overlap
+      DC_BW: 0.2,       // notch width = DC_BW/(2*pi) =~ 0.03 bins, all settings
+
+      // autoscale statistics (see fft_hrw_autoscale_cb): histogram of the
+      // byte-encoded dB values of recent lines, exponentially forgotten
+      hist: null,
+      hist_n: 0,        // total counts in hist
+      hist_frames: 0,   // lines accumulated (same forgetting as hist)
+
       MAX_VAL: 32767,
    },
 
@@ -282,6 +295,9 @@ function fft_hrw_reset()
    var h = fft.hrw;
    h.ring_w = h.ring_filled = h.nnew = 0;
    h.mix_ph = 0;
+   h.dc_re = h.dc_im = 0; h.dc_init = false;
+   if (h.hist) h.hist.fill(0);
+   h.hist_n = h.hist_frames = 0;
    if (h.stages) h.stages.forEach(function(st) { st.nbuf = fft.hrw.HB.length - 1; st.buf_re.fill(0); st.buf_im.fill(0); });
 }
 
@@ -359,6 +375,7 @@ function fft_hrw_setup(iq, comp)
    var i;
    var n = h.fft_size = fft.hrw_size_v[fft.hrw_size_i];
    h.hop = Math.round(n / fft.hrw_overlap_v[fft.hrw_overlap_i]);
+   h.dc_alpha = h.DC_BW * h.hop / n;   // = DC_BW/overlap (see fft_hrw_frame)
 
    // decimation ahead of the FFT (zoom FFT): mix the band of interest to 0 Hz,
    // decimate by 2^k with cascaded halfband lowpass stages, then run the normal
@@ -408,9 +425,11 @@ function fft_hrw_setup(iq, comp)
       h.win[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (n-1));
       sum_w += h.win[i];
    }
+   h.win_sum = sum_w;
    h.scale = (iq? 1.0 : 4.0) / (sum_w * sum_w * h.MAX_VAL * h.MAX_VAL);
 
    h.dB = new Uint8Array(h.nbins);
+   if (!h.hist) h.hist = new Uint32Array(256);
    h.iq = iq;
    h.comp = comp;
    h.init = true;
@@ -670,18 +689,47 @@ function fft_hrw_frame()
    var n = h.fft_size;
    h.nframe++;
 
-   // ring holds exactly the last n samples, oldest at ring_w
+   // DC removal: a residual hardware/rounding DC offset shows as a sharp line
+   // at 0 Hz when Hz/bin is small. Subtract a DC estimate formed by a slow
+   // exponential moving average of the per-frame window-weighted means,
+   // operating on the post-decimation samples at the FFT input rate.
+   // A constant offset converges exactly (the 0 Hz line vanishes), but a real
+   // carrier even a fraction of a bin away from 0 Hz rotates in phase from
+   // frame to frame and averages OUT of the estimate, so it is neither removed
+   // nor split. The per-frame EMA gain dc_alpha = DC_BW/overlap compensates
+   // the frame rate, giving a notch of DC_BW/(2*pi) =~ 0.03 bins and a
+   // settling time of ~5 FFT lengths for ALL fft_size/decim/overlap settings
+   // (per-frame mean subtraction would instead notch the full Hann mainlobe,
+   // +/- 2 bins, and distort/split near-DC carriers). Only a signal well
+   // inside a hundredth of the displayed span of 0 Hz is affected; tuning a
+   // few Hz off moves any wanted carrier out of the notch.
+   var mean_re = 0, mean_im = 0;
    var idx = h.ring_w;
+   for (j = 0; j < n; j++) {
+      mean_re += h.ring_re[idx] * h.win[j];
+      if (h.cplx) mean_im += h.ring_im[idx] * h.win[j];
+      idx++; if (idx == n) idx = 0;
+   }
+   mean_re /= h.win_sum; mean_im /= h.win_sum;
+   if (!h.dc_init) {
+      h.dc_re = mean_re; h.dc_im = mean_im; h.dc_init = true;
+   } else {
+      h.dc_re += h.dc_alpha * (mean_re - h.dc_re);
+      h.dc_im += h.dc_alpha * (mean_im - h.dc_im);
+   }
+
+   // ring holds exactly the last n samples, oldest at ring_w
+   idx = h.ring_w;
    if (h.cplx) {
       for (j = 0; j < n; j++) {
-         h.i_re[j] = h.ring_re[idx] * h.win[j];
-         h.i_im[j] = h.ring_im[idx] * h.win[j];
+         h.i_re[j] = (h.ring_re[idx] - h.dc_re) * h.win[j];
+         h.i_im[j] = (h.ring_im[idx] - h.dc_im) * h.win[j];
          idx++; if (idx == n) idx = 0;
       }
       h.offt.fft(h.offt, h.i_re.buffer, h.i_im.buffer, h.o_re.buffer, h.o_im.buffer);
    } else {
       for (j = 0; j < n; j++) {
-         h.i_re[j] = h.ring_re[idx] * h.win[j];
+         h.i_re[j] = (h.ring_re[idx] - h.dc_re) * h.win[j];
          idx++; if (idx == n) idx = 0;
       }
       h.offt.fft(h.offt, h.i_re.buffer, h.o_re.buffer, h.o_im.buffer);
@@ -712,6 +760,19 @@ function fft_hrw_frame()
          if (dB < 0) dB = 0; else if (dB > 255) dB = 255;
          h.dB[h.lsb? (nbins-1 - j) : j] = dB;
       }
+   }
+
+   // accumulate the autoscale histogram (see fft_hrw_autoscale_cb); halving
+   // both counts and the frame counter keeps a sliding, exponentially
+   // forgotten window of the most recent ~32..64 lines
+   var hist = h.hist;
+   for (j = 0; j < nbins; j++) hist[h.dB[j]]++;
+   h.hist_n += nbins;
+   h.hist_frames++;
+   if (h.hist_frames >= 64) {
+      h.hist_n = 0;
+      for (j = 0; j < 256; j++) { hist[j] >>= 1; h.hist_n += hist[j]; }
+      h.hist_frames >>= 1;
    }
 
    // peak-decimate the full-resolution dB line into the draw_w-wide canvas
@@ -754,13 +815,29 @@ function fft_hrw_frame()
 function fft_hrw_autoscale_cb(path, val)
 {
    var h = fft.hrw;
-   if (h.init && h.dB) {
-      var sorted = Array.prototype.slice.call(h.dB).sort(function(a,b) { return a-b; });
-      var len = sorted.length;
-      var noise  = sorted[Math.floor(0.50 * len)] - 255;
-      var signal = sorted[Math.floor(0.95 * len)] - 255;
-      // same empirical margins as the main waterfall autoscale (openwebrx.js waterfall_add)
-      var maxdb = w3_clamp(signal + 30, -170, -10);
+   if (h.init && h.hist && h.hist_n) {
+      // statistics from the histogram of recent lines (see fft_hrw_frame)
+      // rather than a single-line sort: immune to per-line fluctuation and
+      // to any individual bin (including the DC bin), and O(256) to read out
+      var k;
+      var cum = 0, noise = -255;
+      for (k = 0; k < 256; k++) {
+         cum += h.hist[k];
+         if (cum >= 0.5 * h.hist_n) { noise = k - 255; break; }   // median
+      }
+      // signal = highest level sustained by >= 1 bin per line on average:
+      // a real carrier is present every line so it qualifies, a noise
+      // excursion reaches any given level only occasionally and does not
+      var above = 0, signal = noise;
+      for (k = 255; k >= 0; k--) {
+         above += h.hist[k];
+         if (above >= h.hist_frames) { signal = k - 255; break; }
+      }
+      // floor as the main waterfall autoscale (openwebrx.js waterfall_add);
+      // ceiling follows the strongest sustained signal so carriers far above
+      // the noise (common at high resolution) don't saturate, with the old
+      // noise+30 margin as the noise-only default
+      var maxdb = w3_clamp(Math.max(signal + 5, noise + 30), -170, -10);
       var mindb = w3_clamp(noise - 10, -190, -30);
       if (maxdb <= mindb) maxdb = mindb + 10;
       w3_slider_set('fft.maxdb', maxdb, 'fft_maxdb_cb');
