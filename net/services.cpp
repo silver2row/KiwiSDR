@@ -217,16 +217,19 @@ void my_kiwi_register(bool reg, int root_pwd_unset, int debian_pwd_default)
     char *kiwisdr_com = DNS_lookup_result("my_kiwi", "kiwisdr.com", &net.ips_kiwisdr_com);
     int dom_stat = (net.dom_sel == DOM_SEL_REV)? net.proxy_status : (DUC_enable_start? net.DUC_status : -1);
     int rev_auto = admcfg_true("rev_auto")? 1:0;
-    const char *user, *host;
+    const char *admin_user, *admin_host;
     if (rev_auto) {
-        user = admcfg_string("rev_auto_user", NULL, CFG_OPTIONAL);
-        host = admcfg_string("rev_auto_host", NULL, CFG_OPTIONAL);
+        admin_user = admcfg_string("rev_auto_user", NULL, CFG_OPTIONAL);
+        admin_host = admcfg_string("rev_auto_host", NULL, CFG_OPTIONAL);
     } else {
-        user = admcfg_string("rev_user", NULL, CFG_OPTIONAL);
-        host = admcfg_string("rev_host", NULL, CFG_OPTIONAL);
+        admin_user = admcfg_string("rev_user", NULL, CFG_OPTIONAL);
+        admin_host = admcfg_string("rev_host", NULL, CFG_OPTIONAL);
     }
     printf("my_kiwi_register dom=%d dom_%s dom_stat=%d rev_auto=%d user=%s host=%s\n",
-        net.dom_sel, dom_type_s[net.dom_sel], dom_stat, rev_auto, user, host);
+        net.dom_sel, dom_type_s[net.dom_sel], dom_stat, rev_auto, admin_user, admin_host);
+    char *user = kiwi_str_encode((char *) admin_user);
+    char *host = kiwi_str_encode((char *) admin_host);
+    admcfg_string_free(admin_user); admcfg_string_free(admin_host);
 
     const char *server_url = cfg_string("server_url", NULL, CFG_OPTIONAL);
     if (kiwi_emptyStr(server_url)) server_url = strdup("ERROR");
@@ -260,7 +263,7 @@ void my_kiwi_register(bool reg, int root_pwd_unset, int debian_pwd_default)
         mtu, kiwi.serno, kiwi.isPublic, kiwi.vr, timer_sec(),
         kstr_sp(cmd_p2));
     cfg_string_free(server_url);
-    admcfg_string_free(user); admcfg_string_free(host);
+    kiwi_ifree(user, "user"); kiwi_ifree(host, "host");
     kiwi_ifree(email, "email");
 
     kstr_free(non_blocking_cmd(cmd_p, &status));
@@ -1047,14 +1050,17 @@ static void reg_public(void *param)
         int mtu = mtu_v[cfg_int_("ethernet_mtu")];
         int dom_stat = (net.dom_sel == DOM_SEL_REV)? net.proxy_status : (DUC_enable_start? net.DUC_status : -1);
         int rev_auto = admcfg_true("rev_auto")? 1:0;
-        const char *user, *host;
+        const char *admin_user, *admin_host;
         if (rev_auto) {
-            user = admcfg_string("rev_auto_user", NULL, CFG_OPTIONAL);
-            host = admcfg_string("rev_auto_host", NULL, CFG_OPTIONAL);
+            admin_user = admcfg_string("rev_auto_user", NULL, CFG_OPTIONAL);
+            admin_host = admcfg_string("rev_auto_host", NULL, CFG_OPTIONAL);
         } else {
-            user = admcfg_string("rev_user", NULL, CFG_OPTIONAL);
-            host = admcfg_string("rev_host", NULL, CFG_OPTIONAL);
+            admin_user = admcfg_string("rev_user", NULL, CFG_OPTIONAL);
+            admin_host = admcfg_string("rev_host", NULL, CFG_OPTIONAL);
         }
+        char *user = kiwi_str_encode((char *) admin_user);
+        char *host = kiwi_str_encode((char *) admin_host);
+        admcfg_string_free(admin_user); admcfg_string_free(admin_host);
 
 	    // done here because updating timer_sec() is sent
         asprintf(&cmd_p, "wget --timeout=30 --tries=2 --inet4-only -qO- "
@@ -1109,7 +1115,7 @@ static void reg_public(void *param)
 		kiwi_asfree(cmd_p);
 		//kiwi_ifree(server_enc, "server_enc");
         cfg_string_free(server_url);
-        admcfg_string_free(user); admcfg_string_free(host);
+        kiwi_ifree(user, "user"); kiwi_ifree(host, "host");
         kiwi_ifree(email, "email");
         
         if (kiwi_reg_debug) printf("reg_kiwisdr_com TaskSleepSec(min=%d)\n", retrytime_mins);
