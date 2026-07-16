@@ -699,7 +699,6 @@ function w3_copy_to_clipboard(s)
    document.body.removeChild(el);
 }
 
-
 ////////////////////////////////
 // HTML
 ////////////////////////////////
@@ -1275,7 +1274,7 @@ function w3_show_inline_block(el_id)
 
 function w3_show_inline(el_id)
 {
-   return w3_show(el_id, 'w3-show-inline-new');
+   return w3_show(el_id, 'w3-inline-flex');
 }
 
 function w3_show_table_cell(el_id)
@@ -1334,7 +1333,7 @@ function w3_show_hide(el_id, show, display, n_parents_up, props, cond)
 
 function w3_show_hide_inline(el, show, n_parents_up, props, cond)
 {
-   w3_show_hide(el, show, 'w3-show-inline-new', n_parents_up, props, cond);
+   w3_show_hide(el, show, 'w3-inline-flex', n_parents_up, props, cond);
 }
 
 function w3_disable(el_id, disable, prop)
@@ -1838,6 +1837,12 @@ function w3_psa(psa, extra_prop, extra_style, extra_attr)
 	return psa;
 }
 
+// given as input:
+//    'right'
+//    'middle/right'
+//    'left/middle/right'
+// returns:
+//    { left:'...', middle:'...', right:'...', num:[0123] }
 function w3_psa3(psa3)
 {
    //if (psa3.includes('w3-dump')) console.log('w3_psa3 in=['+ psa3 +']');
@@ -1863,15 +1868,15 @@ function w3_psa3(psa3)
    //if (psa3.includes('w3-dump')) console.log(a);
 
    if (a.length == 1)
-      return { left:'', middle:'', right:a0 };
+      return { left:'', middle:'', right:a0, num:1 };
    else
    if (a.length == 2)
-      return { left:'', middle:a0, right:a1 };
+      return { left:'', middle:a0, right:a1, num:2 };
    else
    if (a.length == 3)
-      return { left:a0, middle:a1, right:a2 };
+      return { left:a0, middle:a1, right:a2, num:3 };
    else
-      return { left:'', middle:'', right:'' };
+      return { left:'', middle:'', right:'', num:0 };
 }
 
 // like w3_psa() except returns in original psa format (i.e. not expanded to "class=...")
@@ -2511,7 +2516,7 @@ function w3_switch_label(psa, label, text_0, text_1, path, text_0_selected, cb, 
 	if (centered) spacing += ' w3-halign-center';
 
    var psa3 = w3_psa3(psa);
-   var psa_outer = w3_psa_mix(psa3.left, (inline? 'w3-show-inline-new':'') + (centered? ' w3-halign-center w3-center':''));
+   var psa_outer = w3_psa_mix(psa3.left, (inline? 'w3-inline-flex':'') + (centered? ' w3-halign-center w3-center':''));
    var psa_label = w3_psa_mix(psa3.middle, (hasLabel && bold)? 'w3-bold':'');
 	var psa_inner = w3_psa();
 
@@ -3147,7 +3152,7 @@ function w3_input(psa, label, path, val, cb, placeholder)
       console.log(psa);
       console.log(psa3);
    }
-   var psa_outer = w3_psa(psa3.left, inline? 'w3-show-inline-new':'');
+   var psa_outer = w3_psa(psa3.left, inline? 'w3-inline-flex':'');
    var psa_label = w3_psa_mix(psa3.middle, (label != '' && bold)? 'w3-bold':'');
    var style = psa.includes('w3-no-styling')? '' : 'w3-input w3-border w3-hover-shadow';
 	var type = psa3.right.includes('type=')? '' : 'type="text"';
@@ -3385,7 +3390,7 @@ function w3_checkbox(psa, label, path, checked, cb, cb_param)
 	var spacing = (label != '' && inline)? (left? ' w3-margin-L-8' : ' w3-margin-R-8') : '';
 
    var psa3 = w3_psa3(psa);
-   var psa_outer = w3_psa(psa3.left, inline? 'w3-show-inline-new':'');
+   var psa_outer = w3_psa(psa3.left, inline? 'w3-inline-flex':'');
    var psa_label = w3_psa_mix(psa3.middle, (label != '' && bold)? 'w3-bold':'');
 	var psa_inner = w3_psa(psa3.right, 'w3-input w3-width-auto w3-border w3-pointer w3-hover-shadow '+ id + spacing, '', 'type="checkbox"');
 
@@ -3500,7 +3505,7 @@ function w3int_select(psa, label, title, path, sel, opts_s, cb, cb_param)
 	var onclick = 'onclick="w3int_select_click(event, '+ sq(path) +', '+ sq(cb) +', '+ sq(cb_param) +')"';
 
    var psa3 = w3_psa3(psa);
-   var psa_outer = w3_psa(psa3.left, inline? 'w3-show-inline-new':'');
+   var psa_outer = w3_psa(psa3.left, inline? 'w3-inline-flex':'');
    var psa_label = w3_psa_mix(psa3.middle, (label != '' && bold)? 'w3-bold':'');
 	var psa_inner = w3_psa(psa3.right, w3_sb(id, 'w3-select-menu', spacing), '', onchange +' '+ onclick);
 
@@ -3858,7 +3863,7 @@ function w3_slider(psa, label, path, val, min, max, step, cb, cb_param)
    }
 
    var psa3 = w3_psa3(psa);
-   var psa_outer = w3_psa(psa3.left, inline? 'w3-show-inline-new':'');
+   var psa_outer = w3_psa(psa3.left, inline? 'w3-inline-flex':'');
    var psa_label = w3_psa_mix(psa3.middle, (label != '' && bold)? 'w3-bold':'');
 	var psa_inner = w3_psa(psa3.right, w3_sb(id, spacing), '', value +
       ' type="range" min='+ dq(min) +' max='+ dq(max) +' step='+ dq(step) + oc + os + ow);
@@ -4492,13 +4497,13 @@ function w3_table_cells(psa)
 // containers
 ////////////////////////////////
 
-// If any psa prop is of the form N:prop then only use prop if N == current arg number
+// If any psa prop or style is of the form N:{prop,style} then only use prop or style if N == current arg number
 // e.g.
-// w3_inline('foo/bar 1:baz', w3_div('zero'), w3_div('one'), w3_div('two')) =>
+// w3_inline('foo/bar 1:baz 2:|zzz:123', w3_div('zero'), w3_div('one'), w3_div('two')) =>
 // <div class="foo">
 //    <div class="bar zero"> ... </div>
-//    <div class="bar baz one"> ... </div>
-//    <div class="bar two"> ... </div>
+//    <div class="bar one baz"> ... </div>
+//    <div class="bar two" style="zzz:123"> ... </div>
 // </div>
 // This is a generalization of the w3-btn-right feature of w3int_button()
 
@@ -4507,6 +4512,8 @@ function w3_inline(psa, attr)
 	var narg = arguments.length;
    var dump = psa.includes('w3-dump');
    var div_or_span = psa.includes('w3-span')? 'span' : 'div';
+   var enclosing = !psa.includes('w3-no-encl');
+   if (dump) console.log(arguments);
    
    if (psa == '' && attr == '' && narg > 2) {
       console.log('### w3_inline OLD API DEPRECATED');
@@ -4515,10 +4522,12 @@ function w3_inline(psa, attr)
       return w3_inline.apply(null, args);
    } else {
       var psa3 = w3_psa3(psa);
-      var psa_outer = w3_psa(psa3.middle, 'w3-show-inline-new');
+      var psa_outer = w3_psa(psa3.middle, 'w3-inline-flex');
       var psa_inner = w3_psa(psa3.right);
-      if (dump) console.log('w3_inline psa_outer='+ psa_outer +' psa_inner='+ psa_inner);
+      if (dump) console.log('w3_inline psa_outer='+ psa_outer +' psa_inner='+ psa_inner +' enclosing='+ enclosing);
       var s = '<'+ div_or_span +' w3d-inlo '+ psa_outer +'>';
+
+      // for each of the inline items
       for (var i = 1; i < narg; i++) {
          var a = arguments[i];
          if (!a) continue;
@@ -4534,23 +4543,32 @@ function w3_inline(psa, attr)
             psa_merge = true;
          } else {
             if (psa_inner != '') {
+               // apply N:{prop,style} to corresponding inline element if present
                var psa3r = '';
                var a1 = psa3.right.split(' ');
                a1.forEach(
                   function(p1) {
-                     //console.log('N:prop i='+ (i-1) +' p1=');
+                     if (dump) console.log('N:{prop,style} i='+ (i-1) +' p1=');
                      var a2 = p1.split(':');
-                     //console.log(a2);
-                     if (a2.length == 2) {
+                     if (dump) console.log(a2);
+                     if (a2.length >= 2) {
                         var n = +a2[0];
-                        //console.log('i='+ i +' n='+ n +' '+ (n == (i-1)));
-                        psa3r = w3_sb(psa3r, (n == (i-1))? a2[1] : '');
+                        var match = (n == (i-1));
+                        if (dump) console.log('i='+ i +' n='+ n +' '+ match);
+                        var isBar = (a2[1][1] == '|');
+                        a2.shift();
+                        rem = a2.join(':');
+                        var xprop = (match && !isBar)? rem : '';
+                        var xstyle = (match && isBar)? rem.slice(1) : '';
+                        psa3r = w3_sb(psa3r, xprop, xstyle);
                      } else {
                         psa3r = w3_sb(psa3r, p1);
                      }
                   }
                );
+               if (dump) console.log('psa3r='+ psa3r);
                psa = w3_psa(psa3r);
+               if (dump) console.log('psa='+ psa);
             } else {
                psa = '';
             }
@@ -4563,7 +4581,10 @@ function w3_inline(psa, attr)
          if (psa3.right == '' && !psa_merge && a.startsWith('<div '))
             s += a;
          else
-            s += '<'+ div_or_span +' w3d-inli-'+ w3_sb(i-1, psa) +'>'+ a + '</'+ div_or_span +'>';
+            if (enclosing)
+               s += '<'+ div_or_span +' w3d-inli-'+ w3_sb(i-1, psa) +'>'+ a + '</'+ div_or_span +'>';
+            else
+               s += a;
       }
       s += '</'+ div_or_span +'>';
       if (dump) console.log(s);
@@ -4574,9 +4595,17 @@ function w3_inline(psa, attr)
 // call w3_inline when parameters need to be accumulated in an array
 function w3_inline_array(psa, ar)
 {
-	ar.unshift(psa);
+	ar.unshift(psa);     // add psa to head of array
 	//console.log(ar);
    return w3_inline.apply(null, ar);
+}
+
+function w3_inline_noencl()
+{
+   var a = Array.from(arguments);
+   psa = w3_psa3(a[0]);
+   a[0] = w3_sb(psa.middle, 'w3-no-encl/') + psa.right;
+   return w3_inline.apply(null, a);
 }
 
 // see: stackoverflow.com/questions/29885284/how-to-set-a-fixed-width-column-with-css-flexbox
@@ -4596,7 +4625,7 @@ function w3_inline_percent(psa)
 	var narg = arguments.length;
    var dump = psa.includes('w3-dump');
    var psa3 = w3_psa3(psa);
-   var psa_outer = w3_psa(psa3.middle, 'w3-show-inline-new');
+   var psa_outer = w3_psa(psa3.middle, 'w3-inline-flex');
    var psa_inner = w3_psa(psa3.right);
    if (dump) console.log('w3_inline_percent psa_outer='+ psa_outer +' psa_inner='+ psa_inner);
 	var total = 0;
@@ -4653,7 +4682,7 @@ function w3_inline_percent_set(id, p)
 function w3_inline_percent_old(psa)
 {
    var psa3 = w3_psa3(psa);
-   var psa_outer = w3_psa(psa3.middle, 'w3-show-inline-new');
+   var psa_outer = w3_psa(psa3.middle, 'w3-inline-flex');
 	var narg = arguments.length;
 	var total = 0;
 	var s = '<div w3d-inlpo '+ psa_outer +'>';
