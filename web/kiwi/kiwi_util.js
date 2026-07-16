@@ -219,6 +219,15 @@ function kiwi_isChrome() { return (kiwi_chrome? kiwi_chrome[1] : NaN); }
 
 function kiwi_isOpera() { return (kiwi_opera? kiwi_opera[1] : NaN); }
 
+function isStandalone() {
+   return (
+      window.matchMedia('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true ||   // iOS Safari specific
+      document.referrer.includes('ios-app')     // fallback
+   );
+}
+//setTimeout(function() { if (isStandalone()) alert('isStandalone'); else alert('not'); }, 5000);
+
 function kiwi_version_cb(response_obj)
 {
    // Guard against multiple AJAX replies to /VER request that have been seen when using
@@ -403,6 +412,17 @@ function kiwi_char_iter(s, func)
    s.split('').forEach(
       function(c,i) {
          ra[i] = func(c,i);
+      }
+   );
+   return ra;
+}
+
+function kiwi_delim_iter(s, delim, func)
+{
+   var ra = [];
+   s.split(delim).forEach(
+      function(ss,i) {
+         ra[i] = func(ss,i);
       }
    );
    return ra;
