@@ -10,11 +10,8 @@ var fft = {
    
    cmd_e: { FFT:0, CLEAR:1 },
 
-   //func: 1,
-   //func_e: { OFF:-1, WF:0, SPEC:1, INTEG:2 },
-   //func_s: [ 'waterfall', 'spectrum', 'integrate' ],
    func: 0,
-   func_e: { OFF:-1, WF:0, SPEC:999, INTEG:1 },
+   func_e: { OFF:-1, WF:0, INTEG:1 },
    // NB: waterfall (WF) is now computed client-side from the audio/IQ sample stream,
    // so the server FFT tap runs only for integrate (run = -1 keeps it off otherwise)
    run: [ -1, -1, 2 ],
@@ -191,10 +188,6 @@ function fft_clear()
       c.fillRect(0, 0, w, th);
 	}
    
-	if (fft.func == fft.func_e.SPEC) {
-      spec.clear_avg = true;
-   }
-
 	c = fft.info_canvas.ctx;
 	c.fillStyle = '#575757';
 	c.fillRect(0, 0, 256, 280);
@@ -203,10 +196,11 @@ function fft_clear()
 	var right = w3_el('id-fft-controls-right');
 
 	if (fft.pre == fft.pre_ALPHA) {
-		ext_set_controls_width_height(525, 300);
+		ext_set_controls_width_height(525, 320);
 		w3_inline_percent_set(left, 49.9);
 		w3_inline_percent_set(right, 49.9);
 		fft_alpha();
+		w3_show(left);
 	} else {
 		ext_set_controls_width_height(285, (fft.func == fft.func_e.WF)? 320:275);
 		w3_inline_percent_set(left, 0);
@@ -217,6 +211,7 @@ function fft_clear()
 		   var f = ext_get_freq();
 		   fft_marker((f/1e3).toFixed(2), false, f);
 		}
+		w3_hide(left);
 	}
 
 	fft_hrw_reset();
@@ -1008,7 +1003,7 @@ function fft_controls_setup()
    var data_html =
       time_display_html('fft') +
 
-      w3_div('id-fft-data|left:150px; width:1024px; height:200px; background-color:mediumBlue; position:relative; overflow:hidden;',
+      w3_div('id-fft-data|left:150px; width:1024px; height:200px; background-color:mediumBlue; position:relative',
    		'<canvas id="id-fft-wf1-canvas" width="1024" height="188" style="position:absolute"></canvas>',
    		'<canvas id="id-fft-wf2-canvas" width="1024" height="188" style="position:absolute"></canvas>',
    		// after fft canvases so on top
@@ -1069,7 +1064,7 @@ function fft_controls_setup()
 
 	var controls_html =
 		w3_div('id-fft-controls w3-text-white',
-			w3_half('', '0:id-fft-controls-left 1:id-fft-controls-right',
+			w3_half('', '0:id-fft-controls-left 1:id-fft-controls-right 1:w3-ialign-top',
 				info_html,
 				w3_divs('',
 					w3_div('w3-medium w3-text-aqua', '<b>Audio FFT</b>'),
@@ -1096,8 +1091,7 @@ function fft_controls_setup()
 					w3_div('id-fft-msg-fft w3-margin-T-8',
                   w3_slider('', 'max', 'fft.maxdb', fft.maxdb, -170, -10, 1, 'fft_maxdb_cb'),
                   w3_slider('', 'min', 'fft.mindb', fft.mindb, -190, -30, 1, 'fft_mindb_cb')
-               ),
-               w3_text('id-fft-msg-spec  w3-margin-T-8 w3-hide', 'Spectrum uses main control panel<br>WF tab sliders and settings')
+               )
 				)
 			)
 		);
@@ -1162,7 +1156,9 @@ function FFT_environment_changed(changed)
    
    if (changed.resize) {
       var el = w3_el('id-fft-data');
-      var left = (window.innerWidth - fft.integ_w - time_display_width()) / 2;
+      var w = w3_el('id-ext-data-scroll').clientWidth;
+      var left = (w - fft.integ_w - time_display_width()) / 2;
+      //console.log('FFT w='+ w +' integ_w='+ fft.integ_w +' timeW='+ time_display_width() +' left='+ left);
       el.style.left = px(left);
    }
 }
@@ -1257,25 +1253,8 @@ function fft_func_cb(path, idx, first)
    if (first) return;
 	idx = +idx;
 	
-	switch (idx) {
-	
-      case fft.func_e.SPEC:
-         w3_hide('id-ext-data-container');
-         ext_show_spectrum(spec.RF);
-         // id-top-container already hidden because we use data_html
-         break;
-   
-      default:
-         if (fft.func != fft.func_e.SPEC) break;
-         ext_hide_spectrum();
-         w3_show_block('id-ext-data-container');
-         break;
-	}
-	
 	w3_select_value(path, idx);      // for benefit of direct calls
 	fft.func = idx;
-	w3_show_hide('id-fft-msg-fft',  fft.func != fft.func_e.SPEC);
-	w3_show_hide('id-fft-msg-spec', fft.func == fft.func_e.SPEC);
 	w3_show_hide('id-fft-hrw',      fft.func == fft.func_e.WF);
 	if (fft.func == fft.func_e.WF) {
 	   fft.hrw.init = false;      // canvas width may have to change back from integrate's 1024
@@ -1346,10 +1325,6 @@ function fft_pre_select_cb(path, idx, first)
 	case fft.pre_DCF77:
 		ext_tune(77.5, 'cw', ext_zoom.NOM_IN);
 		fft_set_itime(1.0);
-		break;
-	
-	default:
-	   func = fft.func_e.SPEC;
 		break;
 	}
 
