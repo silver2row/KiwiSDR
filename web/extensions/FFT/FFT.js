@@ -1603,10 +1603,14 @@ function FFT_environment_changed(changed)
    }
    
    if (changed.resize) {
-      var el = w3_el('id-fft-data-wrap') || w3_el('id-fft-data');
+      var el = w3_el('id-fft-data-wrap');
       if (!el) return;
       var peaks_w = (fft.func == fft.func_e.WF)? (248 + 8) : 0;
-      var left = Math.max(0, (kiwi.WIN_WIDTH_MAX - fft.integ_w - peaks_w - time_display_width()) / 2);
+      var time_w = time_display_width() + /* margins */ 16;
+      // NB: For large displays, when innerWidth greater than kiwi.WIN_WIDTH_EXT, this causes
+      // the desired effect of data panel centering. The time display remains on the right side
+      // because left is applied to id-fft-data-wrap only.
+      var left = Math.max(0, (window.innerWidth - fft.integ_w - peaks_w - time_w) / 2);
       console.log('FFT peaks resize left='+ left);
       el.style.left = px(left);
    }
