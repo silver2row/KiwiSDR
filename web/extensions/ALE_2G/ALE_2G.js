@@ -1209,10 +1209,10 @@ function ALE_2G_environment_changed(changed)
       var mode = ext_get_mode();
       //console.log('ALE_2G_environment_changed: TEST ext_open='+ TF(changed.ext_open) +' freq='+ ale_f_kHz +' f_kHz='+ f_kHz +' mode='+ mode);
 	   if (changed.ext_open || ale_f_kHz != f_kHz || (mode != 'lsb' && mode != 'usb')) {
-	      // try and match new freq to one of the menu entries
-	      //console.log('ALE_2G_environment_changed: TRUE f='+ f_kHz);
+	      // try and match new freq to one of the menu entries (but not if user list scanning)
 	      var rv = ale_2g_menu_match(+f_kHz, f_kHz);
-         if (rv.found_menu_match) {
+	      //console.log('ALE_2G_environment_changed: f='+ f_kHz +' found_menu_match='+ rv.found_menu_match +' have_user_scan_list='+ ale.have_user_scan_list);
+         if (!ale.have_user_scan_list && rv.found_menu_match) {
             //console.log('ALE MATCH f_kHz='+ f_kHz);
             ale_2g_pre_select_cb(rv.match_menu, rv.match_val, false);
 	      } else {
