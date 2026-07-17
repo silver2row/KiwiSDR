@@ -27,6 +27,8 @@ var kiwi = {
    test_cfg_save_seq: false,
    log_cfg_save_seq: false,
    
+   WIN_WIDTH_MAX: 1496,    // development laptop width
+   WIN_WIDTH_NOM: 1465,    // waterfall area: WIN_WIDTH_MAX - 31px (scrollbar + spacing) = 1465px
    WIN_WIDTH_MIN: 1400,
    
    wf_share: false,

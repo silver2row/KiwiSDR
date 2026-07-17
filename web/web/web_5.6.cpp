@@ -897,10 +897,12 @@ int web_request(struct mg_connection *mc, int ev)
         if (last >= 0 && suffix[last] == '/')
             suffix[last] = '\0';
         if (strcmp(suffix, ".json") == 0 || strcmp(suffix, ".ini") == 0 || strcmp(suffix, ".conf") == 0) {
-            if (ev == MG_EV_HTTP_MSG)
-                lprintf("webserver: attempt to fetch config file: %s query=<%s> from %s\n", o_uri, mc->query, ip_forwarded);
-            evWS(EC_EVENT, EV_WS, 0, "WEB_SERVER", "BAD fetch config file");
-            return MG_FALSE;
+            if (strcmp(o_uri, "manifest.json") != 0) {
+                if (ev == MG_EV_HTTP_MSG)
+                    lprintf("webserver: attempt to fetch config file: %s query=<%s> from %s\n", o_uri, mc->query, ip_forwarded);
+                evWS(EC_EVENT, EV_WS, 0, "WEB_SERVER", "BAD fetch config file");
+                return MG_FALSE;
+            }
         }
     }
     

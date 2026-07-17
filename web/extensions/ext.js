@@ -897,9 +897,10 @@ function ext_panel_init()
       '<div id="id-ext-controls" class="class-panel" data-panel-name="ext-controls" data-panel-pos="bottom-left" data-panel-order="0" ' +
       'data-panel-size="'+ extint.default_w +','+ extint.default_h +'"></div>';
 
-	var el = w3_el('id-ext-data-container');
+	var el;
 	// removed because cascading canvases in FFT extension overlay RF waterfall
 	// why was this needed anyway?
+	//el = w3_el('id-ext-data-container');
 	//el.style.zIndex = 100;
 
 	el = w3_el('id-ext-controls');
@@ -955,7 +956,11 @@ function extint_panel_show(controls_html, data_html, show_func, hide_func, show_
       // remove previous use of spectrum
 		toggle_or_set_spec(toggle_e.SET, spec.NONE);
 		w3_hide('id-top-container');
-		w3_show_block(w3_innerHTML('id-ext-data-container', data_html));
+		el = w3_el('id-ext-data-scroll');
+		el.style.minWidth = px(kiwi.WIN_WIDTH_MAX);
+		w3_innerHTML(el, data_html);
+		
+		w3_show_block('id-ext-data-container');
 	} else {
 		w3_hide('id-ext-data-container');
 		if (spec.source == spec.NONE)
