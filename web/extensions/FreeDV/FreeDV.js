@@ -29,7 +29,9 @@ var freedv = {
    STOP: 2,
    INIT: 3,
    is_running: 0,
-   delay_initial_start: true,
+   stop_pending: false,
+   //delay_initial_start: true,
+   delay_initial_start: false,      // what was this for again?
    key: null,
    target: null,
    hosts_visible: false,
@@ -39,6 +41,7 @@ var freedv = {
    pblo: 300,
    pbhi: 5000,
    vol_boosted: false,
+   did_tune: false,
    
    qra: {},
    sid: {},
@@ -1126,6 +1129,7 @@ function freedv_spot_marker_click(mkr)
          var mode = (f_kHz < 10000)? 'lsb':'usb';
          if (fo_kHz != freedv.cur_freq || mode != ext_get_mode()) {
             ext_tune(fo_kHz, mode, ext_zoom.ABS, freedv.kiwi_zoom, freedv.pblo, freedv.pbhi);
+            freedv.did_tune = true;
             freedv.cur_freq = f_kHz;
             freedv.mode = mode;
             freedv_restart('Switching to '+ freedv.cur_freq +' kHz');
@@ -1361,6 +1365,7 @@ function freedv_freq_cb(path, idx, first)
 	var f_kHz = +(menu_item.option);
 	var fo_kHz = f_kHz - ext_get_freq_range().offset_kHz;
    ext_tune(fo_kHz, (f_kHz < 10000)? 'lsb' : 'usb', ext_zoom.ABS, freedv.kiwi_zoom, freedv.pblo, freedv.pbhi);
+   freedv.did_tune = true;
    freedv.cur_freq = f_kHz;
    w3_select_value(path, idx);   // for benefit of direct callers
 	console.log('freedv_freq_cb: path='+ path +' idx='+ idx +' f_kHz='+ f_kHz +' fo_kHz='+ fo_kHz);
@@ -1487,35 +1492,38 @@ function freedv_stop_start_set(is_running)
    }
 }
 
-var freedv_cc = 0;
 function freedv_connect(func)
 {
    var s;
    var hp, host, port;
+   var func_s = ['RUN', 'TEST', 'STOP', 'INIT'][func];
 
-   console.warn('freedv_connect: func='+ ['RUN', 'TEST', 'STOP', 'INIT'][func] +'('+ func +') is_running='+ freedv.is_running);
-   freedv_cc++;
-   //if (freedv_cc <= 3) kiwi_trace('freedv_connect');
+   console.warn('freedv_connect: func='+ func_s +'('+ func +') is_running='+ freedv.is_running +' blur='+ freedv.blur);
 
-   //if (func != freedv.STOP) {
-   if (1) {
-      //freedv.key = (Date.now() % 10000).leadingZeros(4);
-      freedv.key = freedv.unique_id +':'+ rx_chan;
-      console.log('freedv_connect ASSIGNED key='+ freedv.key);
-      //if (func == freedv.INIT) func = freedv.STOP;    // INIT = STOP, but with key gen
-      if (func == freedv.INIT) return;
+   if (func == freedv.STOP) {
+      if (freedv.stop_pending) {
+         console.log('---------------- DUP  func=STOP');
+         return;
+      } else {
+         freedv.stop_pending = true;
+      }
    }
-   if (!freedv.key) {
-      console.log('freedv_connect func='+ func +' BUT NO KEY');
-      kiwi_trace();
+   
+   freedv.key = freedv.unique_id +':'+ rx_chan;
+   console.log('freedv_connect ASSIGNED key='+ freedv.key);
+   if (func == freedv.INIT) {
+      console.log('---------------- DONE func=INIT (internal)');
       return;
    }
 
-   s = '&key='+ freedv.key +'&func='+ func;
+   s = 'http://freedv.kiwisdr.com/'+ freedv.a +'&key='+ freedv.key +'&func='+ func;
    if (func != freedv.RUN) {
       s += '&thost=x&tport=x&freq=x&mode=x';
    } else {
-      if (isEmptyString(freedv.target)) return;
+      if (isEmptyString(freedv.target)) {
+         console.log('---------------- DONE func='+ func_s +' (internal, no target?)');
+         return;
+      }
       hp = kiwi_remove_protocol(freedv.target).split(':');
       host = hp[0];
       port = (hp.length >= 2)? hp[1] : 8073;
@@ -1526,12 +1534,21 @@ function freedv_connect(func)
    host = hp[0];
    port = (hp.length >= 2)? hp[1] : 8073;
    s += '&rhost='+ host +'&rport='+ port +'&camp='+ rx_chan;
-   console.log(s);
+   console.log('AJAX: '+ s);
+   var timeout = (func == freedv.STOP)? 5000 : 0;
    
-   kiwi_ajax('http://freedv.kiwisdr.com/'+ freedv.a + s,
-      function(json) {     // done callback, cbp
+   kiwi_ajax(s,
+      function(json) {     // done callback
          console.log(json);
-         console.log('---------------- DONE func='+ ['RUN', 'TEST', 'STOP', 'INIT'][json.func] +'('+ json.func +')');
+         if (json.AJAX_error && json.AJAX_error == 'timeout') {
+            console.log('---------------- DONE TIMEOUT');
+            freedv.start_pending = freedv.stop_pending = false;
+            freedv.done_types_seen = 0;
+            return;
+         }
+         
+         func_s = ['RUN', 'TEST', 'STOP', 'INIT'][json.func];
+         console.log('---------------- DONE func='+ func_s +'('+ json.func +')');
          if (freedv.key && json.key != freedv.key) {
             console.log('json.key='+ json.key +' BUT freedv.key='+ freedv.key +' CB IGNORED! LONG DELAYED?');
             return;
@@ -1545,6 +1562,7 @@ function freedv_connect(func)
          if (func == freedv.STOP) {
             console.log('clear freedv.key='+ freedv.key +' => null');
             freedv.key = null;
+            freedv.stop_pending = false;
             if (freedv.start_pending) {
                freedv.done_types_seen |= 1;
                console.log('STOP |= 1');
@@ -1577,9 +1595,7 @@ function freedv_connect(func)
             freedv_stop_start_set(1);
             freedv_start();
          }
-      }, 0,
-      
-      0  // timeout
+      }, /* cbp */ 0, timeout
    );
 }
 
@@ -1588,8 +1604,9 @@ function freedv_restart(s)
    freedv.reloading_spots = Math.floor((new Date()).getTime()/1000);
    console.log('freedv_restart', {'reloading_spots': freedv.reloading_spots});
    confirmation_panel_close();
-   if (!freedv.delay_initial_start)
+   if (!freedv.delay_initial_start) {
       confirmation_show_content('reloading spots', 170, 45, null, 'red');
+   }
    freedv_rebuild_hosts();
    freedv_remove_spots();
    freedv_state(null, s);     // keep prior icon state
@@ -1951,14 +1968,22 @@ function freedv_host_click_status_cb(obj, field_idx)
 
 function FreeDV_environment_changed(changed)
 {
-   if (changed.freq || changed.mode) {
-      var f_kHz = ext_get_freq_kHz();
-      var fo_kHz = f_kHz - ext_get_freq_range().offset_kHz;
-      var mode = ext_get_mode();
-      ext_tune(fo_kHz, mode, ext_zoom.CUR, null, freedv.pblo, freedv.pbhi);
-      freedv_restart('Switching to '+ f_kHz +' '+ mode);
-      freedv.cur_freq = f_kHz;
-      freedv.mode = mode;
+   //console.log('FreeDV_environment_changed:');
+   //console.log(changed);
+   
+   // distinguish freq/mode changes from code vs from ui
+   if (freedv.did_tune) {
+      freedv.did_tune = false;
+   } else {
+      if (changed.freq || changed.mode) {
+         var f_kHz = ext_get_freq_kHz();
+         var fo_kHz = f_kHz - ext_get_freq_range().offset_kHz;
+         var mode = ext_get_mode();
+         ext_tune(fo_kHz, mode, ext_zoom.CUR, null, freedv.pblo, freedv.pbhi);
+         freedv_restart('FreeDV_environment_changed: Switching to '+ f_kHz +' '+ mode);
+         freedv.cur_freq = f_kHz;
+         freedv.mode = mode;
+      }
    }
    
    if (changed.resize) {
@@ -2411,6 +2436,7 @@ function freedv_blur_complete()
 {
    console.log('FreeDV_blur: saved_audio_comp='+ freedv.saved_audio_comp);
    freedv_clear_all_fields();
+   confirmation_panel_close();
 	ext_set_data_height();     // restore default height
 	ext_set_data_height();     // restore default height
 	zoom_center = 0.5;         // restore
@@ -2444,10 +2470,12 @@ function freedv_blur_complete()
 function FreeDV_blur()
 {
    kiwi_map_waterfall_close(freedv.kmap);
-   if (freedv.key) {
+   
+   // if not running don't do a deferred stop, stop right away
+   if (freedv.key && freedv.is_running) {
       freedv.blur = true;
       freedv_stop();
-      
+         
       // Defer the usual immediate extension communication disconnect
       // until after the ajax sent by freedv_stop() completes and runs
       // its callback function.
