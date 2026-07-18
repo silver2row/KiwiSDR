@@ -76,6 +76,7 @@ var fft = {
       track_qa: 0.02,     // continuous white-accel process noise (Hz/s^2)^2
       track_r_bins: 0.2,  // measurement σ in bins (parabolic peak on Hann)
       track_gate_s: 4,    // accept peak if |innov| < gate_s * sqrt(S)
+      track_fdot_max: 2,  // clamp |ḟ| (Hz/s); avoids runaway coast when unlocked
       track_lost_n: 40,   // consecutive missed associations before state = lost
       track_click_px: 12, // click acquires nearest local max within this many CSS px
 
@@ -243,6 +244,13 @@ function fft_update()
 	var offset = freq - ext_get_carrier_freq();
 	
 	if (freq != fft.integ_last_freq || offset != fft.integ_last_offset) {
+		// retune / passband move: drop peak locks (absolute RF context changed)
+		if (fft.hrw.tracks.length) {
+			fft.hrw.tracks = [];
+			fft.hrw.track_sel = -1;
+			fft.hrw.peaks_html = '';
+			fft_hrw_peaks_render();
+		}
 		fft_clear();
 		//console.log('freq/offset change');
 		fft.integ_last_freq = freq;
@@ -462,6 +470,7 @@ function fft_hrw_setup(iq, comp)
       t.kf_p01 = 0;
       t.kf_p11 = Math.max(t.kf_p11 || 0.25, 1);
    });
+   h.peaks_html = '';    // force Peaks table redraw (pending markers)
    fft_hrw_canvases();
    // old lines have a different frequency mapping (mode or FFT size changed)
    [fft.wf1_canvas, fft.wf2_canvas].forEach(function(cv) {
@@ -782,6 +791,7 @@ function fft_hrw_click(evt)
       h.track_sel = h.tracks.length - 1;
    }
    h.track_ui_ms = 0;     // force immediate panel/marker refresh
+   h.peaks_html = '';
    fft_hrw_peaks_render();
    fft_hrw_scale();
    if (evt.preventDefault) evt.preventDefault();
@@ -791,7 +801,11 @@ function fft_hrw_peaks_msg(msg)
 {
    var el = w3_el('id-fft-peaks-body');
    if (!el) return;
-   el.innerHTML = '<tr><td colspan="6" class="fft-peak-empty">'+ msg +'</td></tr>';
+   fft.hrw.peaks_html = '';
+   el.innerHTML = '<tr><td colspan="6" class="fft-peak-empty"></td></tr>';
+   // textContent: msg is ours today; keep it safe if that ever changes
+   var td = el.querySelector('td');
+   if (td) td.textContent = msg;
 }
 
 // constant-velocity predict: state [f, fdot], continuous white-accel Q
@@ -842,38 +856,55 @@ function fft_hrw_track_measure(k_lo, k_hi, k0)
 function fft_hrw_tracks_update()
 {
    var h = fft.hrw;
-   if (!h.init || !h.logp || !h.tracks.length) return;
+   if (!h.init || !h.logp || !h.tracks.length || h.nbins < 3) return;
    var r = fft_hrw_freq_range();
+   if (!r.full_span || !isFinite(r.full_span)) return;
    var hz_bin = r.full_span / (h.nbins - 1);
    var srate = ext_sample_rate() / h.decim;
    var dt = (srate > 0 && h.hop > 0)? (h.hop / srate) : 0.05;
    var R = (h.track_r_bins * hz_bin) * (h.track_r_bins * hz_bin);
+   var fdot_max = h.track_fdot_max;
    // search ±max(2 Hz, 4 bins, ~gate), capped so fine bins stay local
    var search_hz = Math.max(2, 4 * hz_bin);
    var search_bins = Math.max(3, Math.ceil(search_hz / hz_bin));
    if (search_bins > 32) search_bins = 32;
-   var i, t, k0, k_lo, k_hi, ip, innov, S, gate, hit;
+   var i, t, k0, k_lo, k_hi, ip, innov, S, gate, hit, f_prev;
 
    for (i = 0; i < h.tracks.length; i++) {
       t = h.tracks[i];
-      if (t.kf_f == null) {
+      if (t.kf_f == null || !isFinite(t.kf_f)) {
          t.kf_f = t.rfHz; t.kf_fdot = 0;
          t.kf_p00 = 1; t.kf_p01 = 0; t.kf_p11 = 0.25;
       }
 
       if (t.kf_f < r.full_lo || t.kf_f > r.full_lo + r.full_span) {
          t.state = 'oos';
+         t.kf_fdot = 0;
          t.rfHz = t.kf_f;
          continue;
       }
 
-      // coast through brief fades; freeze rate once declared lost
-      if (t.state !== 'lost') fft_hrw_kf_predict(t, dt, h.track_qa);
-      else { t.kf_fdot = 0; t.kf_p00 += 0.5 * hz_bin * hz_bin; }
+      // predict only while associated; on miss/lost freeze f (no velocity coast)
+      // so an unlocked track cannot run off the waterfall
+      f_prev = t.kf_f;
+      if (t.state === 'ok' || t.state === 'pending') {
+         fft_hrw_kf_predict(t, dt, h.track_qa);
+         if (t.kf_fdot > fdot_max) t.kf_fdot = fdot_max;
+         else if (t.kf_fdot < -fdot_max) t.kf_fdot = -fdot_max;
+      } else {
+         t.kf_fdot = 0;
+         t.kf_p00 += 0.5 * hz_bin * hz_bin;
+      }
 
       k0 = Math.round(fft_hrw_bin_from_rf(t.kf_f));
       k_lo = w3_clamp(k0 - search_bins, 1, h.nbins-2);
       k_hi = w3_clamp(k0 + search_bins, 1, h.nbins-2);
+      if (k_lo > k_hi) {
+         t.lost_n++;
+         if (t.lost_n >= h.track_lost_n) t.state = 'lost';
+         t.kf_f = f_prev; t.kf_fdot = 0; t.rfHz = t.kf_f;
+         continue;
+      }
       ip = fft_hrw_track_measure(k_lo, k_hi, k0);
 
       S = t.kf_p00 + R;
@@ -885,16 +916,18 @@ function fft_hrw_tracks_update()
 
       if (hit) {
          fft_hrw_kf_update(t, ip.rfHz, R);
+         if (t.kf_fdot > fdot_max) t.kf_fdot = fdot_max;
+         else if (t.kf_fdot < -fdot_max) t.kf_fdot = -fdot_max;
          t.lastDb = ip.dB;
          t.lost_n = 0;
          t.state = 'ok';
       } else {
+         // undo the predict step: hold last locked frequency
+         t.kf_f = f_prev;
+         t.kf_fdot = 0;
+         t.kf_p00 += hz_bin * hz_bin;
          t.lost_n++;
-         if (t.lost_n >= h.track_lost_n) {
-            t.state = 'lost';
-            t.kf_fdot = 0;
-         }
-         // else keep ok/pending while coasting on the prediction
+         if (t.lost_n >= h.track_lost_n) t.state = 'lost';
       }
       t.rfHz = t.kf_f;
    }
@@ -949,41 +982,89 @@ function fft_hrw_markers_draw()
 function fft_hrw_freq_decimals()
 {
    var h = fft.hrw;
-   if (!h.init) return 3;
+   if (!h.init || h.nbins < 2) return 3;
    var r = fft_hrw_freq_range();
-   var hzbin = r.full_span / h.nbins;
+   var hzbin = r.full_span / (h.nbins - 1);
    if (hzbin < 0.1) return 4;
    if (hzbin < 1) return 4;
    return 3;
+}
+
+// Δf is in Hz; decimals follow bin width (not the kHz column's digit count)
+function fft_hrw_df_decimals()
+{
+   var h = fft.hrw;
+   if (!h.init || h.nbins < 2) return 2;
+   var r = fft_hrw_freq_range();
+   var hzbin = r.full_span / (h.nbins - 1);
+   if (hzbin < 0.1) return 4;
+   if (hzbin < 1) return 3;
+   return 2;
+}
+
+// Peaks table is refreshed ~10 Hz while tracking; inline onclick on the × is
+// unreliable because innerHTML replacement aborts the click. Delegate from the
+// persistent <tbody> on mousedown instead.
+function fft_hrw_peaks_bind()
+{
+   var el = w3_el('id-fft-peaks-body');
+   if (!el || el._fft_peaks_bound) return;
+   el._fft_peaks_bound = true;
+   el.addEventListener('mousedown', fft_hrw_peaks_pointer_cb, true);
+}
+
+function fft_hrw_peaks_pointer_cb(ev)
+{
+   if (ev.button != null && ev.button !== 0) return;
+   var node = ev.target;
+   var body = ev.currentTarget;
+   while (node && node !== body) {
+      if (node.classList && node.classList.contains('fft-peak-x')) {
+         if (ev.preventDefault) ev.preventDefault();
+         if (ev.stopPropagation) ev.stopPropagation();
+         fft_hrw_peak_del_cb(node.getAttribute('data-i'));
+         return;
+      }
+      if (node.tagName === 'TR' && node.classList && node.classList.contains('id-fft-peak-row')) {
+         fft_hrw_peak_sel_cb(node.getAttribute('data-i'));
+         return;
+      }
+      node = node.parentNode;
+   }
 }
 
 function fft_hrw_peaks_render()
 {
    var el = w3_el('id-fft-peaks-body');
    if (!el) return;
+   fft_hrw_peaks_bind();
    var h = fft.hrw;
    var dec = fft_hrw_freq_decimals();
+   var ddec = fft_hrw_df_decimals();
    var rows = '';
    var i, t, d_base, st, cls;
 
    for (i = 0; i < h.tracks.length; i++) {
       t = h.tracks[i];
-      d_base = t.rfHz - t.baselineHz;
+      d_base = t.rfHz - t.baselineHz;    // Hz
       st = (t.state === 'ok')? '' : ((t.state === 'oos')? 'oos' : (t.state === 'pending')? '…' : 'lost');
       cls = 'id-fft-peak-row' + ((i === h.track_sel)? ' fft-peak-sel' : '');
       rows +=
-         '<tr class="'+ cls +'" onclick="fft_hrw_peak_sel_cb('+ i +')">' +
+         '<tr class="'+ cls +'" data-i="'+ i +'">' +
             '<td><span class="fft-peak-swatch" style="background:'+ t.color +'"></span></td>' +
             '<td class="fft-peak-freq">'+ (t.rfHz/1e3).toFixed(dec) +'</td>' +
             '<td class="fft-peak-num">'+ t.lastDb.toFixed(1) +'</td>' +
-            '<td class="fft-peak-num" title="Hz drift since lock">'+ (d_base >= 0? '+' : '') + d_base.toFixed(dec) +'</td>' +
+            '<td class="fft-peak-num" title="Drift since lock, in Hz">'+ (d_base >= 0? '+' : '') + d_base.toFixed(ddec) +'</td>' +
             '<td class="fft-peak-st">'+ st +'</td>' +
-            '<td><button type="button" class="fft-peak-x" onclick="event.stopPropagation();fft_hrw_peak_del_cb('+ i +')" title="Remove">&times;</button></td>' +
+            '<td><button type="button" class="fft-peak-x" data-i="'+ i +'" title="Remove">&times;</button></td>' +
          '</tr>';
    }
    if (!rows)
       rows = '<tr><td colspan="6" class="fft-peak-empty">Click a peak to track it<br>Shift-click replaces selection</td></tr>';
-   el.innerHTML = rows;
+   if (rows !== h.peaks_html) {
+      h.peaks_html = rows;
+      el.innerHTML = rows;
+   }
    var n_el = w3_el('id-fft-peaks-count');
    if (n_el) n_el.textContent = h.tracks.length? (h.tracks.length +'/'+ h.track_max) : '';
 }
@@ -991,6 +1072,7 @@ function fft_hrw_peaks_render()
 function fft_hrw_peak_sel_cb(i)
 {
    fft.hrw.track_sel = +i;
+   fft.hrw.peaks_html = '';    // force row highlight refresh
    fft_hrw_peaks_render();
    fft_hrw_scale();
 }
@@ -1003,6 +1085,7 @@ function fft_hrw_peak_del_cb(i)
    h.tracks.splice(i, 1);
    if (h.track_sel === i) h.track_sel = -1;
    else if (h.track_sel > i) h.track_sel--;
+   h.peaks_html = '';          // force DOM refresh after delete
    fft_hrw_peaks_render();
    fft_hrw_scale();
 }
@@ -1011,6 +1094,7 @@ function fft_hrw_peaks_clear_cb()
 {
    fft.hrw.tracks = [];
    fft.hrw.track_sel = -1;
+   fft.hrw.peaks_html = '';
    fft_hrw_peaks_render();
    fft_hrw_scale();
 }
@@ -1019,16 +1103,19 @@ function fft_hrw_status()
 {
    var h = fft.hrw;
    var el = w3_el('id-fft-hrw-status');
-   if (!el || !h.init) return;
-   var srate = ext_sample_rate() / h.decim;      // sample rate at the FFT after decimation
-   var hzbin = srate / h.fft_size;
-   var lps = srate / h.hop;
-   var dec = h.nbins / h.draw_w;
+   if (!el || !h.init || h.nbins < 2 || !h.draw_w) return;
+   // Derived results only (menus already show size / overlap / decim):
+   // Hz/bin = full_span/(nbins-1); updates/s = (fs/decim)/hop.
+   var r = fft_hrw_freq_range();
+   var hzbin = r.full_span / (h.nbins - 1);
+   var fs_fft = ext_sample_rate() / h.decim;
+   var lps = (h.hop > 0)? (fs_fft / h.hop) : 0;
+   var shown = h.nbins / h.draw_w;
    el.innerHTML = h.nbins.toUnits({precision:0}) +' bins, '+
       hzbin.toFixed((hzbin < 0.1)? 3 : (hzbin < 10)? 2:1) +' Hz/bin, '+
-      lps.toFixed((lps < 10)? 1:0) +' upd/s'+ (h.iq? ', IQ':'') +
-      ((h.decim > 1)? (', decim '+ h.decim):'') +
-      ((dec > 1)? (', '+ dec +':1 shown'):'');    // zoom in to reveal full resolution
+      lps.toFixed((lps < 1)? 2 : (lps < 10)? 1:0) +' /s'+
+      (h.iq? ', IQ':'') +
+      ((shown > 1.01)? (', '+ shown.toFixed(0) +':1 shown'):'');
 }
 
 // append one (possibly complex) sample to the ring buffer, interleaving frame
@@ -1449,7 +1536,7 @@ function fft_controls_setup()
                ),
                w3_div('|height:178px; overflow-y:auto; overflow-x:hidden;',
                   '<table class="fft-peaks-table"><thead><tr>' +
-                     '<th></th><th>kHz</th><th class="fft-th-right">dB</th><th class="fft-th-right" title="Hz drift since lock">Δf</th><th></th><th></th>' +
+                     '<th></th><th>kHz</th><th class="fft-th-right">dB</th><th class="fft-th-right" title="Drift since lock, in Hz">Δf Hz</th><th></th><th></th>' +
                   '</tr></thead><tbody id="id-fft-peaks-body"></tbody></table>'
                )
             )
@@ -1551,6 +1638,10 @@ function fft_controls_setup()
 	// overlay must sit above the scrolling WF canvases and receive clicks
 	fft.integ_canvas.style.zIndex = 2;
 	fft.integ_canvas.style.cursor = 'crosshair';
+	// remove first so a second controls_setup on the same canvas cannot stack handlers
+	fft.integ_canvas.removeEventListener("mousedown", fft_mousedown, w3.BUBBLING);
+	fft.integ_canvas.removeEventListener("mousemove", fft_hrw_tooltip, w3.BUBBLING);
+	fft.integ_canvas.removeEventListener("mouseleave", fft_hrw_tooltip_leave, w3.BUBBLING);
 	fft.integ_canvas.addEventListener("mousedown", fft_mousedown, w3.BUBBLING);
 	fft.integ_canvas.addEventListener("mousemove", fft_hrw_tooltip, w3.BUBBLING);
 	fft.integ_canvas.addEventListener("mouseleave", fft_hrw_tooltip_leave, w3.BUBBLING);
@@ -1824,6 +1915,11 @@ function FFT_blur()
 	ext_unregister_audio_data_cb();
    ext_send('SET run='+ fft.func_e.OFF);
 	spec.need_clear_avg = true;   // remove our spectrum data from averaging buffers
+   // drop peak monitors so a later open starts clean
+   fft.hrw.tracks = [];
+   fft.hrw.track_sel = -1;
+   fft.hrw.peaks_html = '';
+   fft.hrw.init = false;
    
    if (fft.passband_mode_altered)
 	   ext_set_mode(fft.saved_mode);
@@ -1855,19 +1951,24 @@ function FFT_help(show)
                '(so narrow carriers are never lost); increase the zoom to see the full resolution. ' +
                'A frequency scale is drawn above the waterfall and hovering the mouse shows ' +
                'frequency and level. Click near a peak to monitor it in the Peaks table to the ' +
-               'right (precise frequency with sub-bin interpolation, level, and Δf = drift from ' +
-               'the initial lock). Shift-click replaces the selected row; up to 16 peaks can be ' +
+               'right (precise frequency with sub-bin interpolation, level, and Δf in <b>Hz</b> = drift from ' +
+               'the initial lock). Retuning clears the peak list. Shift-click replaces the selected row; up to 16 peaks can be ' +
                'tracked. The <i>Auto scale</i> button sets the max/min sliders from the current ' +
                'signal statistics.' +
+               
+               '<br><br>The status line shows the resulting bin width and update rate ' +
+               '(from FFT size, overlap and decimation). Large size or decimation slows the ' +
+               'waterfall; raise overlap to compensate. If it says <i>N:1 shown</i>, there are ' +
+               'more bins than display pixels and each column shows the strongest of N bins; ' +
+               'zoom in for a 1:1 view.' +
                
                '<br><br>The <i>Decim</i> menu decimates the sample stream ahead of the FFT (zoom FFT): ' +
                'the displayed span shrinks by the decimation factor and the resolution improves by ' +
                'the same factor without a larger FFT. E.g. IQ mode, FFT 16k, decim 32: span 375 Hz ' +
-               'centered on the tuned frequency at 0.023 Hz/bin &mdash; sub-Hz MW carrier work. ' +
+               'centered on the tuned frequency at ~0.023 Hz/bin &mdash; sub-Hz MW carrier work. ' +
                'In IQ mode the span is centered on the tuned frequency. In USB/LSB/CW modes it is ' +
                'centered on the <i>passband center</i>: drag the passband (or use a /pb URL suffix) ' +
-               'to steer the zoomed span. Note the waterfall rate slows accordingly at high ' +
-               'decimation and large FFT sizes (see the lines/s readout); use overlap to compensate.' +
+               'to steer the zoomed span.' +
                
                '<br><br>URL parameters: <br>' +
                w3_text('|color:orange', 'itime:<i>num</i> &nbsp; maxdb:<i>num</i> &nbsp; mindb:<i>num</i> &nbsp; ' +
