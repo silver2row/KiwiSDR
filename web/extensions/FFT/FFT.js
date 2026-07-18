@@ -802,7 +802,7 @@ function fft_hrw_peaks_msg(msg)
    var el = w3_el('id-fft-peaks-body');
    if (!el) return;
    fft.hrw.peaks_html = '';
-   el.innerHTML = '<tr><td colspan="6" class="fft-peak-empty"></td></tr>';
+   el.innerHTML = '<tr><td colspan="7" class="fft-peak-empty"></td></tr>';
    // textContent: msg is ours today; keep it safe if that ever changes
    var td = el.querySelector('td');
    if (td) td.textContent = msg;
@@ -1002,6 +1002,29 @@ function fft_hrw_df_decimals()
    return 2;
 }
 
+// ḟ (kf_fdot) in Hz/s — usually small; 3 decimals = 1 mHz/s
+function fft_hrw_fdot_decimals()
+{
+   return 3;
+}
+
+// signed value with a fixed-width sign so '+' and '−' do not shift the column
+function fft_hrw_fmt_signed(v, decimals)
+{
+   var sign = (v >= 0)? '+' : '\u2212';   // U+2212 minus sign ≈ same advance as '+'
+   return '<span class="fft-sign">'+ sign +'</span>'+ Math.abs(v).toFixed(decimals);
+}
+
+// kHz with decimal-point alignment (integer part right, fraction left)
+function fft_hrw_fmt_freq_kHz(rfHz, decimals)
+{
+   var s = (rfHz / 1e3).toFixed(decimals);
+   var dot = s.indexOf('.');
+   if (dot < 0) return '<span class="fft-freq-int">'+ s +'</span>';
+   return '<span class="fft-freq-int">'+ s.slice(0, dot) +'</span>' +
+          '<span class="fft-freq-frac">'+ s.slice(dot) +'</span>';
+}
+
 // Peaks table is refreshed ~10 Hz while tracking; inline onclick on the × is
 // unreliable because innerHTML replacement aborts the click. Delegate from the
 // persistent <tbody> on mousedown instead.
@@ -1041,26 +1064,29 @@ function fft_hrw_peaks_render()
    var h = fft.hrw;
    var dec = fft_hrw_freq_decimals();
    var ddec = fft_hrw_df_decimals();
+   var fdec = fft_hrw_fdot_decimals();
    var rows = '';
-   var i, t, d_base, st, cls;
+   var i, t, d_base, fdot, st, cls;
 
    for (i = 0; i < h.tracks.length; i++) {
       t = h.tracks[i];
       d_base = t.rfHz - t.baselineHz;    // Hz
+      fdot = (t.kf_fdot != null && isFinite(t.kf_fdot))? t.kf_fdot : 0;
       st = (t.state === 'ok')? '' : ((t.state === 'oos')? 'oos' : (t.state === 'pending')? '…' : 'lost');
       cls = 'id-fft-peak-row' + ((i === h.track_sel)? ' fft-peak-sel' : '');
       rows +=
          '<tr class="'+ cls +'" data-i="'+ i +'">' +
             '<td><span class="fft-peak-swatch" style="background:'+ t.color +'"></span></td>' +
-            '<td class="fft-peak-freq">'+ (t.rfHz/1e3).toFixed(dec) +'</td>' +
+            '<td class="fft-peak-freq">'+ fft_hrw_fmt_freq_kHz(t.rfHz, dec) +'</td>' +
             '<td class="fft-peak-num">'+ t.lastDb.toFixed(1) +'</td>' +
-            '<td class="fft-peak-num" title="Drift since lock, in Hz">'+ (d_base >= 0? '+' : '') + d_base.toFixed(ddec) +'</td>' +
+            '<td class="fft-peak-num" title="Drift since lock, in Hz">'+ fft_hrw_fmt_signed(d_base, ddec) +'</td>' +
+            '<td class="fft-peak-num" title="Kalman drift rate, Hz/s">'+ fft_hrw_fmt_signed(fdot, fdec) +'</td>' +
             '<td class="fft-peak-st">'+ st +'</td>' +
             '<td><button type="button" class="fft-peak-x" data-i="'+ i +'" title="Remove">&times;</button></td>' +
          '</tr>';
    }
    if (!rows)
-      rows = '<tr><td colspan="6" class="fft-peak-empty">Click a peak to track it<br>Shift-click replaces selection</td></tr>';
+      rows = '<tr><td colspan="7" class="fft-peak-empty">Click a peak to track it<br>Shift-click replaces selection</td></tr>';
    if (rows !== h.peaks_html) {
       h.peaks_html = rows;
       el.innerHTML = rows;
@@ -1529,14 +1555,17 @@ function fft_controls_setup()
                '<canvas id="id-fft-integ-canvas" width="1024" height="200" style="position:absolute"></canvas>',
                w3_div('id-fft-hrw-tt w3-hide|position:absolute; z-index:2; padding:1px 4px; background-color:black; color:white; font-family:Verdana; font-size:10px; pointer-events:none;', '')
             ),
-            w3_div('id-fft-peaks w3-hide|width:248px; height:200px; margin-left:8px; background-color:#1a237e; color:white; font-family:Verdana,sans-serif; font-size:10px; position:relative; overflow:hidden;',
+            w3_div('id-fft-peaks w3-hide|width:300px; height:200px; margin-left:8px; background-color:#1a237e; color:white; font-family:Verdana,sans-serif; font-size:10px; position:relative; overflow:hidden;',
                w3_inline('w3-halign-space-between w3-valign-center|padding:2px 4px; background-color:#0d47a1;',
                   w3_div('', '<b>Peaks</b> <span id="id-fft-peaks-count"></span>'),
                   w3_button('w3-padding-tiny w3-css-yellow w3-margin-L-8', 'Clear', 'fft_hrw_peaks_clear_cb')
                ),
                w3_div('|height:178px; overflow-y:auto; overflow-x:hidden;',
                   '<table class="fft-peaks-table"><thead><tr>' +
-                     '<th></th><th>kHz</th><th class="fft-th-right">dB</th><th class="fft-th-right" title="Drift since lock, in Hz">Δf Hz</th><th></th><th></th>' +
+                     '<th></th><th class="fft-th-right">kHz</th><th class="fft-th-right">dB</th>' +
+                     '<th class="fft-th-right" title="Drift since lock, in Hz">Δf Hz</th>' +
+                     '<th class="fft-th-right" title="Kalman drift rate, Hz/s">ḟ Hz/s</th>' +
+                     '<th></th><th></th>' +
                   '</tr></thead><tbody id="id-fft-peaks-body"></tbody></table>'
                )
             )
@@ -1696,7 +1725,7 @@ function FFT_environment_changed(changed)
    if (changed.resize) {
       var el = w3_el('id-fft-data-wrap');
       if (!el) return;
-      var peaks_w = (fft.func == fft.func_e.WF)? (248 + 8) : 0;
+      var peaks_w = (fft.func == fft.func_e.WF)? (300 + 8) : 0;
       var time_w = time_display_width() + /* margins */ 16;
       // NB: For large displays, when innerWidth greater than kiwi.WIN_WIDTH_EXT, this causes
       // the desired effect of data panel centering. The time display remains on the right side
@@ -1951,8 +1980,9 @@ function FFT_help(show)
                '(so narrow carriers are never lost); increase the zoom to see the full resolution. ' +
                'A frequency scale is drawn above the waterfall and hovering the mouse shows ' +
                'frequency and level. Click near a peak to monitor it in the Peaks table to the ' +
-               'right (precise frequency with sub-bin interpolation, level, and Δf in <b>Hz</b> = drift from ' +
-               'the initial lock). Retuning clears the peak list. Shift-click replaces the selected row; up to 16 peaks can be ' +
+               'right (precise frequency with sub-bin interpolation, level, Δf in <b>Hz</b> = drift from ' +
+               'the initial lock, and ḟ in <b>Hz/s</b> = Kalman drift-rate estimate). Retuning clears the peak list. ' +
+               'Shift-click replaces the selected row; up to 16 peaks can be ' +
                'tracked. The <i>Auto scale</i> button sets the max/min sliders from the current ' +
                'signal statistics.' +
                
