@@ -169,7 +169,6 @@
 // CAN
 { "r":"m", "id":"CKN", "t":"Vancouver MSK", "lat":49.108321, "lon":-122.242931 },
 { "r":"m", "id":"CFH", "t":"Halifax MSK", "lat":44.967743, "lon":-63.983839 },
-{ "r":"t", "id":"CHU", "t":"time station", "lat":45.294886, "lon":-75.757628, "mz":18 },
 
 // USA
 { "r":"t", "id":"WWV", "t":"time station", "f":10000.0, "p":5000, "z":10, "lat":40.679767, "lon":-105.042268 },
