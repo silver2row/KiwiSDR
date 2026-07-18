@@ -22,6 +22,8 @@ var tc = {
    ext_name:   'timecode',    // NB: must match timecode.c:timecode_ext.name
    first_time: true,
    update: false,
+   
+   w: 800,
    start_point: 0,
    ref: 0,
    col: 0,
@@ -92,8 +94,7 @@ var tc = {
       [ '77.5 kHz DCF77-ss',     0, 'DCF77',    'https://en.wikipedia.org/wiki/DCF77' ],
       [ '162 kHz TDF',           1, 'TDF',      'https://en.wikipedia.org/wiki/TDF_time_signal' ],
       [ 'WWV/WWVH',              0, 'WWV/WWVH', 'https://en.wikipedia.org/wiki/WWV_(radio_station)' ],
-      [ 'EFR Teleswitch (FSK)',  2, 'EFR',      'https://www.efr.de/en/efr-system/#/Technical-Data-forTransmitter-Stations' ],
-      [ 'CHU (FSK)',             2, 'CHU',      'https://en.wikipedia.org/wiki/CHU_(radio_station)' ]
+      [ 'EFR Teleswitch (FSK)',  2, 'EFR',      'https://www.efr.de/en/efr-system/#/Technical-Data-forTransmitter-Stations' ]
    ],
    
    tct: {
@@ -509,8 +510,8 @@ function tc_controls_setup()
    var data_html =
       time_display_html('tc') +
 
-		w3_div('id-tc-data|width:1024px; height:200px; background-color:black; position:relative;',
-			'<canvas id="id-tc-scope" width="1024" height="200" style="position:absolute"></canvas>'
+		w3_div(sprintf('id-tc-data|width:%dpx; height:200px; background-color:black; position:relative;', tc.w),
+			sprintf('<canvas id="id-tc-scope" width="%d" height="200" style="position:absolute"></canvas>', tc.w)
 		);
 	
 	tc.saved_setup = ext_save_setup();
@@ -567,7 +568,13 @@ function timecode_environment_changed(changed)
    
    if (changed.resize) {
       var el = w3_el('id-tc-data');
-      var left = (window.innerWidth - 1024 - time_display_width()) / 2;
+      // NB: For large displays this causes the desired effect of data panel centering.
+      // The time display remains on the right side because left is applied to id-tc-data only.
+      var width = tc.w + kiwi.time_display_width;
+      ext_set_data_width(width);
+      var left = Math.max(0, (window.innerWidth - width) / 2);
+      console.log('timecode resize left='+ left);
+
       el.style.left = px(left);
    }
 }
@@ -607,6 +614,13 @@ function tc_signal_menu_cb(path, val, first)
    timecode_pll_bw_cb('tc.pll_bw', tc.pll_bw, true, false);
 	ext_send('SET pll_offset='+ cwo);
 	ext_send('SET pll_mode=1 arg='+ (phase_mode? 2:1));   // PLL on, mode: carrier=1, BPSK=2
+	opt = {
+	      width: tc.w,
+         sec_per_sweep: 10,
+         srate: tc.srate,
+         single_shot: 0,
+         background_color: '#f5f5f5'
+   };
 
 	switch (val) {
 
@@ -614,81 +628,44 @@ function tc_signal_menu_cb(path, val, first)
 	case tc.sig.WWVBp:
 	case tc.sig.WWV:
 		wwvb_focus();
-	   scope_init(w3_el('id-tc-scope'), {
-         sec_per_sweep: 10,
-         srate: tc.srate,
-         single_shot: 0,
-         background_color: '#f5f5f5'
-      });
+	   scope_init(w3_el('id-tc-scope'), opt);
 		break;
 
 	case tc.sig.DCF77a:
 		dcf77_focus();
-	   scope_init(w3_el('id-tc-scope'), {
-         sec_per_sweep: 10,
-         srate: tc.srate,
-         single_shot: 0,
-         background_color: '#f5f5f5'
-      });
+	   scope_init(w3_el('id-tc-scope'), opt);
 		break;
 
 	case tc.sig.MSF:
-	   scope_init(w3_el('id-tc-scope'), {
-         sec_per_sweep: 10,
-         srate: tc.srate,
-         single_shot: 0,
-         background_color: '#f5f5f5'
-      });
+	   scope_init(w3_el('id-tc-scope'), opt);
 		break;
 
 	case tc.sig.BPCa:
-	   scope_init(w3_el('id-tc-scope'), {
-         sec_per_sweep: 20,
-         srate: tc.srate,
-         single_shot: 0,
-         background_color: '#f5f5f5'
-      });
+		opt.sec_per_sweep = 20;
+	   scope_init(w3_el('id-tc-scope'), opt);
 		break;
 
 	case tc.sig.JJY40:
 	case tc.sig.JJY60:
 		jjy_focus();
-	   scope_init(w3_el('id-tc-scope'), {
-         sec_per_sweep: 10,
-         srate: tc.srate,
-         single_shot: 0,
-         background_color: '#f5f5f5'
-      });
+	   scope_init(w3_el('id-tc-scope'), opt);
 		break;
 
 	case tc.sig.RBU:
 	case tc.sig.RTZ:
 		rus_focus();
-	   scope_init(w3_el('id-tc-scope'), {
-         sec_per_sweep: 10,
-         srate: tc.srate,
-         single_shot: 0,
-         background_color: '#f5f5f5'
-      });
+	   scope_init(w3_el('id-tc-scope'), opt);
 		break;
 
 	case tc.sig.TDF:
 		tdf_focus();
-	   scope_init(w3_el('id-tc-scope'), {
-         sec_per_sweep: 3,
-         srate: tc.srate,
-         single_shot: 0,
-         background_color: '#f5f5f5'
-      });
+		opt.sec_per_sweep = 3;
+	   scope_init(w3_el('id-tc-scope'), opt);
 		break;
 	
 	default:
-	   scope_init(w3_el('id-tc-scope'), {
-         sec_per_sweep: 1,
-         srate: tc.srate,
-         single_shot: 0,
-         background_color: '#f5f5f5'
-      });
+		opt.sec_per_sweep = 1;
+	   scope_init(w3_el('id-tc-scope'), opt);
 		break;
 
 	}

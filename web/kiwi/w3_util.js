@@ -2096,6 +2096,25 @@ function w3_event_listener(id, el)
    }
 }
 
+// Return canvas-relative mouse x/y for a canvas potentially scrolling due to overflow.
+// Mouse x/y in canvas CSS pixels (handles DPI / CSS scaling).
+function w3_canvas_event_xy(evt, canvas)
+{
+   var el = w3_el(canvas);
+   var rect = el.getBoundingClientRect();
+   var sx = rect.width? (el.width / rect.width) : 1;
+   var sy = rect.height? (el.height / rect.height) : 1;
+   var x, y;
+   if (isArg(evt.offsetX) && isArg(evt.offsetY) && evt.target === el) {
+      x = evt.offsetX * sx;
+      y = evt.offsetY * sy;
+   } else {
+      x = (evt.clientX - rect.left) * sx;
+      y = (evt.clientY - rect.top) * sy;
+   }
+   return { x:x, y:y, rect:rect };
+}
+
 
 ////////////////////////////////
 // hr

@@ -161,6 +161,16 @@ function ext_panel_show(controls_html, data_html, show_func, hide_func)
 	extint_panel_show(controls_html, data_html, show_func, hide_func);
 }
 
+function ext_set_data_width(width)
+{
+   var el = w3_el('id-ext-data-scroll');
+   if (!width) {
+      if (el) el.style.minWidth = px(kiwi.WIN_WIDTH_EXT);   // revert to default
+   } else {
+      if (el) el.style.minWidth = px(width);
+   }
+}
+
 function ext_set_data_height(height)
 {
    var el = w3_el('id-ext-data-container');

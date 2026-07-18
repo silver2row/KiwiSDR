@@ -32,7 +32,6 @@
 
 #define FAX_MSG_CLEAR   255
 #define FAX_MSG_DRAW    254
-#define FAX_MSG_SCOPE   0       // channel 0, 1, 2, 3
 
 class FaxDecoder
 {

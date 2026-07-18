@@ -598,24 +598,6 @@ function fft_hrw_scale()
    fft_hrw_markers_draw();
 }
 
-// mouse x/y in overlay canvas CSS pixels (handles DPI / CSS scaling)
-function fft_hrw_event_xy(evt)
-{
-   var cv = fft.integ_canvas;
-   var rect = cv.getBoundingClientRect();
-   var sx = rect.width? (cv.width / rect.width) : 1;
-   var sy = rect.height? (cv.height / rect.height) : 1;
-   var x, y;
-   if (isArg(evt.offsetX) && isArg(evt.offsetY) && evt.target === cv) {
-      x = evt.offsetX * sx;
-      y = evt.offsetY * sy;
-   } else {
-      x = (evt.clientX - rect.left) * sx;
-      y = (evt.clientY - rect.top) * sy;
-   }
-   return { x:x, y:y, rect:rect };
-}
-
 function fft_hrw_bin_level(b)
 {
    var h = fft.hrw;
@@ -708,7 +690,7 @@ function fft_hrw_tooltip(evt)
    var h = fft.hrw;
    if (fft.func != fft.func_e.WF || !h.init) { w3_hide(el); return; }
 
-   var xy = fft_hrw_event_xy(evt);
+   var xy = w3_canvas_event_xy(evt, fft.integ_canvas);
    var x = xy.x, y = xy.y;
    if (x < 0 || x >= fft.integ_w || y < 0) { w3_hide(el); return; }
 
@@ -752,7 +734,7 @@ function fft_hrw_click(evt)
       return;
    }
 
-   var xy = fft_hrw_event_xy(evt);
+   var xy = w3_canvas_event_xy(evt, fft.integ_canvas);
    var x = xy.x, y = xy.y;
    // ignore clicks in the frequency header / outside the waterfall
    if (x < 0 || x >= fft.integ_w || y < fft.integ_hdr || y >= fft.integ_th) return;
@@ -1546,7 +1528,7 @@ function fft_controls_setup()
    var data_html =
       time_display_html('fft') +
 
-      w3_div('id-fft-data-wrap|left:150px; height:200px; position:relative;',
+      w3_div('id-fft-data-wrap|left:150px; width:fit-content; height:200px; position:relative;',
          w3_inline('w3-valign-top/',
             w3_div('id-fft-data|width:1024px; height:200px; background-color:mediumBlue; position:relative; overflow:hidden;',
                '<canvas id="id-fft-wf1-canvas" width="1024" height="188" style="position:absolute"></canvas>',
@@ -1708,6 +1690,7 @@ function fft_controls_setup()
 
 function FFT_environment_changed(changed)
 {
+   //console.log(changed);
    if (changed.mode) {
       //console.log('FFT_environment_changed run='+ fft.func);
       ext_send('SET run='+ fft.run[fft.func+1]);
@@ -1726,11 +1709,11 @@ function FFT_environment_changed(changed)
       var el = w3_el('id-fft-data-wrap');
       if (!el) return;
       var peaks_w = (fft.func == fft.func_e.WF)? (300 + 8) : 0;
-      var time_w = time_display_width() + /* margins */ 16;
-      // NB: For large displays, when innerWidth greater than kiwi.WIN_WIDTH_EXT, this causes
-      // the desired effect of data panel centering. The time display remains on the right side
-      // because left is applied to id-fft-data-wrap only.
-      var left = Math.max(0, (window.innerWidth - fft.integ_w - peaks_w - time_w) / 2);
+      // NB: For large displays this causes the desired effect of data panel centering.
+      // The time display remains on the right side because left is applied to id-fft-data-wrap only.
+      var width = fft.integ_w + peaks_w + kiwi.time_display_width;
+      ext_set_data_width(width);
+      var left = Math.max(0, (window.innerWidth - width) / 2);
       console.log('FFT peaks resize left='+ left);
       el.style.left = px(left);
    }
