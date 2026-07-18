@@ -607,7 +607,7 @@ function wspr_help(show)
 /*
 function wspr_resize()
 {
-	var left = (window.innerWidth - 1024 - time_display_width()) / 2;
+	var left = (window.innerWidth - 1024 - kiwi.time_display_width) / 2;
 	w3_el('id-wspr-peaks').style.left = px(left);
 	w3_el('id-wspr-spectrum').style.left = px(left);
 	w3_el('id-wspr-scale').style.left = px(left);

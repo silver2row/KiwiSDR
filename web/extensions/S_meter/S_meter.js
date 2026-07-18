@@ -175,7 +175,7 @@ function S_meter_environment_changed(changed)
    
    var w;
 	var el = w3_el('id-S_meter-data');
-	var left = (window.innerWidth - sm_tw - time_display_width()) / 2;
+	var left = (window.innerWidth - sm_tw - kiwi.time_display_width) / 2;
 	w3_show_hide('S_meter-time-display', left > 0);
 
 	if (left > 0) {

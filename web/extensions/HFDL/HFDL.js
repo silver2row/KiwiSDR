@@ -1162,8 +1162,8 @@ function HFDL_environment_changed(changed)
    if (changed.resize) {
       var el = w3_el('id-hfdl-data');
       if (!el) return;
-      var left = Math.max(0, (window.innerWidth - hfdl.dataW - time_display_width()) / 2);
-      //console.log('hfdl_resize wiw='+ window.innerWidth +' hfdl.dataW='+ hfdl.dataW +' time_display_width='+ time_display_width() +' left='+ left);
+      var left = Math.max(0, (window.innerWidth - hfdl.dataW - kiwi.time_display_width) / 2);
+      //console.log('hfdl_resize wiw='+ window.innerWidth +' hfdl.dataW='+ hfdl.dataW +' time_display_width='+ kiwi.time_display_width +' left='+ left);
       el.style.left = px(left);
       return;
    }
@@ -1171,7 +1171,7 @@ function HFDL_environment_changed(changed)
    /*
       if (changed.resize) {
          var el = w3_el('id-hfdl-data');
-         var left = (window.innerWidth - 1024 - time_display_width()) / 2;
+         var left = (window.innerWidth - 1024 - kiwi.time_display_width) / 2;
          el.style.left = px(left);
       }
    */

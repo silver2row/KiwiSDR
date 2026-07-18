@@ -1989,8 +1989,8 @@ function FreeDV_environment_changed(changed)
    if (changed.resize) {
       var el = w3_el('id-freedv-data');
       if (!el) return;
-      var left = Math.max(0, (window.innerWidth - freedv.w_data - time_display_width()) / 2);
-      //console.log('freedv_resize wiw='+ window.innerWidth +' freedv.w_data='+ freedv.w_data +' time_display_width='+ time_display_width() +' left='+ left);
+      var left = Math.max(0, (window.innerWidth - freedv.w_data - kiwi.time_display_width) / 2);
+      //console.log('freedv_resize wiw='+ window.innerWidth +' freedv.w_data='+ freedv.w_data +' time_display_width='+ kiwi.time_display_width +' left='+ left);
       el.style.left = px(left);
       //canvas_log(window.innerHeight);
       if (zoom_center != 0.5)

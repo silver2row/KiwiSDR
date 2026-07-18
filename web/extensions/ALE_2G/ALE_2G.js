@@ -1226,7 +1226,7 @@ function ALE_2G_environment_changed(changed)
 
    if (changed.resize) {
       var el = w3_el('id-ale_2g-data');
-      var left = (window.innerWidth - 1024 - time_display_width()) / 2;
+      var left = (window.innerWidth - 1024 - kiwi.time_display_width) / 2;
       el.style.left = px(left);
    }
 }

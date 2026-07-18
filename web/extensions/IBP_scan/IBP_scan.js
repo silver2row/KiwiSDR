@@ -187,7 +187,7 @@ function IBP_environment_changed(changed)
 {
    if (!changed.resize) return;
    var el = w3_el('id-IBP-report');
-   var left = (window.innerWidth - 1024 - time_display_width()) / 2;
+   var left = (window.innerWidth - 1024 - kiwi.time_display_width) / 2;
    el.style.left = px(left);
 }
 
