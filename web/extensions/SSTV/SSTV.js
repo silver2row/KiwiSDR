@@ -4,14 +4,14 @@ var sstv = {
    ext_name: 'SSTV',    // NB: must match example.c:example_ext.name
    first_time: true,
    
-   // marginL | (pg_sp+iw) | (pg_sp+iw) | (pg_sp+iw)
+   // (pg_sp+iw) | (pg_sp+iw) | (pg_sp+iw)
    //
    //                  |768
-   // 22 64+320 64+320 64+320
+   //    64+320 64+320 64+320
    //    64+496    |560
    //    64+800          |864       // PD290
    
-   w: 3*(64+320) - 64,
+   w: 3*(64+320),    // 1152
    h: 256,
    iw: 320,
    isp: 64,
@@ -20,8 +20,7 @@ var sstv = {
    pw: [320, 320, 320],
    ph: [256, 256, 256],
    pg_sp: 64,
-   marginL: 22,
-   startx: 22+64,
+   startx: 64,
    tw: 0,
    data_canvas: 0,
    image_y: 0,
@@ -129,7 +128,7 @@ function sstv_recv(data)
 
               // NB: when canvas height changed color resets to black, so refill entire canvas
                ct.fillStyle = 'dimGray';
-               ct.fillRect(sstv.marginL,0, sstv.w+sstv.isp,h);
+               ct.fillRect(0,0, sstv.w,h);
             }
             
             break;
@@ -238,7 +237,7 @@ function sstv_clear_display(mode_name)
 function sstv_controls_setup()
 {
    if (kiwi_isMobile()) sstv.startx = 0;
-   sstv.tw = sstv.w + sstv.startx;
+   sstv.tw = sstv.w;
 
    var data_html =
       time_display_html('sstv') +
@@ -293,11 +292,10 @@ function sstv_controls_setup()
    ext_set_data_height(sstv.h);
    sstv.data_canvas.height = sstv.h;
 
+	SSTV_environment_changed( {resize:1} );
    var ct = sstv.data_canvas.ctx;
-   ct.fillStyle = 'black';
-   ct.fillRect(0,0, sstv.tw,sstv.h);
    ct.fillStyle = 'dimGray';
-   ct.fillRect(sstv.marginL,0, sstv.w+sstv.isp,sstv.h);
+   ct.fillRect(0,0, sstv.w,sstv.h);
    sstv.page = -1;
    sstv.shift_second = false;
 
@@ -342,6 +340,22 @@ function sstv_controls_setup()
             });
          }
       }
+   }
+}
+
+function SSTV_environment_changed(changed)
+{
+   //console.log(changed);
+   if (changed.resize) {
+      var el = w3_el('id-sstv-data');
+      if (!el) return;
+      // NB: For large displays this causes the desired effect of data panel centering.
+      // The time display remains on the right side because left is applied to id-sstv-data only.
+      var width = sstv.w + kiwi.time_display_width;
+      ext_set_data_width(width);
+      var left = Math.max(0, (window.innerWidth - width) / 2);
+      console.log('SSTV resize left='+ left);
+      el.style.left = px(left);
    }
 }
 

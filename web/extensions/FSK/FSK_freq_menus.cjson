@@ -11,6 +11,7 @@
 //
 // Updates:
 // 17 jun 22 jks    Base version.
+// 18 jul 26 jks    Removed CHU.
 
     "Weather": {
        "Germany": [
@@ -167,12 +168,6 @@
           {"f":"129.1 DCF49", "s":340, "b":200, "fr":"EFR", "i":1, "e":"ASCII"},
           {"f":"135.6 HGA22", "s":340, "b":200, "fr":"EFR", "i":1, "e":"ASCII"},
           {"f":"139 DCF39",   "s":340, "b":200, "fr":"EFR", "i":1, "e":"ASCII"}
-       ],
-
-       "CHU time": [
-          {"f":3330,  "s":200, "b":300, "fr":"CHU", "i":0, "e":"ASCII"},
-          {"f":7850,  "s":200, "b":300, "fr":"CHU", "i":0, "e":"ASCII"},
-          {"f":14670, "s":200, "b":300, "fr":"CHU", "i":0, "e":"ASCII"}
        ]
     }
 }

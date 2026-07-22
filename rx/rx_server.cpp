@@ -323,7 +323,7 @@ conn_t *rx_server_websocket(websocket_mode_e mode, struct mg_connection *mc, u4_
 	if (uri_ts[0] == '/') uri_ts++;
 	conn_printf("#### new connection: %s:%d %s %s\n", mc->remote_ip, mc->remote_port, uri_ts, mc->query);
 	
-	bool isKiwi_UI = false, isNo_WF = false, isWF_conn = false, isWB_conn = false, isWebSocket, isKrec = false;
+	bool isKiwi_UI = false, isNo_WF = false, isWF_conn = false, isWB_conn = false, isWebSocket = false, isKrec = false;
 	u64_t tstamp;
 	char *type_m = NULL, *uri_m = NULL;
 	int n = 0;
@@ -434,6 +434,7 @@ conn_t *rx_server_websocket(websocket_mode_e mode, struct mg_connection *mc, u4_
     
     if (check_ip_blacklist(ip_forwarded) || check_ip_blacklist(ip_unforwarded)) return NULL;
     
+    // limit non-Kiwi API (e.g. kiwirecorder) connections
     bool is_kiwisdr_com = false;
     if (isKrec) {
         bool isLocal = isLocal_ip(ip_forwarded, &is_loopback, NULL, NULL, &is_kiwisdr_com);

@@ -1,1 +1,111 @@
 /* FFT.css */
+
+.fft-peaks-table {
+   width: 100%;
+   border-collapse: collapse;
+   color: #fff;
+   font-size: 10px;
+}
+
+.fft-peaks-table th {
+   text-align: left;
+   font-weight: normal;
+   color: #90caf9;
+   padding: 1px 4px;
+   border-bottom: 1px solid #283593;
+   position: sticky;
+   top: 0;
+   background: #1a237e;
+}
+
+.fft-th-right {
+    text-align: right !important;
+}
+
+.fft-peaks-table td {
+   padding: 1px 4px;
+   white-space: nowrap;
+}
+
+.fft-peaks-table tr.id-fft-peak-row {
+   cursor: pointer;
+}
+
+.fft-peaks-table tr.id-fft-peak-row:hover {
+   background: rgba(255,255,255,0.08);
+}
+
+.fft-peaks-table tr.fft-peak-sel {
+   background: rgba(255,255,255,0.16);
+}
+
+.fft-peak-swatch {
+   display: inline-block;
+   width: 8px;
+   height: 8px;
+   border-radius: 1px;
+   vertical-align: middle;
+}
+
+.fft-peak-freq {
+   font-variant-numeric: tabular-nums;
+   font-weight: bold;
+   text-align: right;
+   width: 1%;              /* shrink-wrap: don't steal space from dB/Δf/ḟ */
+   padding-left: 2px !important;
+   padding-right: 2px !important;
+}
+
+/* decimal-point alignment: integer stub right-justified, fraction follows */
+.fft-freq-int {
+   display: inline-block;
+   min-width: 4.5ch;       /* enough for 5-digit kHz (e.g. 16368) */
+   text-align: right;
+   font-variant-numeric: tabular-nums;
+}
+
+.fft-freq-frac {
+   display: inline-block;
+   text-align: left;
+   font-variant-numeric: tabular-nums;
+}
+
+.fft-peak-num {
+   font-variant-numeric: tabular-nums;
+   text-align: right;
+}
+
+/* fixed advance for '+' / '−' so signed columns do not shift */
+.fft-sign {
+   display: inline-block;
+   width: 1ch;
+   text-align: center;
+   font-variant-numeric: tabular-nums;
+}
+
+.fft-peak-st {
+   color: #ffab91;
+   font-size: 9px;
+}
+
+.fft-peak-empty {
+   color: #90caf9;
+   text-align: center;
+   padding: 12px 6px !important;
+   white-space: normal !important;
+   line-height: 1.35;
+}
+
+.fft-peak-x {
+   background: transparent;
+   border: none;
+   color: #ef9a9a;
+   cursor: pointer;
+   font-size: 14px;
+   line-height: 1;
+   padding: 0 2px;
+}
+
+.fft-peak-x:hover {
+   color: #fff;
+}

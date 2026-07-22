@@ -36,7 +36,7 @@ function scope_init(canvas, opt)
 
    s.width = w3_opt(opt, 'width', 800);
    s.height = w3_opt(opt, 'height', 200);
-   s.left = w3_opt(opt, 'left', 50);
+   s.left = w3_opt(opt, 'left', 0);
    s.margin = w3_opt(opt, 'margin', 1);
    
    // set/increment to "zero" position of trace

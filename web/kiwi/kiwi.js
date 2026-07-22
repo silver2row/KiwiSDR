@@ -27,6 +27,12 @@ var kiwi = {
    test_cfg_save_seq: false,
    log_cfg_save_seq: false,
    
+   time_display_width: 200 + 16,
+   time_display_height: 80,
+   
+   WIN_WIDTH_MAX: 1496,    // development laptop width
+   WIN_WIDTH_EXT: 1024 + (200 + 16),   // ext data: 1024 + time display
+   WIN_WIDTH_NOM: 1465,    // waterfall area: WIN_WIDTH_MAX - 31px (scrollbar + spacing) = 1465px
    WIN_WIDTH_MIN: 1400,
    
    wf_share: false,
@@ -895,16 +901,6 @@ function time_display_setup(ext_name_or_id)
       );
 
 	time_display(time_display_current);
-}
-
-function time_display_height()
-{
-   return 80;
-}
-
-function time_display_width()
-{
-   return 200;
 }
 
 function time_display_html(ext_name, top)

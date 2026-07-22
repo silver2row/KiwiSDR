@@ -1461,7 +1461,7 @@ function kiwisdr_com_register_cb(path, idx, first)
       error = true;
    } else
    if (idx == w3_SWITCH_YES_IDX) {
-      text = '(waiting for kiwisdr.com response, can take several minutes in some cases)';
+      text = '(waiting for kiwisdr.com response)';
    } else {    // w3_SWITCH_NO_IDX
       text = '(registration not enabled)';
    }

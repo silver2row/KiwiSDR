@@ -4837,7 +4837,7 @@ function admin_resize()
 {
    var adm = w3_el("id-admin");
       var top = w3_el("id-admin-top");
-      var scr = w3_el("id-admin-scr");
+      var scr = w3_el("id-admin-scroll");
          var con1 = w3_el("id-admin-con1");
             var nav = w3_el("id-admin-nav");
             if (isUndefined(top)) return;
@@ -4845,15 +4845,12 @@ function admin_resize()
             var con2 = w3_el('id-admin-con2');
                // ...
 
-   // top bar is fixed at the width of the screen so the "user page" button is always visible
-   top.style.width = px(window.innerWidth - /* L/R margins */ 32);
-   
    // There are a couple bits of magic here:
    
    // The X scroll for screen widths less-than-laptop only works when the w3-scroll is
    // one div level above where the div minWidth is set.
    w3_add(scr, 'w3-scroll');
-   con1.style.minWidth = '1465px';     // 1496px (development laptop width) - 31px = 1465px
+   con1.style.minWidth = px(kiwi.WIN_WIDTH_NOM);
 
    // The Y scroll only works when the height is set in the *same* div as the w3-scroll.
    // "footer slop" is a compromise between iPhone/iPad devices.
@@ -4983,30 +4980,23 @@ function admin_draw(sdr_mode)
 	w3_innerHTML('id-kiwi-container',
 	   w3_div('id-admin w3-margin-L-16',
 
-      /*
-		   w3_inline_percent('id-admin-top/',
-			   w3_header('w3-container w3-teal/id-mdev-msg', 5,
-			      'Admin interface'+
-			      w3_text('w3-margin-L-32 w3-padding-B-2 w3-font-14px', "Type 'h' or '?' for help")
-			   ), 95,
-			   w3_button('w3-aqua w3-margin-left', 'User page', 'admin_user_page_cb')
-			),
-		*/
-
-		   w3_inline('id-admin-top/',
-			   w3_header('w3-container w3-teal/id-mdev-msg|width:950px', 5,
-			      'Admin interface'+
-			      w3_text('w3-margin-L-32 w3-padding-B-2 w3-font-14px', "Type 'h' or '?' for help")
-			   ),
-			   w3_inline('w3-ialign-right/',
-               w3_input('w3-margin-L-24/w3-label-inline w3-label-not-bold/w3-padding-tiny w3-input-any-change w3-input-any-key' +
-                  '||size=25 title="Find on page&slash;tabs. See help for more info."',
-                  'Find:', 'admin.find', admin.find, 'admin_find_input_cb|admin_find_key_cb'),
-               w3_button('w3-aqua w3-margin-L-24', 'User page', 'admin_user_page_cb')
+		   w3_div('id-admin-top w3-padding-R-16 w3-scroll-x',
+            w3_inline_noencl('id-admin-top-scroll/',
+               w3_header('id-admin-hdr w3-container w3-teal|flex-basis:70vw; min-width:400px/id-mdev-msg', 5,
+                  'Admin interface'+
+                  w3_text('w3-margin-L-32 w3-padding-B-2 w3-font-14px', "Type 'h' or '?' for help")
+               ),
+               w3_inline('w3-ialign-right/',
+                  w3_input('w3-margin-L-24|width:300px/w3-label-inline w3-label-not-bold/w3-padding-tiny w3-input-any-change w3-input-any-key' +
+                     '||size=25 title="Find on page&slash;tabs. See help for more info."',
+                     'Find:', 'admin.find', admin.find, 'admin_find_input_cb|admin_find_key_cb'),
+                  w3_button('w3-aqua w3-margin-L-24', 'User page', 'admin_user_page_cb')
+               )
             )
 			),
-			
-			w3_div('id-admin-scr',
+
+			// for admin body scrolling
+			w3_div('id-admin-scroll',
             w3_div('id-admin-con1',
                hdr,
                w3_div('id-admin-con2', s)

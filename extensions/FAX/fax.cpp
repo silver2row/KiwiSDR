@@ -115,11 +115,6 @@ bool fax_msgs(char *msg, int rx_chan)
 	rcprintf(rx_chan, "FAX msg <%s>\n", msg);
 	
 	if (strcmp(msg, "SET ext_server_init") == 0) {
-		
-		// remove old results for this channel on each start of the extension
-        non_blocking_cmd_system_child("kiwi.fax", 
-            stprintf("cd " DIR_DATA "; rm -f fax.ch%d_*", rx_chan), POLL_MSEC(500));
-
 		ext_send_msg(rx_chan, false, "EXT ready=%d", rx_chan);
 		return true;
 	}

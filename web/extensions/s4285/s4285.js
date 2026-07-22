@@ -194,7 +194,7 @@ function s4285_environment_changed(changed)
 {
    if (!changed.resize) return;
 	var el = w3_el('id-s4285-data');
-	var left = (window.innerWidth - 200 - time_display_width()) / 2;
+	var left = (window.innerWidth - 200 - kiwi.time_display_width) / 2;
 	el.style.left = px(left);
 }
 

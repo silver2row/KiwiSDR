@@ -23,8 +23,18 @@ This file is part of OpenWebRX.
 <html lang="en">
 	<head>
 		<title id="id-page-title"></title>
-		<meta name="viewport" content="width=device-width, initial-scale=1">
 		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+        <!--
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+		
+		<!-x- behave like full-screen app on phones -x->
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+        <meta name="theme-color" content="#000000">
+        <link rel="manifest" href="manifest.json">
+        -->
 		
 		<!-- web.cpp:reload_index_params() creates content of GEN_LIST_CSS and GEN_LIST_JS -->
 
@@ -101,7 +111,9 @@ This file is part of OpenWebRX.
 
                 <div id="id-non-waterfall-container">
                     <div id="id-ext-data-container">
-                        <!-- add scaled canvas here by javascript -->
+                        <div id="id-ext-data-scroll">
+                            <!-- add scaled canvas here by javascript -->
+                        </div>
                     </div>
 
                     <div id="id-spectrum-container">

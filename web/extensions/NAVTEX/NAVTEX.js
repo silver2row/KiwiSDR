@@ -642,8 +642,8 @@ function NAVTEX_environment_changed(changed)
    if (0 && changed.resize) {
       var el = w3_el('id-navtex-data');
       if (!el) return;
-      var left = Math.max(0, (window.innerWidth - nt.dataW - time_display_width()) / 2);
-      //console.log('navtex_resize wiw='+ window.innerWidth +' nt.dataW='+ nt.dataW +' time_display_width='+ time_display_width() +' left='+ left);
+      var left = Math.max(0, (window.innerWidth - nt.dataW - kiwi.time_display_width) / 2);
+      //console.log('navtex_resize wiw='+ window.innerWidth +' nt.dataW='+ nt.dataW +' time_display_width='+ kiwi.time_display_width +' left='+ left);
       el.style.left = px(left);
       return;
    }

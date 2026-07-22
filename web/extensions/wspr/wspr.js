@@ -607,7 +607,7 @@ function wspr_help(show)
 /*
 function wspr_resize()
 {
-	var left = (window.innerWidth - 1024 - time_display_width()) / 2;
+	var left = (window.innerWidth - 1024 - kiwi.time_display_width) / 2;
 	w3_el('id-wspr-peaks').style.left = px(left);
 	w3_el('id-wspr-spectrum').style.left = px(left);
 	w3_el('id-wspr-scale').style.left = px(left);
@@ -936,7 +936,7 @@ function wspr_test_cb(path, val, first)
    val = +val;
    if (dbgUs) console.log('wspr_test_cb: val='+ val);
    wspr.testing = val;
-   w3_show_hide('id-wspr-upload-container', !wspr.testing, 'w3-show-inline-new');
+   w3_show_hide('id-wspr-upload-container', !wspr.testing, 'w3-inline-flex');
 	w3_el('id-wspr-bar').style.width = '0%';
    w3_show_hide('id-wspr-bar-container', wspr.testing);
 	ext_send('SET test='+ (val? 1:0));
