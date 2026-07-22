@@ -296,8 +296,9 @@ void SNR_meas(void *param)
             }
             
             meas->seq = snr_seq++;
+            bool early_exit = false;
             
-            for (int band = 0; band < SNR_NBANDS; band++) {
+            for (int band = 0; band < SNR_NBANDS && !early_exit; band++) {
                 SNR_bands_t *bp = &SNR_bands[band];
                 float cf_kHz = bp->fkHz_lo + (bp->fkHz_hi - bp->fkHz_lo) / 2;
                 //printf("SNR_meas-%d CONSIDER\n", band);
@@ -323,14 +324,19 @@ void SNR_meas(void *param)
         
                 memset(dB_raw, 0, sizeof(dB_raw));
                 nbuf_t *nb = NULL;
-                bool early_exit = false;
                 int nsamps;
                 for (nsamps = 0; nsamps < SNR_MEAS_NAVGS && !early_exit;) {
                     do {
                         if (nb) web_to_app_done(iconn.cwf, nb);
+                        if (iconn.cwf->kick) {
+                            printf("SNR_meas KICKED\n");
+                            early_exit = true;
+                            break;
+                        }
                         n = web_to_app(iconn.cwf, &nb, INTERNAL_CONNECTION);
                         if (n == 0) continue;
-                        if (n == -1) {
+                        if (n <= -1) {
+                            printf("SNR_meas early exit\n");
                             early_exit = true;
                             break;
                         }
@@ -341,10 +347,15 @@ void SNR_meas(void *param)
                             dB_raw[j] += dB_wire_to_dBm(wf->un.buf[j]);
                         }
                         nsamps++;
+                        if (nsamps > SNR_MEAS_NAVGS) {
+                            printf("SNR_meas nsamps\n");
+                            early_exit = true;
+                            break;
+                        }
                     } while (n);
                     TaskSleepMsec(900 / SNR_MEAS_SPEED);
                 }
-                //printf("SNR_meas DONE nsamps=%d\n", nsamps);
+                printf("SNR_meas DONE nsamps=%d early_exit=%d\n", nsamps, early_exit);
                 if (nsamps) {
                     for (i = 0; i < WF_WIDTH; i++) {
                             dB_raw[i] /= nsamps;
