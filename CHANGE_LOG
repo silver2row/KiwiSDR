@@ -3,6 +3,13 @@ CHANGE_LOG
 For the Github commit log see here: github.com/jks-prv/KiwiSDR/commits/master
     Older commits: github.com/jks-prv/Beagle_SDR_GPS/commits/master
 
+v1.902  July 23, 2026
+    Extension changes:
+        FFT: Christoph added extremely useful peak tracking.
+        ALE: Fixed bug with URL user list scanning. (thanks DK9FI)
+        SNR meas: Kick button now works. Fixed possible looping bug. (thanks VE6JY)
+        Timecode, FSK, TDoA: Sadly, removed CHU.
+
 v1.901  July 11, 2026
     FFT extension major improvement:
         Added comprehensive client-side (i.e. browser) FFT with millihertz resolution.
